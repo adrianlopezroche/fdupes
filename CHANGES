@@ -7,6 +7,17 @@ those who've otherwise worked on that item. For a list of
 contributors names and identifiers please see the CONTRIBUTORS file.
 
 
+Changes from 1.31 to 1.40
+
+- Added option to omit the first file in each group 
+  of matches. [LM, AL]
+- Added escaping of filenames containing spaces when
+  sameline option is specified. [AL]
+- Changed version indicator format from "fdupes version X.Y"
+  to the simpler "fdupes X.Y". [AL]
+- Changed ordering of options appearing in the help
+  text (--help), manpage, and README file. [AL]
+
 Changes from 1.30 to 1.31
 
 - Added interactive option to preserve all files during

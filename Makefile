@@ -13,7 +13,7 @@ MANPAGEDIR = /usr/local/man
 #
 # VERSION determines the program's version number.
 #
-VERSION = "1.31"
+VERSION = "1.40"
 
 #
 # To use the md5sum program for calculating signatures (instead of the
@@ -42,7 +42,7 @@ install: fdupes
 	cp fdupes.1 $(MANPAGEDIR)/man1
 
 tarball: clean
-	tar --directory=.. -c -z -v -f ../fdupes-$(VERSION).tar.gz fdupes
+	tar --directory=.. -c -z -v -f ../fdupes-$(VERSION).tar.gz fdupes-$(VERSION)
 
 clean:
 	rm -f *.o

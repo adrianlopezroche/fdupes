@@ -37,14 +37,15 @@
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
 
-#define F_RECURSE           0x01
-#define F_HIDEPROGRESS      0x02
-#define F_DSAMELINE         0x04
-#define F_FOLLOWLINKS       0x08
-#define F_DELETEFILES       0x10
-#define F_EXCLUDEEMPTY      0x20
-#define F_CONSIDERHARDLINKS 0x40
-#define F_SHOWSIZE          0x80
+#define F_RECURSE           0x001
+#define F_HIDEPROGRESS      0x002
+#define F_DSAMELINE         0x004
+#define F_FOLLOWLINKS       0x008
+#define F_DELETEFILES       0x010
+#define F_EXCLUDEEMPTY      0x020
+#define F_CONSIDERHARDLINKS 0x040
+#define F_SHOWSIZE          0x080
+#define F_OMITFIRST         0x100
 
 char *program_name;
 
@@ -87,6 +88,38 @@ void errormsg(char *message, ...)
 
   fprintf(stderr, "\r%40s\r%s: ", "", program_name);
   vfprintf(stderr, message, ap);
+}
+
+void escapefilename(char *escape_list, char **filename_ptr)
+{
+  int x;
+  int tx;
+  char *tmp;
+  char *filename;
+
+  filename = *filename_ptr;
+
+  tmp = (char*) malloc(strlen(filename) * 2 + 1);
+  if (tmp == NULL) {
+    errormsg("out of memory!\n");
+    exit(1);
+  }
+
+  for (x = 0, tx = 0; x < strlen(filename); x++) {
+    if (strchr(escape_list, filename[x]) != NULL) tmp[tx++] = '\\';
+    tmp[tx++] = filename[x];
+  }
+
+  tmp[tx] = '\0';
+
+  if (x != tx) {
+    *filename_ptr = realloc(*filename_ptr, strlen(tmp) + 1);
+    if (*filename_ptr == NULL) {
+      errormsg("out of memory!\n");
+      exit(1);
+    }
+    strcpy(*filename_ptr, tmp);
+  }
 }
 
 off_t filesize(char *filename) {
@@ -554,18 +587,22 @@ void printmatches(file_t *files)
 
   while (files != NULL) {
     if (files->hasdupes) {
-      if (ISFLAG(flags, F_SHOWSIZE)) printf("%ld byte%seach:\n", files->size,
-       (files->size != 1) ? "s " : " ");
-      printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
+      if (!ISFLAG(flags, F_OMITFIRST)) {
+	if (ISFLAG(flags, F_SHOWSIZE)) printf("%ld byte%seach:\n", files->size,
+	 (files->size != 1) ? "s " : " ");
+	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &files->d_name);
+	printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
+      }
       tmpfile = files->duplicates;
       while (tmpfile != NULL) {
+	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &tmpfile->d_name);
 	printf("%s%c", tmpfile->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
 	tmpfile = tmpfile->duplicates;
       }
       printf("\n");
 
     }
-    
+      
     files = files->next;
   }
 }
@@ -705,23 +742,24 @@ void help_text()
 {
   printf("Usage: fdupes [options] DIRECTORY...\n\n");
 
-  printf(" -r --recurse  \t\tinclude files residing in subdirectories\n");
-  printf(" -q --quiet    \t\thide progress indicator\n");
-  printf(" -1 --sameline \t\tlist duplicates on a single line\n");
-  printf(" -S --size     \t\tshow size of duplicate files\n");
-  printf(" -s --symlinks \t\tfollow symlinks\n");
-  printf(" -H --hardlinks\t\tnormally, when two or more files point to the same\n");
-  printf("               \t\tdisk area they are treated as non-duplicates; this\n"); 
-  printf("               \t\toption will change this behavior\n");
-  printf(" -n --noempty  \t\texclude zero-length files from consideration\n");
-  printf(" -d --delete   \t\tprompt user for files to preserve and delete all others\n"); 
-  printf("               \t\timportant: under particular circumstances, data\n");
-  printf("               \t\tmay be lost when using this option together with -s\n");
-  printf("               \t\tor --symlinks, or when specifying a particular\n");
-  printf("               \t\tdirectory more than once; refer to the fdupes\n");
-  printf("               \t\tdocumentation for additional information\n");
-  printf(" -v --version  \t\tdisplay fdupes version\n");
-  printf(" -h --help     \t\tdisplay this help message\n\n");
+  printf(" -r --recurse     \tinclude files residing in subdirectories\n");
+  printf(" -s --symlinks    \tfollow symlinks\n");
+  printf(" -H --hardlinks   \tnormally, when two or more files point to the same\n");
+  printf("                  \tdisk area they are treated as non-duplicates; this\n"); 
+  printf("                  \toption will change this behavior\n");
+  printf(" -n --noempty     \texclude zero-length files from consideration\n");
+  printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
+  printf(" -1 --sameline    \tlist each set of matches on a single line\n");
+  printf(" -S --size        \tshow size of duplicate files\n");
+  printf(" -q --quiet       \thide progress indicator\n");
+  printf(" -d --delete      \tprompt user for files to preserve and delete all\n"); 
+  printf("                  \tothers; important: under particular circumstances,\n");
+  printf("                  \tdata may be lost when using this option together\n");
+  printf("                  \twith -s or --symlinks, or when specifying a\n");
+  printf("                  \tparticular directory more than once; refer to the\n");
+  printf("                  \tfdupes documentation for additional information\n");
+  printf(" -v --version     \tdisplay fdupes version\n");
+  printf(" -h --help        \tdisplay this help message\n\n");
 }
 
 int main(int argc, char **argv) {
@@ -738,6 +776,7 @@ int main(int argc, char **argv) {
  
   static struct option long_options[] = 
   {
+    { "omitfirst", 0, 0, 'f' },
     { "recurse", 0, 0, 'r' },
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
@@ -753,8 +792,11 @@ int main(int argc, char **argv) {
 
   program_name = argv[0];
 
-  while ((opt = getopt_long(argc, argv, "rq1SsHndvh", long_options, NULL)) != EOF) {
+  while ((opt = getopt_long(argc, argv, "frq1SsHndvh", long_options, NULL)) != EOF) {
     switch (opt) {
+    case 'f':
+      SETFLAG(flags, F_OMITFIRST);
+      break;
     case 'r':
       SETFLAG(flags, F_RECURSE);
       break;
@@ -780,7 +822,7 @@ int main(int argc, char **argv) {
       SETFLAG(flags, F_DELETEFILES);
       break;
     case 'v':
-      printf("fdupes version %s\n", VERSION);
+      printf("fdupes %s\n", VERSION);
       exit(0);
     case 'h':
       help_text();
