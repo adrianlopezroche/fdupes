@@ -1,0 +1,403 @@
+/* FDUPES Copyright (c) 1999 Adrian Lopez
+
+   Permission is hereby granted, free of charge, to any person
+   obtaining a copy of this software and associated documentation files
+   (the "Software"), to deal in the Software without restriction,
+   including without limitation the rights to use, copy, modify, merge,
+   publish, distribute, sublicense, and/or sell copies of the Software,
+   and to permit persons to whom the Software is furnished to do so,
+   subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be
+   included in all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS 
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF 
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
+   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY 
+   CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
+   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
+
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <getopt.h>
+
+#define ISFLAG(a,b) ((a & b) == b)
+#define SETFLAG(a,b) (a |= b)
+
+#define F_RECURSE         0x01
+#define F_HIDEPROGRESS    0x02
+#define F_DSAMELINE       0x04
+#define F_FOLLOWLINKS     0x08
+
+unsigned long flags = 0;
+
+#define SIGNATURE_FILE "/tmp/fdupes.md5sum"
+
+typedef struct _file {
+  char *d_name;
+  struct _file *next;
+  int hasdupes; // true if and only if file is first on duplicate chain
+  struct _file *duplicates;
+} file_t;
+
+typedef struct _filetree {
+  char *crcsignature;
+  file_t *file;
+  struct _filetree *left;
+  struct _filetree *right;
+} filetree_t;
+
+long filesize(FILE *file)
+{
+  fpos_t oldpos;
+  long size;
+
+  oldpos = ftell(file);
+  fseek(file, 0, SEEK_END);
+  size = (long) ftell(file);
+  fseek(file, oldpos, SEEK_SET);
+  
+  return size;
+}
+
+int grokdir(char *dir, file_t **filelistp)
+{
+  DIR *cd;
+  file_t *newfile;
+  struct dirent *dirinfo;
+  int lastchar;
+  int filecount = 0;
+  struct stat info;
+  struct stat linfo;
+
+  cd = opendir(dir);
+
+  if (!cd) {
+    fprintf(stderr, "%s not a directory\n", dir);
+    return 0;
+  }
+
+  while ((dirinfo = readdir(cd)) != NULL) {
+    if (strcmp(dirinfo->d_name, ".") && strcmp(dirinfo->d_name, "..")) {
+      newfile = (file_t*) malloc(sizeof(file_t));
+
+      if (!newfile) {
+	fprintf(stderr, "Out of memory!\n");
+	closedir(cd);
+	return filecount;
+      } else newfile->next = *filelistp;
+
+      newfile->duplicates = NULL;
+      newfile->hasdupes = 0;
+
+      newfile->d_name = (char*)malloc(strlen(dir)+strlen(dirinfo->d_name)+2);
+
+      if (!newfile->d_name) {
+	fprintf(stderr, "Out of memory!\n");
+	free(newfile);
+	closedir(cd);
+	return filecount;
+      }
+
+      strcpy(newfile->d_name, dir);
+      lastchar = strlen(dir) - 1;
+      if (lastchar >= 0 && dir[lastchar] != '/')
+	strcat(newfile->d_name, "/");
+      strcat(newfile->d_name, dirinfo->d_name);
+      
+      if (stat(newfile->d_name, &info) == -1) {
+	free(newfile->d_name);
+	free(newfile);
+	continue;
+      }
+
+      if (lstat(newfile->d_name, &linfo) == -1) {
+	free(newfile->d_name);
+	free(newfile);
+	continue;
+      }
+
+      if (S_ISDIR(info.st_mode)) {
+	  if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode))) filecount += grokdir(newfile->d_name, filelistp);
+	  free(newfile->d_name);
+	  free(newfile);
+      } else {
+	if (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)) {
+	  *filelistp = newfile;
+	  filecount++;
+	} else {
+	  free(newfile->d_name);
+	  free(newfile);
+	}
+      }
+    }
+  }
+
+  closedir(cd);
+
+  return filecount;
+}
+
+char *getcrcsignature(char *filename)
+{
+  static char signature[256];
+  char *separator;
+  FILE *result;
+  int pid;
+
+  pid = fork();
+
+  if (pid == 0) {
+    freopen(SIGNATURE_FILE, "w", stdout);
+    execlp("md5sum", "md5sum", filename, NULL);
+    fclose(stdout);
+  } else if (pid != -1) {
+    waitpid(pid, NULL, 0);
+  } else {
+    return NULL;
+  }
+
+  result = fopen(SIGNATURE_FILE, "r");
+  if (!result) return NULL;
+
+  fgets(signature, 256, result);
+  separator = strchr(signature, ' ');
+  if (separator) *separator = '\0';
+
+  fclose(result);
+
+  return signature;
+}
+
+void purgetree(filetree_t *siglist)
+{
+  if (siglist->left != NULL) {
+    purgetree(siglist->left);
+    free(siglist->left);
+  }
+
+  if (siglist->right != NULL) {
+    purgetree(siglist->right);
+    free(siglist->right);
+  }
+
+  free(siglist->crcsignature);
+}
+
+int registersig(filetree_t **branch, file_t *file, char *crcsignature)
+{
+   *branch = (filetree_t*) malloc(sizeof(filetree_t));
+   if (*branch == NULL) return 0;
+
+   (*branch)->crcsignature = (char*) malloc(strlen(crcsignature)+1);
+   if ((*branch)->crcsignature == NULL) return 0;
+
+   strcpy((*branch)->crcsignature, crcsignature);
+   (*branch)->file = file;
+   (*branch)->left = NULL;
+   (*branch)->right = NULL;
+
+   return 1;
+}
+
+file_t *checkcrcmatch(file_t *file, char *crcsignature, filetree_t *siglist)
+{
+  int cmpresult;
+
+  cmpresult = strcmp(crcsignature, siglist->crcsignature);
+
+  if (cmpresult < 0) {
+    if (siglist->left != NULL) {
+      return checkcrcmatch(file, crcsignature, siglist->left);
+    } else {
+      registersig(&(siglist->left), file, crcsignature);
+      return NULL;
+    }
+  } else if (cmpresult > 0) {
+    if (siglist->right != NULL) {
+      return checkcrcmatch(file, crcsignature, siglist->right);
+    } else {
+      registersig(&(siglist->right), file, crcsignature);
+      return NULL;
+    }
+  } else return siglist->file;
+}
+
+/* Just in case two different files produce the same signature. Extremely
+   unlikely, to be sure, but better safe than sorry. */
+
+int confirmmatch(FILE *file1, FILE *file2)
+{
+  unsigned char c1;
+  unsigned char c2;
+  size_t r1;
+  size_t r2;
+  
+  if (filesize(file1) != filesize(file2)) return 0; // file sizes are different
+
+  fseek(file1, 0, SEEK_SET);
+  fseek(file2, 0, SEEK_SET);
+
+  do {
+    r1 = fread(&c1, sizeof(c1), 1, file1);
+    r2 = fread(&c2, sizeof(c2), 1, file2);
+
+    if (c1 != c2) return 0; // file contents are different
+  } while (r1 && r2);
+  
+  return 1;
+}
+
+void printmatches(file_t *files)
+{
+  file_t *tmpfile;
+
+  while (files) {
+    if (files->hasdupes) {
+      printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE) ? ' ' : '\n');
+      tmpfile = files->duplicates;
+      while (tmpfile) {
+	printf("%s%c", tmpfile->d_name, ISFLAG(flags, F_DSAMELINE) ? ' ' : '\n');
+	tmpfile = tmpfile->duplicates;
+      }
+      printf("\n");
+    }
+    
+    files = files->next;
+  }
+}
+
+void help_text()
+{
+  printf("Usage: fdupes [options] <DIRECTORY> [DIRECTORY]...\n\n");
+  printf(" -r --recurse\tinclude files residing in subdirectories\n");
+  printf(" -q --quiet  \thide progress indicator\n");
+  printf(" -1 --sameline\tlist duplicates on a single line\n");
+  printf(" -s --symlinks\tfollow symlinked directories\n");
+  printf(" -v --version \tdisplay fdupes version\n");
+  printf(" -h --help   \tdisplay this help message\n\n");
+}
+
+int main(int argc, char **argv) {
+  int x;
+  int opt;
+  FILE *file1;
+  FILE *file2;
+  file_t *files = NULL;
+  file_t *curfile;
+  file_t *match = NULL;
+  filetree_t *siglist = NULL;
+  int filecount = 0;
+  int progress = 0;
+  char *signature;
+  
+  static struct option long_options[] = 
+  {
+    { "recurse", 0, 0, 'r' },
+    { "quiet", 0, 0, 'q' },
+    { "sameline", 0, 0, '1' },
+    { "symlinks", 0, 0, 's' },
+    { "help", 0, 0, 'h' },
+    { "version", 0, 0, 'v' },
+    { 0, 0, 0, 0 }
+  };
+
+  while ((opt = getopt_long(argc, argv, "rq1svh", long_options, NULL)) != EOF) {
+    switch (opt) {
+    case 'r':
+      SETFLAG(flags, F_RECURSE);
+      break;
+    case 'q':
+      SETFLAG(flags, F_HIDEPROGRESS);
+      break;
+    case '1':
+      SETFLAG(flags, F_DSAMELINE);
+      break;
+    case 's':
+      SETFLAG(flags, F_FOLLOWLINKS);
+      break;
+    case 'v':
+      printf("FDUPES version %s\n", VERSION);
+      exit(0);
+    case 'h':
+      help_text();
+      exit(1);
+    default:
+      printf("Try `fdupes --help' for more information\n");
+      exit(1);
+    }
+  }
+
+  if (optind >= argc) {
+    printf("%s: no directories specified\n", argv[0]);
+    exit(1);
+  }
+
+  for (x = optind; x < argc; x++) filecount += grokdir(argv[x], &files);
+
+  if (!files) exit(0);
+  
+  curfile = files;
+
+  while (curfile) {
+    signature = getcrcsignature(curfile->d_name);
+
+    if (!siglist) {
+      siglist = (filetree_t *) malloc(sizeof(filetree_t));
+      registersig(&siglist, curfile, signature);
+    } else match = checkcrcmatch(curfile, signature, siglist);
+   
+    if (match != NULL) {
+      file1 = fopen(curfile->d_name, "rb");
+      if (!file1) continue;
+
+      file2 = fopen(match->d_name, "rb");
+      if (!file2) {
+	fclose(file1);
+	continue;
+      }
+ 
+      if (confirmmatch(file1, file2)) {
+	match->hasdupes = 1;
+        curfile->duplicates = match->duplicates;
+        match->duplicates = curfile;
+      }
+      
+      fclose(file1);
+      fclose(file2);
+    }
+
+    curfile = curfile->next;
+
+    if (!ISFLAG(flags, F_HIDEPROGRESS)) {
+      fprintf(stderr, "%40s\r", " ");
+      fprintf(stderr, "Progress [%d/%d] %d%%\r", progress, filecount,
+       (int)((float) progress / (float) filecount * 100.0));
+      progress++;
+    }
+  }
+
+  if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "%40s\r", " ");
+
+  printmatches(files);
+
+  while (files) {
+    curfile = files->next;
+    free(files->d_name);
+    free(files);
+    files = curfile;
+  }
+
+  purgetree(siglist);
+
+  remove(SIGNATURE_FILE);
+
+  return 0;
+}

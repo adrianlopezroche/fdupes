@@ -1,0 +1,10 @@
+Installation is extremely simple:
+
+make fdupes
+make install (as root)
+
+This will install the program in /usr/local/bin. You may naturally
+change this to a different location if you so desire.
+
+You may test the programm by running "make test" or by invoking
+the included "runtest" shell script.

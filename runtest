@@ -1,0 +1,14 @@
+#!/bin/sh
+
+if [ -f ./fdupes ]; then
+    echo ---------------------------------------
+    echo running ./fdupes testdir:
+    echo 
+    ./fdupes testdir
+    echo ---------------------------------------
+    echo running ./fdupes -r testdir:
+    echo
+    ./fdupes -r testdir
+else 
+    echo warning: fdupes not found, please make fdupes first
+fi
