@@ -1,19 +1,24 @@
 #
+# PREFIX indicates the to-be-prepended path to INSTALLDIR and MANPAGEDIR
+#
+PREFIX = /usr/local
+
+#
 # INSTALLDIR indicates directory where program is to be installed. 
 # Suggested values are "/usr/local/bin" or "/usr/bin".
 #
-INSTALLDIR = /usr/local/bin
+INSTALLDIR = $(PREFIX)/bin
 
 #
 # MANPAGEDIR indicates directory where the fdupes man page is to be 
 # installed. Suggested values are "/usr/local/man" or "/usr/man".
 #
-MANPAGEDIR = /usr/local/man
+MANPAGEDIR = $(PREFIX)/man
 
 #
 # VERSION determines the program's version number.
 #
-VERSION = "1.40"
+VERSION = "1.41-PR1"
 
 #
 # To use the md5sum program for calculating signatures (instead of the
@@ -33,11 +38,13 @@ VERSION = "1.40"
 #####################################################################
 # no need to modify anything beyond this point                      #
 #####################################################################
-
 fdupes: fdupes.c md5/md5.c	
 	gcc fdupes.c md5/md5.c -Wall -o fdupes -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(EXPERIMENTAL_RBTREE)
 
 install: fdupes
+	test -d $(INSTALLDIR) 		|| mkdirhier $(INSTALLDIR)
+	test -d $(MANPAGEDIR) 		|| mkdirhier $(MANPAGEDIR)
+	test -d $(MANPAGEDIR)/man1 	|| mkdirhier $(MANPAGEDIR)/man1
 	cp fdupes $(INSTALLDIR)
 	cp fdupes.1 $(MANPAGEDIR)/man1
 
@@ -51,3 +58,6 @@ clean:
 
 love:
 	@echo You\'re not my type. Go find a human partner.
+
+
+

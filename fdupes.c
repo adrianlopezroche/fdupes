@@ -26,7 +26,9 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <stdlib.h>
+#ifndef sun
 #include <getopt.h>
+#endif
 #include <string.h>
 #include <errno.h>
 
@@ -760,6 +762,9 @@ void help_text()
   printf("                  \tfdupes documentation for additional information\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
+#ifdef sun
+  printf("Please get to know, under SUN only the short form is functioning\n");
+#endif
 }
 
 int main(int argc, char **argv) {
@@ -774,6 +779,7 @@ int main(int argc, char **argv) {
   int filecount = 0;
   int progress = 0;
  
+#ifndef sun
   static struct option long_options[] = 
   {
     { "omitfirst", 0, 0, 'f' },
@@ -789,10 +795,18 @@ int main(int argc, char **argv) {
     { "help", 0, 0, 'h' },
     { 0, 0, 0, 0 }
   };
+#define GETOPT getopt_long
+#else
+#define GETOPT getopt
+#endif
 
   program_name = argv[0];
 
-  while ((opt = getopt_long(argc, argv, "frq1SsHndvh", long_options, NULL)) != EOF) {
+  while ((opt = GETOPT(argc, argv, "frq1SsHndvh"
+#ifndef sun
+          , long_options, NULL
+#endif
+          )) != EOF) {
     switch (opt) {
     case 'f':
       SETFLAG(flags, F_OMITFIRST);
