@@ -20,6 +20,7 @@
    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -31,18 +32,25 @@
 #include <string.h>
 #include <errno.h>
 
+#ifndef EXTERNAL_MD5
+#include "md5/md5.h"
+#endif
+
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
 
-#define F_RECURSE         0x01
-#define F_HIDEPROGRESS    0x02
-#define F_DSAMELINE       0x04
-#define F_FOLLOWLINKS     0x08
-#define F_DELETEFILES     0x10
+#define F_RECURSE           0x01
+#define F_HIDEPROGRESS      0x02
+#define F_DSAMELINE         0x04
+#define F_FOLLOWLINKS       0x08
+#define F_DELETEFILES       0x10
+#define F_EXCLUDEEMPTY      0x20
+#define F_CONSIDERHARDLINKS 0x40
 
+char *program_name;
 unsigned long flags = 0;
 
-#define SIGNATURE_FILE "/tmp/fdupes.md5sum"
+#define CHUNK_SIZE 8192
 
 #define INPUT_SIZE 256
 
@@ -50,6 +58,7 @@ typedef struct _file {
   char *d_name;
   off_t size;
   char *crcsignature;
+  ino_t inode;
   int hasdupes; /* true only if file is first on duplicate chain */
   struct _file *duplicates;
   struct _file *next;
@@ -61,12 +70,30 @@ typedef struct _filetree {
   struct _filetree *right;
 } filetree_t;
 
+void errormsg(char *message, ...)
+{
+  va_list ap;
+
+  va_start(ap, message);
+
+  fprintf(stderr, "\r%40s\r%s: ", "", program_name);
+  vfprintf(stderr, message, ap);
+}
+
 off_t filesize(char *filename) {
   struct stat s;
 
   if (stat(filename, &s) != 0) return -1;
 
   return s.st_size;
+}
+
+ino_t getinode(char *filename) {
+  struct stat s;
+   
+  if (stat(filename, &s) != 0) return 0;
+
+  return s.st_ino;   
 }
 
 int grokdir(char *dir, file_t **filelistp)
@@ -78,24 +105,32 @@ int grokdir(char *dir, file_t **filelistp)
   int filecount = 0;
   struct stat info;
   struct stat linfo;
+  static int progress = 0;
+  static char indicator[] = "-\\|/";
 
   cd = opendir(dir);
 
   if (!cd) {
-    fprintf(stderr, "%s not a directory\n", dir);
+    errormsg("could not chdir to %s\n", dir);
     return 0;
   }
 
   while ((dirinfo = readdir(cd)) != NULL) {
     if (strcmp(dirinfo->d_name, ".") && strcmp(dirinfo->d_name, "..")) {
+      if (!ISFLAG(flags, F_HIDEPROGRESS)) {
+	fprintf(stderr, "\rBuilding file list %c ", indicator[progress]);
+	progress = (progress + 1) % 4;
+      }
+
       newfile = (file_t*) malloc(sizeof(file_t));
 
       if (!newfile) {
-	fprintf(stderr, "Out of memory!\n");
+	errormsg("out of memory!\n");
 	closedir(cd);
 	exit(1);
       } else newfile->next = *filelistp;
 
+      newfile->inode = 0;
       newfile->crcsignature = NULL;
       newfile->duplicates = NULL;
       newfile->hasdupes = 0;
@@ -103,7 +138,7 @@ int grokdir(char *dir, file_t **filelistp)
       newfile->d_name = (char*)malloc(strlen(dir)+strlen(dirinfo->d_name)+2);
 
       if (!newfile->d_name) {
-	fprintf(stderr, "Out of memory!\n");
+	errormsg("out of memory!\n");
 	free(newfile);
 	closedir(cd);
 	exit(1);
@@ -115,6 +150,12 @@ int grokdir(char *dir, file_t **filelistp)
 	strcat(newfile->d_name, "/");
       strcat(newfile->d_name, dirinfo->d_name);
       
+      if (filesize(newfile->d_name) == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
+	free(newfile->d_name);
+	free(newfile);
+	continue;
+      }
+
       if (stat(newfile->d_name, &info) == -1) {
 	free(newfile->d_name);
 	free(newfile);
@@ -132,7 +173,7 @@ int grokdir(char *dir, file_t **filelistp)
 	  free(newfile->d_name);
 	  free(newfile);
       } else {
-	if (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)) {
+	if (S_ISREG(linfo.st_mode) || (S_ISLNK(linfo.st_mode) && ISFLAG(flags, F_FOLLOWLINKS))) {
 	  *filelistp = newfile;
 	  filecount++;
 	} else {
@@ -148,36 +189,88 @@ int grokdir(char *dir, file_t **filelistp)
   return filecount;
 }
 
+#ifdef EXTERNAL_MD5
+
+/* If EXTERNAL_MD5 is defined, use md5sum program to calculate signatures.
+*/
 char *getcrcsignature(char *filename)
 {
   static char signature[256];
+  char *command;
   char *separator;
   FILE *result;
   int pid;
 
-  pid = fork();
+  command = (char*) malloc(strlen(filename)+strlen(EXTERNAL_MD5)+2);
+  if (command == NULL) return NULL;
 
-  if (pid == 0) {
-    freopen(SIGNATURE_FILE, "w", stdout);
-    execlp("md5sum", "md5sum", filename, NULL);
-    fclose(stdout);
-  } else if (pid != -1) {
-    waitpid(pid, NULL, 0);
-  } else {
-    return NULL;
+  sprintf(command, "%s %s", EXTERNAL_MD5, filename);
+
+  result = popen(command, "r");
+  if (result == NULL) {
+    errormsg("error invoking %s\n", EXTERNAL_MD5);
+    exit(1);
   }
+ 
+  free(command);
 
-  result = fopen(SIGNATURE_FILE, "r");
-  if (!result) return NULL;
-
-  fgets(signature, 256, result);
+  if (fgets(signature, 256, result) == NULL) {
+    errormsg("error invoking %s\n", EXTERNAL_MD5);
+    exit(1);
+  }    
   separator = strchr(signature, ' ');
   if (separator) *separator = '\0';
 
-  fclose(result);
+  pclose(result);
 
   return signature;
 }
+
+#else
+
+/* If EXTERNAL_MD5 is not defined, use L. Peter Deutsch's MD5 library. 
+*/
+char *getcrcsignature(char *filename)
+{
+  int x;
+  off_t toread;
+  off_t fsize;
+  md5_state_t state;
+  char *sigp;
+  static md5_byte_t chunk[CHUNK_SIZE];
+  md5_byte_t digest[16];  
+  static char signature[16*2 + 1]; 
+  FILE *file;
+   
+  md5_init(&state);
+
+  fsize = filesize(filename);
+
+  file = fopen(filename, "rb");
+  if (file == NULL) return NULL;
+
+  while (fsize > 0) {
+    toread = (fsize % CHUNK_SIZE) ? (fsize % CHUNK_SIZE) : CHUNK_SIZE;
+    if (fread(chunk, toread, 1, file) != 1) return NULL;
+    md5_append(&state, chunk, toread);
+    fsize -= toread;
+  }
+
+  md5_finish(&state, digest);
+
+  sigp = signature;
+
+  for (x = 0; x < 16; x++) {
+    sprintf(sigp, "%02x", digest[x]);
+    sigp = strchr(sigp, '\0');
+  }
+
+  fclose(file);
+
+  return signature;
+}
+
+#endif
 
 void purgetree(filetree_t *checktree)
 {
@@ -191,10 +284,11 @@ void purgetree(filetree_t *checktree)
 int registerfile(filetree_t **branch, file_t *file)
 {
   file->size = filesize(file->d_name);
+  file->inode = getinode(file->d_name);
 
   *branch = (filetree_t*) malloc(sizeof(filetree_t));
   if (*branch == NULL) {
-    fprintf(stderr, "Out of memory!\n");
+    errormsg("out of memory!\n");
     exit(1);
   }
   
@@ -211,6 +305,13 @@ file_t *checkmatch(filetree_t *checktree, file_t *file)
   char *crcsignature;
   off_t fsize;
 
+  /* If inodes are equal one of the files is a hard link, which
+     is usually not accidental. We don't want to flag them as 
+     duplicates, unless the user specifies otherwise. */
+
+  if (!ISFLAG(flags, F_CONSIDERHARDLINKS) && getinode(file->d_name) == 
+   checktree->file->inode) return NULL;
+
   fsize = filesize(file->d_name);
   
   if (fsize < checktree->file->size) 
@@ -223,7 +324,7 @@ file_t *checkmatch(filetree_t *checktree, file_t *file)
 
       checktree->file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
       if (checktree->file->crcsignature == NULL) {
-	fprintf(stderr, "Out of memory!\n");
+	errormsg("out of memory!\n");
 	exit(1);
       }
       strcpy(checktree->file->crcsignature, crcsignature);
@@ -234,7 +335,7 @@ file_t *checkmatch(filetree_t *checktree, file_t *file)
       
       file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
       if (file->crcsignature == NULL) {
-	fprintf(stderr, "Out of memory\n");
+	errormsg("out of memory\n");
 	exit(1);
       }
       strcpy(file->crcsignature, crcsignature);
@@ -343,10 +444,10 @@ void autodelete(file_t *files)
   
   dupelist = (file_t**) malloc(sizeof(file_t*) * max);
   preserve = (int*) malloc(sizeof(int) * max);
-  preservestr = (char*) malloc(sizeof(char) * INPUT_SIZE);
+  preservestr = (char*) malloc(INPUT_SIZE);
 
   if (!dupelist || !preserve || !preservestr) {
-    fprintf(stderr, "Out of memory\n");
+    errormsg("out of memory\n");
     exit(1);
   }
 
@@ -375,7 +476,7 @@ void autodelete(file_t *files)
 	while (preservestr[i]!='\n'){ /* tail of buffer must be a newline */
 	  tstr = realloc(preservestr, strlen(preservestr)+ 1 + INPUT_SIZE);
 	  if (!tstr) { /* couldn't allocate memory, treat as fatal */
-	    fprintf(stderr, "Out of memory!\n");
+	    errormsg("out of memory!\n");
 	    exit(1);
 	  }
 	  preservestr = tstr;
@@ -426,16 +527,22 @@ void help_text()
 {
   printf("Usage: fdupes [options] DIRECTORY...\n\n");
 
-  printf(" -r --recurse\tinclude files residing in subdirectories\n");
-  printf(" -q --quiet  \thide progress indicator\n");
-  printf(" -1 --sameline\tlist duplicates on a single line\n");
-  printf(" -s --symlinks\tfollow symlinks\n");
-  printf(" -d --delete  \tprompt user for files to preserve and delete all others\n"); 
-  printf("              \timportant: using this option together with -s or --symlinks\n");
-  printf("              \tor when specifiying the same directory more than once\n");
-  printf("              \tcan lead to accidental data loss\n");
-  printf(" -v --version \tdisplay fdupes version\n");
-  printf(" -h --help   \tdisplay this help message\n\n");
+  printf(" -r --recurse  \t\tinclude files residing in subdirectories\n");
+  printf(" -q --quiet    \t\thide progress indicator\n");
+  printf(" -1 --sameline \t\tlist duplicates on a single line\n");
+  printf(" -s --symlinks \t\tfollow symlinks\n");
+  printf(" -H --hardlinks\t\tnormally, when two or more files point to the same\n");
+  printf("               \t\tdisk area they are treated as non-duplicates; this\n"); 
+  printf("               \t\toption will reverse this behavior\n");
+  printf(" -n --noempty  \t\texclude zero-length files from consideration\n");
+  printf(" -d --delete   \t\tprompt user for files to preserve and delete all others\n"); 
+  printf("               \t\timportant: under particular circumstances, data\n");
+  printf("               \t\tmay be lost when using this option together with -s\n");
+  printf("               \t\tor --symlinks, or when specifying a particular\n");
+  printf("               \t\tdirectory more than once; refer to the fdupes\n");
+  printf("               \t\tdocumentation for additional information\n");
+  printf(" -v --version  \t\tdisplay fdupes version\n");
+  printf(" -h --help     \t\tdisplay this help message\n\n");
 }
 
 int main(int argc, char **argv) {
@@ -456,13 +563,17 @@ int main(int argc, char **argv) {
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
     { "symlinks", 0, 0, 's' },
+    { "hardlinks", 0, 0, 'H' },
+    { "noempty", 0, 0, 'n' },
     { "delete", 0, 0, 'd' },
     { "help", 0, 0, 'h' },
     { "version", 0, 0, 'v' },
     { 0, 0, 0, 0 }
   };
 
-  while ((opt = getopt_long(argc, argv, "rq1sdvh", long_options, NULL)) != EOF) {
+  program_name = argv[0];
+
+  while ((opt = getopt_long(argc, argv, "rq1sHndvh", long_options, NULL)) != EOF) {
     switch (opt) {
     case 'r':
       SETFLAG(flags, F_RECURSE);
@@ -476,31 +587,37 @@ int main(int argc, char **argv) {
     case 's':
       SETFLAG(flags, F_FOLLOWLINKS);
       break;
+    case 'H':
+      SETFLAG(flags, F_CONSIDERHARDLINKS);
+      break;
+    case 'n':
+      SETFLAG(flags, F_EXCLUDEEMPTY);
+      break;
     case 'd':
       SETFLAG(flags, F_DELETEFILES);
       break;
     case 'v':
-      printf("FDUPES version %s\n", VERSION);
+      printf("fdupes version %s\n", VERSION);
       exit(0);
     case 'h':
       help_text();
       exit(1);
     default:
-      printf("Try `fdupes --help' for more information\n");
+      fprintf(stderr, "Try `fdupes --help' for more information\n");
       exit(1);
     }
   }
 
   if (optind >= argc) {
-    printf("%s: no directories specified\n", argv[0]);
+    errormsg("no directories specified\n");
     exit(1);
   }
 
   for (x = optind; x < argc; x++) filecount += grokdir(argv[x], &files);
 
   if (!files) {
-    printf("%s: no files found\n", argv[0]);
-    exit(0);
+    errormsg("no files were found\n");
+    exit(1);
   }
   
   curfile = files;
@@ -513,11 +630,15 @@ int main(int argc, char **argv) {
 
     if (match != NULL) {
       file1 = fopen(curfile->d_name, "rb");
-      if (!file1) continue;
+      if (!file1) {
+	curfile = curfile->next;
+	continue;
+      }
 
       file2 = fopen(match->d_name, "rb");
       if (!file2) {
 	fclose(file1);
+	curfile = curfile->next;
 	continue;
       }
  
@@ -534,7 +655,7 @@ int main(int argc, char **argv) {
     curfile = curfile->next;
 
     if (!ISFLAG(flags, F_HIDEPROGRESS)) {
-      fprintf(stderr, "\rProgress [%d/%d] %d%%", progress, filecount,
+      fprintf(stderr, "\rProgress [%d/%d] %d%% ", progress, filecount,
        (int)((float) progress / (float) filecount * 100.0));
       progress++;
     }
@@ -553,8 +674,6 @@ int main(int argc, char **argv) {
   }
   
   purgetree(checktree);
-
-  remove(SIGNATURE_FILE);
 
   return 0;
 }

@@ -6,18 +6,24 @@ within specified directories.
 
 Usage
 --------------------------------------------------------------------
-Usage: fdupes [options] DIRECTORY...
+fdupes [options] DIRECTORY...
 
- -r --recurse	include files residing in subdirectories
- -q --quiet  	hide progress indicator
- -1 --sameline	list duplicates on a single line
- -s --symlinks	follow symlinks
- -d --delete  	prompt user for files to preserve and delete all others
-              	important: using this option together with -s or --symlinks
-              	or when specifiying the same directory more than once
-              	can lead to accidental data loss
- -v --version 	display fdupes version
- -h --help   	display this help message
+ -r --recurse  		include files residing in subdirectories
+ -q --quiet    		hide progress indicator
+ -1 --sameline 		list duplicates on a single line
+ -s --symlinks 		follow symlinks
+ -H --hardlinks		normally, when two or more files point to the same
+               		disk area they are treated as non-duplicates; this
+               		option will reverse this behavior
+ -n --noempty  		exclude zero-length files from consideration
+ -d --delete   		prompt user for files to preserve and delete all others
+               		important: under particular circumstances, data
+               		may be lost when using this option together with -s
+               		or --symlinks, or when specifying a particular
+               		directory more than once; refer to the fdupes
+               		documentation for additional information
+ -v --version  		display fdupes version
+ -h --help     		display this help message
 
 Unless -1 or --sameline is specified, duplicate files are listed 
 together in groups, each file displayed on a separate line. The
@@ -33,11 +39,6 @@ problem arises when specifying a particular directory more than
 once. All files within that directory will be listed as their own
 duplicates, leading to data loss should a user preserve a file 
 without its "duplicate" (the file itself!).
-
-
-Requirements
---------------------------------------------------------------------
-FDUPES program requires md5sum.
 
 
 Contact Information for Adrian Lopez
@@ -67,4 +68,3 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-

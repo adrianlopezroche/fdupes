@@ -1,10 +1,25 @@
-Installation is extremely simple:
+Installing fdupes
+--------------------------------------------------------------------
+To install the program, issue the following commands:
 
 make fdupes
-make install (as root)
+su root
+make install
 
-This will install the program in /usr/local/bin. You may naturally
-change this to a different location if you so desire.
+This will install the program in /usr/local/bin. You may change this 
+to a different location by editing the Makefile. Please refer to
+the Makefile for an explanation of compile-time options. If you're
+having trouble compiling, please take a look at the Makefile.
 
-You may test the programm by running "make test" or by invoking
-the included "runtest" shell script.
+UPGRADING NOTE: When upgrading from a version prior to 1.2, it should 
+be noted that the default installation directory for the fdupes man
+page has changed from "/usr/man" to "/usr/local/man". If installing
+to the default location you should delete the old man page before
+proceeding. This file would be named "/usr/man/man1/fdupes.1".
+
+A test directory has been included so you may familiarise yourself
+with the way fdupes operates. You may test the program before
+installing it by issuing a command such as "./fdupes testdir" 
+or "./fdupes -r testdir", just to name a couple of examples. Refer
+to the documentation for information on valid options.
+

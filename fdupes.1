@@ -13,9 +13,8 @@ fdupes \- finds duplicate files in a given set of directories
 
 .SH "DESCRIPTION"
 Searches the given path for duplicate files. Such files are found by
-comparing
-.BR md5sum (1)
-checksums and then a byte-by-byte comparison.
+comparing file sizes and MD5 signatures, followed by a 
+byte-by-byte comparison.
 
 .SH OPTIONS
 .TP
@@ -30,6 +29,13 @@ list duplicates on a single line
 .TP
 .B -s --symlinks
 follow symlinked directories
+.TP
+.B -H --hardlinks
+normally, when two or more files point to the same disk area they are
+treated as non-duplicates; this option will reverse this behavior
+.TP
+.B -n --noempty
+exclude zero-length files from consideration
 .TP
 .B -d --delete
 prompt user for files to preserve, deleting all others (see
@@ -53,6 +59,15 @@ is specified, duplicate files are listed
 together in groups, each file displayed on a separate line. The
 groups are then separated from each other by blank lines.
 .SH CAVEATS
+If fdupes returns with an error message such as
+.B fdupes: error invoking md5sum
+it means the program has been compiled to use an external
+program to calculate MD5 signatures (otherwise, fdupes uses
+interal routines for this purpose), and an error has occurred
+while attempting to execute it. If this is the case, the 
+specified program should be properly installed prior 
+to running fdupes.
+
 When using
 .B \-d
 or
@@ -71,6 +86,7 @@ Furthermore, when specifying a particular directory more than
 once, all files within that directory will be listed as their
 own duplicates, leading to data loss should a user preserve a
 file without its "duplicate" (the file itself!).
+
 .SH AUTHOR
 Adrian Lopez <adrian2@caribe.net>
 
