@@ -1,4 +1,4 @@
-/* FDUPES Copyright (c) 1999 Adrian Lopez
+/* FDUPES Copyright (c) 1999-2001 Adrian Lopez
 
    Permission is hereby granted, free of charge, to any person
    obtaining a copy of this software and associated documentation files
@@ -26,7 +26,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <stdlib.h>
-#ifndef sun
+#ifndef OMIT_GETOPT_LONG
 #include <getopt.h>
 #endif
 #include <string.h>
@@ -762,8 +762,8 @@ void help_text()
   printf("                  \tfdupes documentation for additional information\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
-#ifdef sun
-  printf("Please get to know, under SUN only the short form is functioning\n");
+#ifdef OMIT_GETOPT_LONG
+  printf("Note: Long options are not supported in this fdupes build.\n\n");
 #endif
 }
 
@@ -779,7 +779,7 @@ int main(int argc, char **argv) {
   int filecount = 0;
   int progress = 0;
  
-#ifndef sun
+#ifndef OMIT_GETOPT_LONG
   static struct option long_options[] = 
   {
     { "omitfirst", 0, 0, 'f' },
@@ -803,7 +803,7 @@ int main(int argc, char **argv) {
   program_name = argv[0];
 
   while ((opt = GETOPT(argc, argv, "frq1SsHndvh"
-#ifndef sun
+#ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
           )) != EOF) {

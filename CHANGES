@@ -7,10 +7,11 @@ those who've otherwise worked on that item. For a list of
 contributors names and identifiers please see the CONTRIBUTORS file.
 
 
-Changes from 1.40 to 1.41-PR1
+Changes from 1.40 to 1.41-PR2
 
-- Changes to fdupes.c for proper compilation under Solaris. [LR]
-- Improvements to Makefile. [LR]
+- Changes to fdupes.c for compilation under platforms where
+  getopt_long is unavailable. [LR, AL]
+- Various changes and improvements to Makefile. [PB, AL]
 
 Changes from 1.31 to 1.40
 
