@@ -48,6 +48,7 @@
 #define F_CONSIDERHARDLINKS 0x040
 #define F_SHOWSIZE          0x080
 #define F_OMITFIRST         0x100
+#define F_RECURSEAFTER      0x200
 
 char *program_name;
 
@@ -138,6 +139,62 @@ ino_t getinode(char *filename) {
   if (stat(filename, &s) != 0) return 0;
 
   return s.st_ino;   
+}
+
+char **cloneargs(int argc, char **argv)
+{
+  int x;
+  char **args;
+
+  args = (char **) malloc(sizeof(char*) * argc);
+  if (args == NULL) {
+    errormsg("out of memory!\n");
+    exit(1);
+  }
+
+  for (x = 0; x < argc; x++) {
+    args[x] = (char*) malloc(strlen(argv[x]) + 1);
+    if (args[x] == NULL) {
+      free(args);
+      errormsg("out of memory!\n");
+      exit(1);
+    }
+
+    strcpy(args[x], argv[x]);
+  }
+
+  return args;
+}
+
+int findarg(char *arg, int start, int argc, char **argv)
+{
+  int x;
+  
+  for (x = start; x < argc; x++)
+    if (strcmp(argv[x], arg) == 0) 
+      return x;
+
+  return x;
+}
+
+/* Find the first non-option argument after specified option. */
+int nonoptafter(char *option, int argc, char **oldargv, 
+		      char **newargv, int optind) 
+{
+  int x;
+  int targetind;
+  int testind;
+  int startat = 1;
+
+  targetind = findarg(option, 1, argc, oldargv);
+    
+  for (x = optind; x < argc; x++) {
+    testind = findarg(newargv[x], startat, argc, oldargv);
+    if (testind > targetind) return x;
+    else startat = testind;
+  }
+
+  return x;
 }
 
 int grokdir(char *dir, file_t **filelistp)
@@ -563,8 +620,8 @@ file_t *checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 
 int confirmmatch(FILE *file1, FILE *file2)
 {
-  unsigned char c1;
-  unsigned char c2;
+  unsigned char c1 = 0;
+  unsigned char c2 = 0;
   size_t r1;
   size_t r2;
   
@@ -744,7 +801,10 @@ void help_text()
 {
   printf("Usage: fdupes [options] DIRECTORY...\n\n");
 
-  printf(" -r --recurse     \tinclude files residing in subdirectories\n");
+  printf(" -r --recurse     \tfor every directory given follow subdirectories\n");
+  printf("                  \tencountered within\n");
+  printf(" -R --recurse:    \tfor each directory given after this option follow\n");
+  printf("                  \tsubdirectories encountered within\n");
   printf(" -s --symlinks    \tfollow symlinks\n");
   printf(" -H --hardlinks   \tnormally, when two or more files point to the same\n");
   printf("                  \tdisk area they are treated as non-duplicates; this\n"); 
@@ -778,12 +838,15 @@ int main(int argc, char **argv) {
   filetree_t *checktree = NULL;
   int filecount = 0;
   int progress = 0;
- 
+  char **oldargv;
+  int firstrecurse;
+  
 #ifndef OMIT_GETOPT_LONG
   static struct option long_options[] = 
   {
     { "omitfirst", 0, 0, 'f' },
     { "recurse", 0, 0, 'r' },
+    { "recurse:", 0, 0, 'R' },
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
     { "size", 0, 0, 'S' },
@@ -802,7 +865,9 @@ int main(int argc, char **argv) {
 
   program_name = argv[0];
 
-  while ((opt = GETOPT(argc, argv, "frq1SsHndvh"
+  oldargv = cloneargs(argc, argv);
+
+  while ((opt = GETOPT(argc, argv, "frRq1SsHndvh"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -813,6 +878,9 @@ int main(int argc, char **argv) {
       break;
     case 'r':
       SETFLAG(flags, F_RECURSE);
+      break;
+    case 'R':
+      SETFLAG(flags, F_RECURSEAFTER);
       break;
     case 'q':
       SETFLAG(flags, F_HIDEPROGRESS);
@@ -842,7 +910,7 @@ int main(int argc, char **argv) {
       help_text();
       exit(1);
     default:
-      fprintf(stderr, "Try `fdupes --help' for more information\n");
+      fprintf(stderr, "Try `fdupes --help' for more information.\n");
       exit(1);
     }
   }
@@ -852,9 +920,32 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  for (x = optind; x < argc; x++) filecount += grokdir(argv[x], &files);
+  if (ISFLAG(flags, F_RECURSE) && ISFLAG(flags, F_RECURSEAFTER)) {
+    errormsg("options --recurse and --recurse: are not compatible\n");
+    exit(1);
+  }
 
-  if (!files) exit(0);
+  if (ISFLAG(flags, F_RECURSEAFTER)) {
+    firstrecurse = nonoptafter("--recurse:", argc, oldargv, argv, optind);
+
+    /* F_RECURSE is not set for directories before --recurse: */
+    for (x = optind; x < firstrecurse; x++)
+      filecount += grokdir(argv[x], &files);
+
+    /* Set F_RECURSE for directories after --recurse: */
+    SETFLAG(flags, F_RECURSE);
+
+    for (x = firstrecurse; x < argc; x++)
+      filecount += grokdir(argv[x], &files);
+  } else {
+    for (x = optind; x < argc; x++)
+      filecount += grokdir(argv[x], &files);
+  }
+
+  if (!files) {
+    if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
+    exit(0);
+  }
   
   curfile = files;
 

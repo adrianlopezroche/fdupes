@@ -11,8 +11,6 @@
 # determination of the actual installation directories.
 # Suggested values are "/usr/local", "/usr", "/pkgs/fdupes-$(VERSION)"
 #
-#PREFIX = /pkgs/fdupes-$(VERSION)
-#PREFIX = /usr
 PREFIX = /usr/local
 
 #
@@ -43,7 +41,7 @@ PREFIX = /usr/local
 #
 # VERSION determines the program's version number.
 #
-VERSION = 1.41-PR3
+VERSION = 1.50-PR1
 
 #
 # PROGRAM_NAME determines the installation name and manual page name

@@ -8,7 +8,10 @@ Usage
 --------------------------------------------------------------------
 Usage: fdupes [options] DIRECTORY...
 
- -r --recurse     	include files residing in subdirectories
+ -r --recurse     	for every directory given follow subdirectories
+                  	encountered within
+ -R --recurse:    	for each directory given after this option follow
+                  	subdirectories encountered within
  -s --symlinks    	follow symlinks
  -H --hardlinks   	normally, when two or more files point to the same
                   	disk area they are treated as non-duplicates; this

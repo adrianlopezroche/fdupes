@@ -19,7 +19,11 @@ byte-by-byte comparison.
 .SH OPTIONS
 .TP
 .B -r --recurse
-include files residing in subdirectories
+for every directory given follow subdirectories encountered within
+.TP
+.B -R --recurse:
+for each directory given after this option follow subdirectories
+encountered within
 .TP
 .B -s --symlinks
 follow symlinked directories

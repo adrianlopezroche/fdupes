@@ -7,8 +7,14 @@ those who've otherwise worked on that item. For a list of
 contributors names and identifiers please see the CONTRIBUTORS file.
 
 
-Changes from 1.40 to 1.41-PR2
+Changes from 1.40 to 1.50-PR1
 
+- Changes to help text for clarity. [AL]
+- Added selective recursion option (--recurse:). [AL]
+- Fixed bug where confirmmatch() function wouldn't always deal
+  properly with zero-length files. [AL]
+- Fixed bug where progress indicator would not be cleared
+  when no files were found. [AL]
 - Changes to fdupes.c for compilation under platforms where
   getopt_long is unavailable. [LR, AL]
 - Various changes and improvements to Makefile. [PB, AL]
@@ -71,3 +77,4 @@ Changes from 1.0 to 1.1
 
 - Added delete option for semi-automatic deletion
   of duplicate files. [AL]
+
