@@ -1,22 +1,11 @@
-Adrian Bridgett <adrian.bridgett@iname.com>:
-   - Provided the original version of the fdupes manpage.
-   - Suggested comparing file sizes before calling
-     md5sum program (big performance boost).
+The following people have contributed in some way to the development 
+of fdupes. Please see the CHANGES file for detailed information
+on their contributions. Names are listed in alphabetical order.
 
-Steven S. Dick <ssd@nevets.oau.org>:
-   - Provided patch for better handling of extremely long 
-     input on preserve prompt (author's note: modified
-     Steven's patch to handle input a bit differently).
+ [AB] Adrian Bridgett <adrian.bridgett@iname.com>
+ [AL] Adrian Lopez <adrian2@caribe.net>
+ [FD] Frank DENIS aka Jedi/Sector One aka DJ Chrysalis <j@4u.net>
+ [KK] Kresimir Kukulj <madmax@pc-hrvoje.srce.hr>
+ [LB] Laurent Bonnaud <Laurent.Bonnaud@iut2.upmf-grenoble.fr>
+[SSD] Steven S. Dick <ssd@nevets.oau.org>
 
-Frank DENIS aka Jedi/Sector One aka DJ Chrysalis <j@4u.net>:
-   - Provided patch to fix bug where program would crash when
-     files being scanned were named pipes or sockets.
-   - Warned against security risk resulting from the use of a
-     temporary file to store md5sum output. Suggested the use 
-     of RSARef instead of md5sum (author's note: used L. Peter 
-     Deutsch's MD5 message digest library instead of RSARef).
-   - Provided patch to fix problem where false duplicates would
-     be reported because of hard links. Unlike the symlinks
-     issue described in the documentation, these false
-     reports are not a threat to the data, just the link.
-     (author's note: modified patch for correctness).

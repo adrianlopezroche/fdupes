@@ -1,0 +1,48 @@
+The following list, organized by fdupes version, documents changes
+to fdupes. Every item on the list includes, inside square brackets,
+a list of indentifiers referring to the people who contributed
+that particular item. When more than one person is listed the person
+who contributed the patch or idea appears first, followed by
+those who've otherwise worked on that item. For a list of 
+contributors names and identifiers please see the CONTRIBUTORS file.
+
+
+Changes from 1.20 to 1.30
+
+- Added size option to display size of duplicates. [LB, AL]
+- Added missing typecast for proper compilation under g++. [LB]
+- Better handling of errors occurring during retrieval
+  of a file's signature. [KK, AL]
+- No longer displays an error message when specified
+  directories contain no files. [AL]
+- Added red-black tree structure (experimental compile-time
+  option, disabled by default). [AL]
+
+Changes from 1.12 to 1.20
+
+- Fixed bug where program would crash when files being
+  scanned were named pipes or sockets. [FD]
+- Fix against security risk resulting from the use of a
+  temporary file to store md5sum output. [FD, AL]
+- Using an external md5sum program is now optional. Started 
+  using L. Peter Deutsh's MD5 library instead. [FD, AL]
+- Added hardlinks option to distinguish between hard links
+  and actual duplicate files. [FD, AL]
+- Added noempty option to exclude zero-length files
+  from consideration [AL]
+
+Changes from 1.11 to 1.12
+
+- Improved handling of extremely long input on preserve 
+  prompt (delete option). [SSD, AL]
+
+Changes from 1.1 to 1.11
+
+- Started checking file sizes before signatures
+  for better performance.  [AB, AL]
+- Added fdupes manpage. [AB, AL]
+
+Changes from 1.0 to 1.1
+
+- Added delete option for semi-automatic deletion
+  of duplicate files. [AL]

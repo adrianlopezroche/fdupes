@@ -6,11 +6,12 @@ within specified directories.
 
 Usage
 --------------------------------------------------------------------
-fdupes [options] DIRECTORY...
+Usage: fdupes [options] DIRECTORY...
 
  -r --recurse  		include files residing in subdirectories
  -q --quiet    		hide progress indicator
  -1 --sameline 		list duplicates on a single line
+ -S --size     		show size of duplicate files
  -s --symlinks 		follow symlinks
  -H --hardlinks		normally, when two or more files point to the same
                		disk area they are treated as non-duplicates; this

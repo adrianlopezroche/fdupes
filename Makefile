@@ -13,7 +13,7 @@ MANPAGEDIR = /usr/local/man
 #
 # VERSION determines the program's version number.
 #
-VERSION = "1.20"
+VERSION = "1.30"
 
 #
 # To use the md5sum program for calculating signatures (instead of the
@@ -22,14 +22,20 @@ VERSION = "1.20"
 #
 #EXTERNAL_MD5 = -DEXTERNAL_MD5=\"md5sum\"
 
-
+#
+# This version of fdupes can use a red-black tree structure to
+# store file information. This is disabled by default, as it
+# hasn't been optimized or verified correct. If you wish to
+# enable this untested option, uncomment the following line.
+#
+#EXPERIMENTAL_RBTREE = -DEXPERIMENTAL_RBTREE
 
 #####################################################################
 # no need to modify anything beyond this point                      #
 #####################################################################
 
 fdupes: fdupes.c md5/md5.c	
-	gcc fdupes.c md5/md5.c -o fdupes -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5)
+	gcc fdupes.c md5/md5.c -Wall -o fdupes -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(EXPERIMENTAL_RBTREE)
 
 install: fdupes
 	cp fdupes $(INSTALLDIR)

@@ -22,9 +22,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -46,8 +44,10 @@
 #define F_DELETEFILES       0x10
 #define F_EXCLUDEEMPTY      0x20
 #define F_CONSIDERHARDLINKS 0x40
+#define F_SHOWSIZE          0x80
 
 char *program_name;
+
 unsigned long flags = 0;
 
 #define CHUNK_SIZE 8192
@@ -65,10 +65,19 @@ typedef struct _file {
 } file_t;
 
 typedef struct _filetree {
-  file_t *file;
+  file_t *file; 
+#ifdef EXPERIMENTAL_RBTREE
+  unsigned char color;
+  struct _filetree *parent;
+#endif
   struct _filetree *left;
   struct _filetree *right;
 } filetree_t;
+
+#ifdef EXPERIMENTAL_RBTREE
+#define COLOR_RED    0
+#define COLOR_BLACK  1
+#endif
 
 void errormsg(char *message, ...)
 {
@@ -169,9 +178,10 @@ int grokdir(char *dir, file_t **filelistp)
       }
 
       if (S_ISDIR(info.st_mode)) {
-	if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode))) filecount += grokdir(newfile->d_name, filelistp);
-	  free(newfile->d_name);
-	  free(newfile);
+	if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)))
+	  filecount += grokdir(newfile->d_name, filelistp);
+	free(newfile->d_name);
+	free(newfile);
       } else {
 	if (S_ISREG(linfo.st_mode) || (S_ISLNK(linfo.st_mode) && ISFLAG(flags, F_FOLLOWLINKS))) {
 	  *filelistp = newfile;
@@ -189,57 +199,20 @@ int grokdir(char *dir, file_t **filelistp)
   return filecount;
 }
 
-#ifdef EXTERNAL_MD5
-
-/* If EXTERNAL_MD5 is defined, use md5sum program to calculate signatures.
-*/
-char *getcrcsignature(char *filename)
-{
-  static char signature[256];
-  char *command;
-  char *separator;
-  FILE *result;
-  int pid;
-
-  command = (char*) malloc(strlen(filename)+strlen(EXTERNAL_MD5)+2);
-  if (command == NULL) return NULL;
-
-  sprintf(command, "%s %s", EXTERNAL_MD5, filename);
-
-  result = popen(command, "r");
-  if (result == NULL) {
-    errormsg("error invoking %s\n", EXTERNAL_MD5);
-    exit(1);
-  }
- 
-  free(command);
-
-  if (fgets(signature, 256, result) == NULL) {
-    errormsg("error invoking %s\n", EXTERNAL_MD5);
-    exit(1);
-  }    
-  separator = strchr(signature, ' ');
-  if (separator) *separator = '\0';
-
-  pclose(result);
-
-  return signature;
-}
-
-#else
+#ifndef EXTERNAL_MD5
 
 /* If EXTERNAL_MD5 is not defined, use L. Peter Deutsch's MD5 library. 
 */
 char *getcrcsignature(char *filename)
 {
   int x;
-  off_t toread;
   off_t fsize;
+  off_t toread;
   md5_state_t state;
-  char *sigp;
-  static md5_byte_t chunk[CHUNK_SIZE];
   md5_byte_t digest[16];  
+  static md5_byte_t chunk[CHUNK_SIZE];
   static char signature[16*2 + 1]; 
+  char *sigp;
   FILE *file;
    
   md5_init(&state);
@@ -247,11 +220,17 @@ char *getcrcsignature(char *filename)
   fsize = filesize(filename);
 
   file = fopen(filename, "rb");
-  if (file == NULL) return NULL;
-
+  if (file == NULL) {
+    errormsg("error opening file %s\n", filename);
+    return NULL;
+  }
+ 
   while (fsize > 0) {
     toread = (fsize % CHUNK_SIZE) ? (fsize % CHUNK_SIZE) : CHUNK_SIZE;
-    if (fread(chunk, toread, 1, file) != 1) return NULL;
+    if (fread(chunk, toread, 1, file) != 1) {
+      errormsg("error reading from file %s\n", filename);
+      return NULL;
+    }
     md5_append(&state, chunk, toread);
     fsize -= toread;
   }
@@ -270,7 +249,48 @@ char *getcrcsignature(char *filename)
   return signature;
 }
 
-#endif
+#endif /* [#ifndef EXTERNAL_MD5] */
+
+#ifdef EXTERNAL_MD5
+
+/* If EXTERNAL_MD5 is defined, use md5sum program to calculate signatures.
+*/
+char *getcrcsignature(char *filename)
+{
+  static char signature[256];
+  char *command;
+  char *separator;
+  FILE *result;
+
+  command = (char*) malloc(strlen(filename)+strlen(EXTERNAL_MD5)+2);
+  if (command == NULL) {
+    errormsg("out of memory\n");
+    exit(1);
+  }
+
+  sprintf(command, "%s %s", EXTERNAL_MD5, filename);
+
+  result = popen(command, "r");
+  if (result == NULL) {
+    errormsg("error invoking %s\n", EXTERNAL_MD5);
+    exit(1);
+  }
+ 
+  free(command);
+
+  if (fgets(signature, 256, result) == NULL) {
+    errormsg("error generating signature for %s\n", filename);
+    return NULL;
+  }    
+  separator = strchr(signature, ' ');
+  if (separator) *separator = '\0';
+
+  pclose(result);
+
+  return signature;
+}
+
+#endif /* [#ifdef EXTERNAL_MD5] */
 
 void purgetree(filetree_t *checktree)
 {
@@ -280,6 +300,136 @@ void purgetree(filetree_t *checktree)
     
   free(checktree);
 }
+
+#ifdef EXPERIMENTAL_RBTREE
+/* Use a red-black tree structure to store file information.
+*/
+
+void rotate_left(filetree_t **root, filetree_t *node)
+{
+  filetree_t *subject;
+
+  subject = node->right;
+  node->right = subject->left;
+
+  if (subject->left != NULL) subject->left->parent = node;
+  subject->parent = node->parent;
+
+  if (node->parent == NULL) {
+    *root = subject;
+  } else {
+    if (node == node->parent->left)
+      node->parent->left = subject;
+    else 
+      node->parent->right = subject;
+  }
+
+  subject->left = node;
+  node->parent = subject;
+}
+
+void rotate_right(filetree_t **root, filetree_t *node)
+{
+  filetree_t *subject;
+
+  subject = node->left;
+  node->left = subject->right;
+
+  if (subject->right != NULL) subject->right->parent = node;
+  subject->parent = node->parent;
+
+  if (node->parent == NULL) {
+    *root = subject;
+  } else {
+    if (node == node->parent->left)
+      node->parent->left = subject;
+    else 
+      node->parent->right = subject;
+  }
+
+  subject->right = node;
+  node->parent = subject;
+}
+
+#define TREE_LEFT -1
+#define TREE_RIGHT 1
+#define TREE_ROOT  0
+
+void registerfile(filetree_t **root, filetree_t *parent, int loc, file_t *file)
+{
+  filetree_t *node;
+  filetree_t *uncle;
+
+  file->size = filesize(file->d_name);
+  file->inode = getinode(file->d_name);
+
+  node = (filetree_t*) malloc(sizeof(filetree_t));
+  if (node == NULL) {
+    errormsg("out of memory!\n");
+    exit(1);
+  }
+  
+  node->file = file;
+  node->left = NULL;
+  node->right = NULL;
+  node->parent = parent;
+  node->color = COLOR_RED;
+
+  if (loc == TREE_ROOT)
+    *root = node;
+  else if (loc == TREE_LEFT) 
+    parent->left = node;
+  else 
+    parent->right = node;
+
+  while (node != *root && node->parent->color == COLOR_RED) {
+    if (node->parent->parent == NULL) return;
+
+    if (node->parent == node->parent->parent->left) {
+      uncle = node->parent->parent->right;
+      if (uncle == NULL) return;
+
+      if (uncle->color == COLOR_RED) {
+	node->parent->color = COLOR_BLACK;
+	uncle->color = COLOR_BLACK;
+	node->parent->parent->color = COLOR_RED;
+	node = node->parent->parent;
+      } else {
+	if (node == node->parent->right) {
+	  node = node->parent;
+	  rotate_left(root, node);
+	}
+	node->parent->color = COLOR_BLACK;
+	node->parent->parent->color = COLOR_RED;
+	rotate_right(root, node->parent->parent);
+      }
+    } else {
+      uncle = node->parent->parent->left;
+      if (uncle == NULL) return;
+
+      if (uncle->color == COLOR_RED) {
+	node->parent->color = COLOR_BLACK;
+	uncle->color = COLOR_BLACK;
+	node->parent->parent->color = COLOR_RED;
+	node = node->parent->parent;
+      } else {
+	if (node == node->parent->right) {
+	  node = node->parent;
+	  rotate_left(root, node);
+	}
+	node->parent->color = COLOR_BLACK;
+	node->parent->parent->color = COLOR_RED;
+	rotate_right(root, node->parent->parent);
+      }
+    }
+  }
+
+  (*root)->color = COLOR_BLACK;
+}
+
+#endif /* [#ifdef EXPERIMENTAL_RBTREE] */
+
+#ifndef EXPERIMENTAL_RBTREE
 
 int registerfile(filetree_t **branch, file_t *file)
 {
@@ -299,7 +449,9 @@ int registerfile(filetree_t **branch, file_t *file)
   return 1;
 }
 
-file_t *checkmatch(filetree_t *checktree, file_t *file)
+#endif /* [#ifndef EXPERIMENTAL_RBTREE] */
+
+file_t *checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 {
   int cmpresult;
   char *crcsignature;
@@ -321,10 +473,11 @@ file_t *checkmatch(filetree_t *checktree, file_t *file)
   else {
     if (checktree->file->crcsignature == NULL) {
       crcsignature = getcrcsignature(checktree->file->d_name);
+      if (crcsignature == NULL) return NULL;
 
       checktree->file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
       if (checktree->file->crcsignature == NULL) {
-	errormsg("out of memory!\n");
+	errormsg("out of memory\n");
 	exit(1);
       }
       strcpy(checktree->file->crcsignature, crcsignature);
@@ -332,7 +485,8 @@ file_t *checkmatch(filetree_t *checktree, file_t *file)
 
     if (file->crcsignature == NULL) {
       crcsignature = getcrcsignature(file->d_name);
-      
+      if (crcsignature == NULL) return NULL;
+
       file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
       if (file->crcsignature == NULL) {
 	errormsg("out of memory\n");
@@ -346,16 +500,24 @@ file_t *checkmatch(filetree_t *checktree, file_t *file)
 
   if (cmpresult < 0) {
     if (checktree->left != NULL) {
-      return checkmatch(checktree->left, file);
+      return checkmatch(root, checktree->left, file);
     } else {
+#ifndef EXPERIMENTAL_RBTREE
       registerfile(&(checktree->left), file);
+#else
+      registerfile(root, checktree, TREE_LEFT, file);
+#endif
       return NULL;
     }
   } else if (cmpresult > 0) {
     if (checktree->right != NULL) {
-      return checkmatch(checktree->right, file);
+      return checkmatch(root, checktree->right, file);
     } else {
+#ifndef EXPERIMENTAL_RBTREE
       registerfile(&(checktree->right), file);
+#else
+      registerfile(root, checktree, TREE_RIGHT, file);
+#endif
       return NULL;
     }
   } else return checktree->file;
@@ -392,6 +554,8 @@ void printmatches(file_t *files)
 
   while (files != NULL) {
     if (files->hasdupes) {
+      if (ISFLAG(flags, F_SHOWSIZE)) printf("%ld byte%seach:\n", files->size,
+       (files->size != 1) ? "s " : " ");
       printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
       tmpfile = files->duplicates;
       while (tmpfile != NULL) {
@@ -399,6 +563,7 @@ void printmatches(file_t *files)
 	tmpfile = tmpfile->duplicates;
       }
       printf("\n");
+
     }
     
     files = files->next;
@@ -467,14 +632,18 @@ void autodelete(file_t *files)
       printf("\n");
 
       do {
-	printf("Preserve files [%d/%d]: ", curgroup, groups);
+	printf("Preserve files [%d of %d]", curgroup, groups);
+	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%ld byte%seach)", files->size,
+	 (files->size != 1) ? "s " : " ");
+	printf(": ");
 	fflush(stdout);
+
 	fgets(preservestr, INPUT_SIZE, stdin);
 
 	i = strlen(preservestr) - 1;
 
 	while (preservestr[i]!='\n'){ /* tail of buffer must be a newline */
-	  tstr = realloc(preservestr, strlen(preservestr)+ 1 + INPUT_SIZE);
+	  tstr = (char*)realloc(preservestr, strlen(preservestr)+ 1 + INPUT_SIZE);
 	  if (!tstr) { /* couldn't allocate memory, treat as fatal */
 	    errormsg("out of memory!\n");
 	    exit(1);
@@ -530,6 +699,7 @@ void help_text()
   printf(" -r --recurse  \t\tinclude files residing in subdirectories\n");
   printf(" -q --quiet    \t\thide progress indicator\n");
   printf(" -1 --sameline \t\tlist duplicates on a single line\n");
+  printf(" -S --size     \t\tshow size of duplicate files\n");
   printf(" -s --symlinks \t\tfollow symlinks\n");
   printf(" -H --hardlinks\t\tnormally, when two or more files point to the same\n");
   printf("               \t\tdisk area they are treated as non-duplicates; this\n"); 
@@ -562,18 +732,19 @@ int main(int argc, char **argv) {
     { "recurse", 0, 0, 'r' },
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
+    { "size", 0, 0, 'S' },
     { "symlinks", 0, 0, 's' },
     { "hardlinks", 0, 0, 'H' },
     { "noempty", 0, 0, 'n' },
     { "delete", 0, 0, 'd' },
-    { "help", 0, 0, 'h' },
     { "version", 0, 0, 'v' },
+    { "help", 0, 0, 'h' },
     { 0, 0, 0, 0 }
   };
 
   program_name = argv[0];
 
-  while ((opt = getopt_long(argc, argv, "rq1sHndvh", long_options, NULL)) != EOF) {
+  while ((opt = getopt_long(argc, argv, "rq1SsHndvh", long_options, NULL)) != EOF) {
     switch (opt) {
     case 'r':
       SETFLAG(flags, F_RECURSE);
@@ -583,6 +754,9 @@ int main(int argc, char **argv) {
       break;
     case '1':
       SETFLAG(flags, F_DSAMELINE);
+      break;
+    case 'S':
+      SETFLAG(flags, F_SHOWSIZE);
       break;
     case 's':
       SETFLAG(flags, F_FOLLOWLINKS);
@@ -615,18 +789,19 @@ int main(int argc, char **argv) {
 
   for (x = optind; x < argc; x++) filecount += grokdir(argv[x], &files);
 
-  if (!files) {
-    errormsg("no files were found\n");
-    exit(1);
-  }
+  if (!files) exit(0);
   
   curfile = files;
 
   while (curfile) {
     if (!checktree) 
+#ifndef EXPERIMENTAL_RBTREE
       registerfile(&checktree, curfile);
+#else
+      registerfile(&checktree, NULL, TREE_ROOT, curfile);
+#endif
     else 
-      match = checkmatch(checktree, curfile);
+      match = checkmatch(&checktree, checktree, curfile);
 
     if (match != NULL) {
       file1 = fopen(curfile->d_name, "rb");
