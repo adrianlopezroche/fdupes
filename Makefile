@@ -43,7 +43,7 @@ PREFIX = /usr/local
 #
 # VERSION determines the program's version number.
 #
-VERSION = 1.41-PR2
+VERSION = 1.41-PR3
 
 #
 # PROGRAM_NAME determines the installation name and manual page name
@@ -108,8 +108,9 @@ all: fdupes
 fdupes: $(OBJECT_FILES)
 	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
 
-installdirs: $(BIN_DIR) $(MAN_DIR)
-	-$(MKDIR) $(BIN_DIR) $(MAN_DIR)
+installdirs:
+	test -d $(BIN_DIR) || -$(MKDIR) $(BIN_DIR)
+	test -d $(MAN_DIR) || -$(MKDIR) $(MAN_DIR)
 
 install: fdupes installdirs
 	$(INSTALL_PROGRAM)	fdupes   $(BIN_DIR)/$(PROGRAM_NAME)
