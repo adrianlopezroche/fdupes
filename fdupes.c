@@ -44,6 +44,8 @@ unsigned long flags = 0;
 
 #define SIGNATURE_FILE "/tmp/fdupes.md5sum"
 
+#define INPUT_SIZE 256
+
 typedef struct _file {
   char *d_name;
   off_t size;
@@ -91,7 +93,7 @@ int grokdir(char *dir, file_t **filelistp)
       if (!newfile) {
 	fprintf(stderr, "Out of memory!\n");
 	closedir(cd);
-	return filecount;
+	exit(1);
       } else newfile->next = *filelistp;
 
       newfile->crcsignature = NULL;
@@ -104,7 +106,7 @@ int grokdir(char *dir, file_t **filelistp)
 	fprintf(stderr, "Out of memory!\n");
 	free(newfile);
 	closedir(cd);
-	return filecount;
+	exit(1);
       }
 
       strcpy(newfile->d_name, dir);
@@ -191,7 +193,10 @@ int registerfile(filetree_t **branch, file_t *file)
   file->size = filesize(file->d_name);
 
   *branch = (filetree_t*) malloc(sizeof(filetree_t));
-  if (*branch == NULL) return 0;
+  if (*branch == NULL) {
+    fprintf(stderr, "Out of memory!\n");
+    exit(1);
+  }
   
   (*branch)->file = file;
   (*branch)->left = NULL;
@@ -217,7 +222,10 @@ file_t *checkmatch(filetree_t *checktree, file_t *file)
       crcsignature = getcrcsignature(checktree->file->d_name);
 
       checktree->file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
-      if (checktree->file->crcsignature == NULL) return 0;
+      if (checktree->file->crcsignature == NULL) {
+	fprintf(stderr, "Out of memory!\n");
+	exit(1);
+      }
       strcpy(checktree->file->crcsignature, crcsignature);
     }
 
@@ -225,7 +233,10 @@ file_t *checkmatch(filetree_t *checktree, file_t *file)
       crcsignature = getcrcsignature(file->d_name);
       
       file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
-      if (file->crcsignature == NULL) return 0;
+      if (file->crcsignature == NULL) {
+	fprintf(stderr, "Out of memory\n");
+	exit(1);
+      }
       strcpy(file->crcsignature, crcsignature);
     }
 
@@ -249,8 +260,8 @@ file_t *checkmatch(filetree_t *checktree, file_t *file)
   } else return checktree->file;
 }
 
-/* Just in case two different files produce the same signature. Extremely
-   unlikely, to be sure, but better safe than sorry. */
+/* Do a bit-for-bit comparison, in case two different files produce the 
+   same signature. Unlikely, to be sure, but better safe than sorry. */
 
 int confirmmatch(FILE *file1, FILE *file2)
 {
@@ -304,10 +315,12 @@ void autodelete(file_t *files)
   int *preserve;
   char *preservestr;
   char *token;
+  char *tstr;
   int number;
   int sum;
   int max = 0;
   int x;
+  int i;
 
   curfile = files;
   
@@ -330,7 +343,12 @@ void autodelete(file_t *files)
   
   dupelist = (file_t**) malloc(sizeof(file_t*) * max);
   preserve = (int*) malloc(sizeof(int) * max);
-  preservestr = (char*) malloc(sizeof(char) * max * 256);
+  preservestr = (char*) malloc(sizeof(char) * INPUT_SIZE);
+
+  if (!dupelist || !preserve || !preservestr) {
+    fprintf(stderr, "Out of memory\n");
+    exit(1);
+  }
 
   while (files) {
     if (files->hasdupes) {
@@ -350,7 +368,21 @@ void autodelete(file_t *files)
       do {
 	printf("Preserve files [%d/%d]: ", curgroup, groups);
 	fflush(stdout);
-	fgets(preservestr, max * 256, stdin);
+	fgets(preservestr, INPUT_SIZE, stdin);
+
+	i = strlen(preservestr) - 1;
+
+	while (preservestr[i]!='\n'){ /* tail of buffer must be a newline */
+	  tstr = realloc(preservestr, strlen(preservestr)+ 1 + INPUT_SIZE);
+	  if (!tstr) { /* couldn't allocate memory, treat as fatal */
+	    fprintf(stderr, "Out of memory!\n");
+	    exit(1);
+	  }
+	  preservestr = tstr;
+	  if (!fgets(preservestr + i + 1, INPUT_SIZE, stdin))
+	    break; /* stop if fgets fails -- possible EOF? */
+	  i = strlen(preservestr)-1;
+	}
 
        	if (strcasecmp(preservestr, "all\n") == 0) {
 	  for (x = 1; x < counter; x++) preserve[x] = 1;

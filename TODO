@@ -1,9 +1,2 @@
-- Find a way to discard extra input on the "preserve" prompt. As 
-  of this moment, if the user enters more information than is
-  actually read by the fgets function, the next fgets call will 
-  retrieve the extra data, which is misinterpreted by the program 
-  as being the next "preserve list". This can be potentially
-  dangerous, but I can't find a way to fix it (fflush doesn't
-  seem to work for input streams). As the program is currently
-  written, fgets will read up to 256 characters times the
-  maximum number of duplicates found in a particular run.
+- think of something to do
+

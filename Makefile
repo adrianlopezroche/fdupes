@@ -1,6 +1,6 @@
 INSTALLDIR = /usr/local/bin
 MANPAGEDIR = /usr/man
-VERSION = 1.11
+VERSION = 1.12
 
 fdupes: fdupes.c
 	gcc fdupes.c -o fdupes -DVERSION=\"$(VERSION)\"

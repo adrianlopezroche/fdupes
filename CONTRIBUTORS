@@ -1,5 +1,11 @@
 Adrian Bridgett <adrian.bridgett@iname.com>:
-   - provided the original version of the fdupes manpage
-   - suggested comparing file sizes before calling
-     md5sum program (big performance boost)
+   - Provided the original version of the fdupes manpage.
+   - Suggested comparing file sizes before calling
+     md5sum program (big performance boost).
 
+Steven S. Dick <ssd@nevets.oau.org>:
+   - Provided patch for better handling of extremely long 
+     input on preserve prompt (author's note: modified
+     Steven's patch to handle input a bit differently).
+
+    
