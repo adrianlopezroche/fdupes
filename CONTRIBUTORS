@@ -1,0 +1,5 @@
+Adrian Bridgett <adrian.bridgett@iname.com>:
+   - provided the original version of the fdupes manpage
+   - suggested comparing file sizes before calling
+     md5sum program (big performance boost)
+

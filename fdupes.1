@@ -1,0 +1,76 @@
+.TH FDUPES 1
+.\" NAME should be all caps, SECTION should be 1-8, maybe w/ subsection
+.\" other parms are allowed: see man(7), man(1)
+.SH NAME
+fdupes \- finds duplicate files in a given set of directories
+.SH SYNOPSIS
+.B fdupes
+[
+.I options
+]
+.I DIRECTORY
+\|.\|.\|.
+
+.SH "DESCRIPTION"
+Searches the given path for duplicate files. Such files are found by
+comparing
+.BR md5sum (1)
+checksums and then a byte-by-byte comparison.
+
+.SH OPTIONS
+.TP
+.B -r --recurse
+include files residing in subdirectories
+.TP
+.B -q --quiet
+hide progress indicator
+.TP
+.B -1 --sameline
+list duplicates on a single line
+.TP
+.B -s --symlinks
+follow symlinked directories
+.TP
+.B -d --delete
+prompt user for files to preserve, deleting all others (see
+.B CAVEATS
+below)
+.TP
+.B -v --version
+display fdupes version
+.TP
+.B -h --help
+displays help
+.SH "SEE ALSO"
+.\" Always quote multiple words for .SH
+.BR md5sum (1)
+.SH NOTES
+Unless
+.B -1
+or
+.B --sameline
+is specified, duplicate files are listed
+together in groups, each file displayed on a separate line. The
+groups are then separated from each other by blank lines.
+.SH CAVEATS
+When using
+.B \-d
+or
+.BR \-\-delete ,
+care should be taken to insure against
+accidental data loss.
+
+When used together with options
+.B \-s
+or
+.BR \-\-symlink ,
+a user could accidentally
+preserve a symlink while deleting the file it points to.
+
+Furthermore, when specifying a particular directory more than
+once, all files within that directory will be listed as their
+own duplicates, leading to data loss should a user preserve a
+file without its "duplicate" (the file itself!).
+.SH AUTHOR
+Adrian Lopez <adrian2@caribe.net>
+

@@ -6,7 +6,7 @@ within specified directories.
 
 Usage
 --------------------------------------------------------------------
-Usage: fdupes [options] <DIRECTORY> [DIRECTORY]...
+Usage: fdupes [options] DIRECTORY...
 
  -r --recurse	include files residing in subdirectories
  -q --quiet  	hide progress indicator
@@ -25,15 +25,14 @@ groups are then separated from each other by blank lines.
 
 When using -d or --delete, care should be taken to insure against
 accidental data loss. While no information will be immediately
-lost, using the -s or --symlink option or specifying a certain 
-directory more than once can lead to confusing information
-being presented to the user when prompted for files to preserve.
-When using options -s or --symlyink, a user could accidentally 
-preserve a symlink while deleting the file it points to.
-Furthermore, when specifying a particular directory more than
-once, all files within that directory will be listed as their 
-own duplicates, leading to data loss should a user preserve a 
-file without its "duplicate" (the file itself!).
+lost, using this option together with -s or --symlink can lead 
+to confusing information being presented to the user when prompted
+for files to preserve. Specifically, a user could accidentally
+preserve a symlink while deleting the file it points to. A similar
+problem arises when specifying a particular directory more than 
+once. All files within that directory will be listed as their own
+duplicates, leading to data loss should a user preserve a file 
+without its "duplicate" (the file itself!).
 
 
 Requirements

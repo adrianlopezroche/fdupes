@@ -46,29 +46,25 @@ unsigned long flags = 0;
 
 typedef struct _file {
   char *d_name;
-  struct _file *next;
-  int hasdupes; // true if and only if file is first on duplicate chain
+  off_t size;
+  char *crcsignature;
+  int hasdupes; /* true only if file is first on duplicate chain */
   struct _file *duplicates;
+  struct _file *next;
 } file_t;
 
 typedef struct _filetree {
-  char *crcsignature;
   file_t *file;
   struct _filetree *left;
   struct _filetree *right;
 } filetree_t;
 
-long filesize(FILE *file)
-{
-  fpos_t oldpos;
-  long size;
+off_t filesize(char *filename) {
+  struct stat s;
 
-  oldpos = ftell(file);
-  fseek(file, 0, SEEK_END);
-  size = (long) ftell(file);
-  fseek(file, oldpos, SEEK_SET);
-  
-  return size;
+  if (stat(filename, &s) != 0) return -1;
+
+  return s.st_size;
 }
 
 int grokdir(char *dir, file_t **filelistp)
@@ -98,6 +94,7 @@ int grokdir(char *dir, file_t **filelistp)
 	return filecount;
       } else newfile->next = *filelistp;
 
+      newfile->crcsignature = NULL;
       newfile->duplicates = NULL;
       newfile->hasdupes = 0;
 
@@ -180,58 +177,76 @@ char *getcrcsignature(char *filename)
   return signature;
 }
 
-void purgetree(filetree_t *siglist)
+void purgetree(filetree_t *checktree)
 {
-  if (siglist->left != NULL) {
-    purgetree(siglist->left);
-    free(siglist->left);
-  }
-
-  if (siglist->right != NULL) {
-    purgetree(siglist->right);
-    free(siglist->right);
-  }
-
-  free(siglist->crcsignature);
+  if (checktree->left != NULL) purgetree(checktree->left);
+    
+  if (checktree->right != NULL) purgetree(checktree->right);
+    
+  free(checktree);
 }
 
-int registersig(filetree_t **branch, file_t *file, char *crcsignature)
+int registerfile(filetree_t **branch, file_t *file)
 {
-   *branch = (filetree_t*) malloc(sizeof(filetree_t));
-   if (*branch == NULL) return 0;
+  file->size = filesize(file->d_name);
 
-   (*branch)->crcsignature = (char*) malloc(strlen(crcsignature)+1);
-   if ((*branch)->crcsignature == NULL) return 0;
+  *branch = (filetree_t*) malloc(sizeof(filetree_t));
+  if (*branch == NULL) return 0;
+  
+  (*branch)->file = file;
+  (*branch)->left = NULL;
+  (*branch)->right = NULL;
 
-   strcpy((*branch)->crcsignature, crcsignature);
-   (*branch)->file = file;
-   (*branch)->left = NULL;
-   (*branch)->right = NULL;
-
-   return 1;
+  return 1;
 }
 
-file_t *checkcrcmatch(file_t *file, char *crcsignature, filetree_t *siglist)
+file_t *checkmatch(filetree_t *checktree, file_t *file)
 {
   int cmpresult;
+  char *crcsignature;
+  off_t fsize;
 
-  cmpresult = strcmp(crcsignature, siglist->crcsignature);
+  fsize = filesize(file->d_name);
+  
+  if (fsize < checktree->file->size) 
+    cmpresult = -1;
+  else 
+    if (fsize > checktree->file->size) cmpresult = 1;
+  else {
+    if (checktree->file->crcsignature == NULL) {
+      crcsignature = getcrcsignature(checktree->file->d_name);
+
+      checktree->file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
+      if (checktree->file->crcsignature == NULL) return 0;
+      strcpy(checktree->file->crcsignature, crcsignature);
+    }
+
+    if (file->crcsignature == NULL) {
+      crcsignature = getcrcsignature(file->d_name);
+      
+      file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
+      if (file->crcsignature == NULL) return 0;
+      strcpy(file->crcsignature, crcsignature);
+    }
+
+    cmpresult = strcmp(file->crcsignature, checktree->file->crcsignature);
+  }
 
   if (cmpresult < 0) {
-    if (siglist->left != NULL) {
-      return checkcrcmatch(file, crcsignature, siglist->left);
+    if (checktree->left != NULL) {
+      return checkmatch(checktree->left, file);
     } else {
-      registersig(&(siglist->left), file, crcsignature);
+      registerfile(&(checktree->left), file);
       return NULL;
     }
   } else if (cmpresult > 0) {
-    if (siglist->right != NULL) {
-      return checkcrcmatch(file, crcsignature, siglist->right);
+    if (checktree->right != NULL) {
+      return checkmatch(checktree->right, file);
     } else {
-      registersig(&(siglist->right), file, crcsignature);
+      registerfile(&(checktree->right), file);
       return NULL;
     }
-  } else return siglist->file;
+  } else return checktree->file;
 }
 
 /* Just in case two different files produce the same signature. Extremely
@@ -244,8 +259,6 @@ int confirmmatch(FILE *file1, FILE *file2)
   size_t r1;
   size_t r2;
   
-  if (filesize(file1) != filesize(file2)) return 0; // file sizes are different
-
   fseek(file1, 0, SEEK_SET);
   fseek(file2, 0, SEEK_SET);
 
@@ -253,9 +266,11 @@ int confirmmatch(FILE *file1, FILE *file2)
     r1 = fread(&c1, sizeof(c1), 1, file1);
     r2 = fread(&c2, sizeof(c2), 1, file2);
 
-    if (c1 != c2) return 0; // file contents are different
+    if (c1 != c2) return 0; /* file contents are different */
   } while (r1 && r2);
   
+  if (r1 != r2) return 0; /* file lengths are different */
+
   return 1;
 }
 
@@ -263,11 +278,11 @@ void printmatches(file_t *files)
 {
   file_t *tmpfile;
 
-  while (files) {
+  while (files != NULL) {
     if (files->hasdupes) {
       printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
       tmpfile = files->duplicates;
-      while (tmpfile) {
+      while (tmpfile != NULL) {
 	printf("%s%c", tmpfile->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
 	tmpfile = tmpfile->duplicates;
       }
@@ -352,10 +367,7 @@ void autodelete(file_t *files)
 	  }
 	}
       
-	for (sum = 0, x = 1; x < counter; x++) {
-	  
-	  sum += preserve[x];
-	}
+	for (sum = 0, x = 1; x < counter; x++) sum += preserve[x];
       } while (sum < 1);
 
       printf("\n");
@@ -380,7 +392,7 @@ void autodelete(file_t *files)
 
 void help_text()
 {
-  printf("Usage: fdupes [options] <DIRECTORY> [DIRECTORY]...\n\n");
+  printf("Usage: fdupes [options] DIRECTORY...\n\n");
 
   printf(" -r --recurse\tinclude files residing in subdirectories\n");
   printf(" -q --quiet  \thide progress indicator\n");
@@ -402,11 +414,10 @@ int main(int argc, char **argv) {
   file_t *files = NULL;
   file_t *curfile;
   file_t *match = NULL;
-  filetree_t *siglist = NULL;
+  filetree_t *checktree = NULL;
   int filecount = 0;
   int progress = 0;
-  char *signature;
-  
+ 
   static struct option long_options[] = 
   {
     { "recurse", 0, 0, 'r' },
@@ -455,18 +466,19 @@ int main(int argc, char **argv) {
 
   for (x = optind; x < argc; x++) filecount += grokdir(argv[x], &files);
 
-  if (!files) exit(0);
+  if (!files) {
+    printf("%s: no files found\n", argv[0]);
+    exit(0);
+  }
   
   curfile = files;
 
   while (curfile) {
-    signature = getcrcsignature(curfile->d_name);
+    if (!checktree) 
+      registerfile(&checktree, curfile);
+    else 
+      match = checkmatch(checktree, curfile);
 
-    if (!siglist) {
-      siglist = (filetree_t *) malloc(sizeof(filetree_t));
-      registersig(&siglist, curfile, signature);
-    } else match = checkcrcmatch(curfile, signature, siglist);
-   
     if (match != NULL) {
       file1 = fopen(curfile->d_name, "rb");
       if (!file1) continue;
@@ -507,8 +519,8 @@ int main(int argc, char **argv) {
     free(files);
     files = curfile;
   }
-
-  purgetree(siglist);
+  
+  purgetree(checktree);
 
   remove(SIGNATURE_FILE);
 
