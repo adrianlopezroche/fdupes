@@ -26,7 +26,10 @@
 #include <sys/wait.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <getopt.h>
+#include <string.h>
+#include <errno.h>
 
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
@@ -35,6 +38,7 @@
 #define F_HIDEPROGRESS    0x02
 #define F_DSAMELINE       0x04
 #define F_FOLLOWLINKS     0x08
+#define F_DELETEFILES     0x10
 
 unsigned long flags = 0;
 
@@ -125,7 +129,7 @@ int grokdir(char *dir, file_t **filelistp)
       }
 
       if (S_ISDIR(info.st_mode)) {
-	  if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode))) filecount += grokdir(newfile->d_name, filelistp);
+	if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode))) filecount += grokdir(newfile->d_name, filelistp);
 	  free(newfile->d_name);
 	  free(newfile);
       } else {
@@ -261,10 +265,10 @@ void printmatches(file_t *files)
 
   while (files) {
     if (files->hasdupes) {
-      printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE) ? ' ' : '\n');
+      printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
       tmpfile = files->duplicates;
       while (tmpfile) {
-	printf("%s%c", tmpfile->d_name, ISFLAG(flags, F_DSAMELINE) ? ' ' : '\n');
+	printf("%s%c", tmpfile->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
 	tmpfile = tmpfile->duplicates;
       }
       printf("\n");
@@ -274,13 +278,118 @@ void printmatches(file_t *files)
   }
 }
 
+void autodelete(file_t *files)
+{
+  int counter = 1;
+  int groups = 0;
+  int curgroup = 0;
+  file_t *tmpfile;
+  file_t *curfile;
+  file_t **dupelist;
+  int *preserve;
+  char *preservestr;
+  char *token;
+  int number;
+  int sum;
+  int max = 0;
+  int x;
+
+  curfile = files;
+  
+  while (curfile) {
+    if (curfile->hasdupes) {
+      groups++;
+
+      counter = 1;
+      tmpfile = curfile->duplicates;
+      while (tmpfile) {
+	counter++;
+	tmpfile = tmpfile->duplicates;
+      }
+      
+      if ((counter + 1) > max) max = counter + 1;
+    }
+    
+    curfile = curfile->next;
+  }
+  
+  dupelist = (file_t**) malloc(sizeof(file_t*) * max);
+  preserve = (int*) malloc(sizeof(int) * max);
+  preservestr = (char*) malloc(sizeof(char) * max * 256);
+
+  while (files) {
+    if (files->hasdupes) {
+      curgroup++;
+      counter = 1;
+      dupelist[counter] = files;
+      printf("[%d] %s\n", counter++, files->d_name);
+      tmpfile = files->duplicates;
+      while (tmpfile) {
+	dupelist[counter] = tmpfile;
+	printf("[%d] %s\n", counter++, tmpfile->d_name);
+	tmpfile = tmpfile->duplicates;
+      }
+
+      printf("\n");
+
+      do {
+	printf("Preserve files [%d/%d]: ", curgroup, groups);
+	fflush(stdout);
+	fgets(preservestr, max * 256, stdin);
+
+       	if (strcasecmp(preservestr, "all\n") == 0) {
+	  for (x = 1; x < counter; x++) preserve[x] = 1;
+	} else {
+	  for (x = 1; x < counter; x++) preserve[x] = 0;
+	  
+	  token = strtok(preservestr, " ,");
+
+	  while (token != NULL) {
+	    number = 0;
+	    sscanf(token, "%d", &number);
+	    if (number > 0 && number < counter) preserve[number] = 1;
+	    token = strtok(NULL, " ,");
+	  }
+	}
+      
+	for (sum = 0, x = 1; x < counter; x++) {
+	  
+	  sum += preserve[x];
+	}
+      } while (sum < 1);
+
+      printf("\n");
+      for (x = 1; x < counter; x++) { 
+	if (preserve[x])
+	  printf("   [+] %s\n", dupelist[x]->d_name);
+	else {
+	  printf("   [-] %s\n", dupelist[x]->d_name);
+	  remove(dupelist[x]->d_name);
+	}
+      }
+      printf("\n");
+    }
+    
+    files = files->next;
+  }
+
+  free(dupelist);
+  free(preserve);
+  free(preservestr);
+}
+
 void help_text()
 {
   printf("Usage: fdupes [options] <DIRECTORY> [DIRECTORY]...\n\n");
+
   printf(" -r --recurse\tinclude files residing in subdirectories\n");
   printf(" -q --quiet  \thide progress indicator\n");
   printf(" -1 --sameline\tlist duplicates on a single line\n");
-  printf(" -s --symlinks\tfollow symlinked directories\n");
+  printf(" -s --symlinks\tfollow symlinks\n");
+  printf(" -d --delete  \tprompt user for files to preserve and delete all others\n"); 
+  printf("              \timportant: using this option together with -s or --symlinks\n");
+  printf("              \tor when specifiying the same directory more than once\n");
+  printf("              \tcan lead to accidental data loss\n");
   printf(" -v --version \tdisplay fdupes version\n");
   printf(" -h --help   \tdisplay this help message\n\n");
 }
@@ -304,12 +413,13 @@ int main(int argc, char **argv) {
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
     { "symlinks", 0, 0, 's' },
+    { "delete", 0, 0, 'd' },
     { "help", 0, 0, 'h' },
     { "version", 0, 0, 'v' },
     { 0, 0, 0, 0 }
   };
 
-  while ((opt = getopt_long(argc, argv, "rq1svh", long_options, NULL)) != EOF) {
+  while ((opt = getopt_long(argc, argv, "rq1sdvh", long_options, NULL)) != EOF) {
     switch (opt) {
     case 'r':
       SETFLAG(flags, F_RECURSE);
@@ -322,6 +432,9 @@ int main(int argc, char **argv) {
       break;
     case 's':
       SETFLAG(flags, F_FOLLOWLINKS);
+      break;
+    case 'd':
+      SETFLAG(flags, F_DELETEFILES);
       break;
     case 'v':
       printf("FDUPES version %s\n", VERSION);
@@ -377,16 +490,16 @@ int main(int argc, char **argv) {
     curfile = curfile->next;
 
     if (!ISFLAG(flags, F_HIDEPROGRESS)) {
-      fprintf(stderr, "%40s\r", " ");
-      fprintf(stderr, "Progress [%d/%d] %d%%\r", progress, filecount,
+      fprintf(stderr, "\rProgress [%d/%d] %d%%", progress, filecount,
        (int)((float) progress / (float) filecount * 100.0));
       progress++;
     }
   }
 
-  if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "%40s\r", " ");
+  if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
 
-  printmatches(files);
+  if (ISFLAG(flags, F_DELETEFILES)) autodelete(files); 
+  else printmatches(files);
 
   while (files) {
     curfile = files->next;

@@ -1,15 +1,39 @@
 Introduction
 --------------------------------------------------------------------
 FDUPES is a program for identifying duplicate files residing
-within specified directories.
+within specified directories. 
 
 
 Usage
 --------------------------------------------------------------------
-fdupes <DIRECTORY> [DIRECTORY]...
+Usage: fdupes [options] <DIRECTORY> [DIRECTORY]...
 
-Duplicate files are listed together in groups, a different file
-for each line of text. The groups are separated by blank lines.
+ -r --recurse	include files residing in subdirectories
+ -q --quiet  	hide progress indicator
+ -1 --sameline	list duplicates on a single line
+ -s --symlinks	follow symlinks
+ -d --delete  	prompt user for files to preserve and delete all others
+              	important: using this option together with -s or --symlinks
+              	or when specifiying the same directory more than once
+              	can lead to accidental data loss
+ -v --version 	display fdupes version
+ -h --help   	display this help message
+
+Unless -1 or --sameline is specified, duplicate files are listed 
+together in groups, each file displayed on a separate line. The
+groups are then separated from each other by blank lines.
+
+When using -d or --delete, care should be taken to insure against
+accidental data loss. While no information will be immediately
+lost, using the -s or --symlink option or specifying a certain 
+directory more than once can lead to confusing information
+being presented to the user when prompted for files to preserve.
+When using options -s or --symlyink, a user could accidentally 
+preserve a symlink while deleting the file it points to.
+Furthermore, when specifying a particular directory more than
+once, all files within that directory will be listed as their 
+own duplicates, leading to data loss should a user preserve a 
+file without its "duplicate" (the file itself!).
 
 
 Requirements
@@ -44,3 +68,4 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+

@@ -1,5 +1,5 @@
 INSTALLDIR = /usr/local/bin
-VERSION = 1.0
+VERSION = 1.1
 
 fdupes: fdupes.c
 	gcc fdupes.c -o fdupes -DVERSION=\"$(VERSION)\"
