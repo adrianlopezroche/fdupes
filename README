@@ -15,7 +15,7 @@ Usage: fdupes [options] DIRECTORY...
  -s --symlinks 		follow symlinks
  -H --hardlinks		normally, when two or more files point to the same
                		disk area they are treated as non-duplicates; this
-               		option will reverse this behavior
+               		option will change this behavior
  -n --noempty  		exclude zero-length files from consideration
  -d --delete   		prompt user for files to preserve and delete all others
                		important: under particular circumstances, data

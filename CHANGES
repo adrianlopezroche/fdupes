@@ -7,6 +7,14 @@ those who've otherwise worked on that item. For a list of
 contributors names and identifiers please see the CONTRIBUTORS file.
 
 
+Changes from 1.30 to 1.31
+
+- Added interactive option to preserve all files during
+  delete procedure (something similar was already in 
+  place, but now it's official). [AL]
+- Updated delete procedure prompt format. [AL]
+- Cosmetic code changes. [AL]
+
 Changes from 1.20 to 1.30
 
 - Added size option to display size of duplicates. [LB, AL]

@@ -202,7 +202,7 @@ int grokdir(char *dir, file_t **filelistp)
 #ifndef EXTERNAL_MD5
 
 /* If EXTERNAL_MD5 is not defined, use L. Peter Deutsch's MD5 library. 
-*/
+ */
 char *getcrcsignature(char *filename)
 {
   int x;
@@ -254,7 +254,7 @@ char *getcrcsignature(char *filename)
 #ifdef EXTERNAL_MD5
 
 /* If EXTERNAL_MD5 is defined, use md5sum program to calculate signatures.
-*/
+ */
 char *getcrcsignature(char *filename)
 {
   static char signature[256];
@@ -303,7 +303,7 @@ void purgetree(filetree_t *checktree)
 
 #ifdef EXPERIMENTAL_RBTREE
 /* Use a red-black tree structure to store file information.
-*/
+ */
 
 void rotate_left(filetree_t **root, filetree_t *node)
 {
@@ -523,8 +523,8 @@ file_t *checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
   } else return checktree->file;
 }
 
-/* Do a bit-for-bit comparison, in case two different files produce the 
-   same signature. Unlikely, to be sure, but better safe than sorry. */
+/* Do a bit-for-bit comparison in case two different files produce the 
+   same signature. Unlikely, but better safe than sorry. */
 
 int confirmmatch(FILE *file1, FILE *file2)
 {
@@ -572,7 +572,7 @@ void printmatches(file_t *files)
 
 void autodelete(file_t *files)
 {
-  int counter = 1;
+  int counter;
   int groups = 0;
   int curgroup = 0;
   file_t *tmpfile;
@@ -592,21 +592,23 @@ void autodelete(file_t *files)
   
   while (curfile) {
     if (curfile->hasdupes) {
+      counter = 1;
       groups++;
 
-      counter = 1;
       tmpfile = curfile->duplicates;
       while (tmpfile) {
 	counter++;
 	tmpfile = tmpfile->duplicates;
       }
       
-      if ((counter + 1) > max) max = counter + 1;
+      if (counter > max) max = counter;
     }
     
     curfile = curfile->next;
   }
-  
+
+  max++;
+
   dupelist = (file_t**) malloc(sizeof(file_t*) * max);
   preserve = (int*) malloc(sizeof(int) * max);
   preservestr = (char*) malloc(INPUT_SIZE);
@@ -621,20 +623,24 @@ void autodelete(file_t *files)
       curgroup++;
       counter = 1;
       dupelist[counter] = files;
-      printf("[%d] %s\n", counter++, files->d_name);
+
+      printf("[%d] %s\n", counter, files->d_name);
+
       tmpfile = files->duplicates;
+
       while (tmpfile) {
-	dupelist[counter] = tmpfile;
-	printf("[%d] %s\n", counter++, tmpfile->d_name);
+	dupelist[++counter] = tmpfile;
+	printf("[%d] %s\n", counter, tmpfile->d_name);
 	tmpfile = tmpfile->duplicates;
       }
 
       printf("\n");
 
       do {
-	printf("Preserve files [%d of %d]", curgroup, groups);
+	printf("Set %d of %d, preserve files [1 - %d, all]", 
+          curgroup, groups, counter);
 	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%ld byte%seach)", files->size,
-	 (files->size != 1) ? "s " : " ");
+	  (files->size != 1) ? "s " : " ");
 	printf(": ");
 	fflush(stdout);
 
@@ -643,37 +649,40 @@ void autodelete(file_t *files)
 	i = strlen(preservestr) - 1;
 
 	while (preservestr[i]!='\n'){ /* tail of buffer must be a newline */
-	  tstr = (char*)realloc(preservestr, strlen(preservestr)+ 1 + INPUT_SIZE);
+	  tstr = (char*)
+	    realloc(preservestr, strlen(preservestr) + 1 + INPUT_SIZE);
 	  if (!tstr) { /* couldn't allocate memory, treat as fatal */
 	    errormsg("out of memory!\n");
 	    exit(1);
 	  }
+
 	  preservestr = tstr;
 	  if (!fgets(preservestr + i + 1, INPUT_SIZE, stdin))
 	    break; /* stop if fgets fails -- possible EOF? */
 	  i = strlen(preservestr)-1;
 	}
 
-       	if (strcasecmp(preservestr, "all\n") == 0) {
-	  for (x = 1; x < counter; x++) preserve[x] = 1;
-	} else {
-	  for (x = 1; x < counter; x++) preserve[x] = 0;
+	for (x = 1; x <= counter; x++) preserve[x] = 0;
+	
+	token = strtok(preservestr, " ,\n");
+	
+	while (token != NULL) {
+	  if (strcasecmp(token, "all") == 0)
+	    for (x = 0; x <= counter; x++) preserve[x] = 1;
 	  
-	  token = strtok(preservestr, " ,");
-
-	  while (token != NULL) {
-	    number = 0;
-	    sscanf(token, "%d", &number);
-	    if (number > 0 && number < counter) preserve[number] = 1;
-	    token = strtok(NULL, " ,");
-	  }
+	  number = 0;
+	  sscanf(token, "%d", &number);
+	  if (number > 0 && number <= counter) preserve[number] = 1;
+	  
+	  token = strtok(NULL, " ,\n");
 	}
       
-	for (sum = 0, x = 1; x < counter; x++) sum += preserve[x];
-      } while (sum < 1);
+	for (sum = 0, x = 1; x <= counter; x++) sum += preserve[x];
+      } while (sum < 1); /* make sure we've preserved at least one file */
 
       printf("\n");
-      for (x = 1; x < counter; x++) { 
+
+      for (x = 1; x <= counter; x++) { 
 	if (preserve[x])
 	  printf("   [+] %s\n", dupelist[x]->d_name);
 	else {
@@ -703,7 +712,7 @@ void help_text()
   printf(" -s --symlinks \t\tfollow symlinks\n");
   printf(" -H --hardlinks\t\tnormally, when two or more files point to the same\n");
   printf("               \t\tdisk area they are treated as non-duplicates; this\n"); 
-  printf("               \t\toption will reverse this behavior\n");
+  printf("               \t\toption will change this behavior\n");
   printf(" -n --noempty  \t\texclude zero-length files from consideration\n");
   printf(" -d --delete   \t\tprompt user for files to preserve and delete all others\n"); 
   printf("               \t\timportant: under particular circumstances, data\n");

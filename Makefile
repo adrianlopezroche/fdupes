@@ -13,7 +13,7 @@ MANPAGEDIR = /usr/local/man
 #
 # VERSION determines the program's version number.
 #
-VERSION = "1.30"
+VERSION = "1.31"
 
 #
 # To use the md5sum program for calculating signatures (instead of the
