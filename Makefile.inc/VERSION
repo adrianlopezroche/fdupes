@@ -1,0 +1,5 @@
+#
+# VERSION determines the program's version number.
+#
+
+VERSION = 1.50-PR2

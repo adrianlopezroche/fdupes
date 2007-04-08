@@ -14,25 +14,17 @@
 PREFIX = /usr/local
 
 #
-# To use the md5sum program for calculating signatures (instead of the
-# built in MD5 message digest routines) uncomment the following
-# line (try this if you're having trouble with built in code).
-#
-#EXTERNAL_MD5 = -DEXTERNAL_MD5=\"md5sum\"
-
-#
 # Certain platforms do not support long options (command line options).
 # To disable long options, uncomment the following line.
 #
 #OMIT_GETOPT_LONG = -DOMIT_GETOPT_LONG
 
 #
-# This version of fdupes can use a red-black tree structure to
-# store file information. This is disabled by default, as it
-# hasn't been optimized or verified correct. If you wish to
-# enable this untested option, uncomment the following line.
+# To use the md5sum program for calculating signatures (instead of the
+# built in MD5 message digest routines) uncomment the following
+# line (try this if you're having trouble with built in code).
 #
-#EXPERIMENTAL_RBTREE = -DEXPERIMENTAL_RBTREE
+#EXTERNAL_MD5 = -DEXTERNAL_MD5=\"md5sum\"
 
 #####################################################################
 # Developer Configuration Section                                   #
@@ -41,7 +33,7 @@ PREFIX = /usr/local
 #
 # VERSION determines the program's version number.
 #
-VERSION = 1.50-PR1
+include Makefile.inc/VERSION
 
 #
 # PROGRAM_NAME determines the installation name and manual page name
@@ -69,14 +61,12 @@ MAN_EXT = 1
 INSTALL = install	# install : UCB/GNU Install compatiable
 #INSTALL = ginstall
 
-GNU_TAR = tar		# tar : GNU Tar 
-#GNU_TAR = gtar
-
 RM      = rm -f
 
 MKDIR   = mkdir -p
 #MKDIR   = mkdirhier 
 #MKDIR   = mkinstalldirs
+
 
 #
 # Make Configuration
@@ -114,14 +104,10 @@ install: fdupes installdirs
 	$(INSTALL_PROGRAM)	fdupes   $(BIN_DIR)/$(PROGRAM_NAME)
 	$(INSTALL_DATA)		fdupes.1 $(MAN_DIR)/$(PROGRAM_NAME).$(MAN_EXT)
 
-tarball: clean
-	$(GNU_TAR) --directory=.. -c -z -v \
-                   -f ../fdupes-$(VERSION).tar.gz fdupes-$(VERSION)
-
 clean:
 	$(RM) $(OBJECT_FILES)
 	$(RM) fdupes
-	$(RM) *~
+	$(RM) *~ md5/*~
 
 love:
 	@echo You\'re not my type. Go find a human partner.

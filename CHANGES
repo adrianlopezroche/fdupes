@@ -7,16 +7,28 @@ those who've otherwise worked on that item. For a list of
 contributors names and identifiers please see the CONTRIBUTORS file.
 
 
-Changes from 1.40 to 1.50-PR1
+Changes from 1.40 to 1.50-PR2
 
-- Changes to help text for clarity. [AL]
-- Added selective recursion option (--recurse:). [AL]
+- Added "--summarize" option. [AL]
+- Added "--recurse:" selective recursion option. [AL]
+- Added "--noprompt" option for totally automated deletion of
+  duplicate files.
+- Now sorts duplicates (old to new) for consistent order when
+  listing or deleteing duplicate files.
+- Now tests for early matching of files, which should help speed up
+  the matching process when large files are involved.
+- Added warning whenever a file cannot be deleted. [CHL, AL]
+- Fixed bug where some files would not be closed after failure. [AL]
 - Fixed bug where confirmmatch() function wouldn't always deal
   properly with zero-length files. [AL]
 - Fixed bug where progress indicator would not be cleared
   when no files were found. [AL]
+- Removed experimental red-black tree code (it was slower on
+  my system than the default code). [AL]
+- Modified md5/md5.c to avoid compiler warning. [CHL]
 - Changes to fdupes.c for compilation under platforms where
   getopt_long is unavailable. [LR, AL]
+- Changes to help text for clarity. [AL]
 - Various changes and improvements to Makefile. [PB, AL]
 
 Changes from 1.31 to 1.40

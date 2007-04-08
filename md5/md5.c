@@ -33,12 +33,17 @@
   <ghost@aladdin.com>.  Other authors are noted in the change history
   that follows (in reverse chronological order):
 
+  contributors
+   chl - Charles Longeau <chl@tuxfamily.org>
+
+  2002-05-31 chl Relocated string.h to avoid memcpy warning. 
   1999-11-04 lpd Edited comments slightly for automatic TOC extraction.
   1999-10-18 lpd Fixed typo in header comment (ansi2knr rather than md5).
   1999-05-03 lpd Original version.
  */
 
 #include "md5.h"
+#include <string.h>
 
 #ifdef TEST
 /*
@@ -46,7 +51,6 @@
  * The test program should print out the same values as given in section
  * A.5 of RFC 1321, reproduced below.
  */
-#include <string.h>
 main()
 {
     static const char *const test[7] = {

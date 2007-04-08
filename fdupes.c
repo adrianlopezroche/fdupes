@@ -1,4 +1,4 @@
-/* FDUPES Copyright (c) 1999-2001 Adrian Lopez
+/* FDUPES Copyright (c) 1999-2002 Adrian Lopez
 
    Permission is hereby granted, free of charge, to any person
    obtaining a copy of this software and associated documentation files
@@ -39,16 +39,18 @@
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
 
-#define F_RECURSE           0x001
-#define F_HIDEPROGRESS      0x002
-#define F_DSAMELINE         0x004
-#define F_FOLLOWLINKS       0x008
-#define F_DELETEFILES       0x010
-#define F_EXCLUDEEMPTY      0x020
-#define F_CONSIDERHARDLINKS 0x040
-#define F_SHOWSIZE          0x080
-#define F_OMITFIRST         0x100
-#define F_RECURSEAFTER      0x200
+#define F_RECURSE           0x0001
+#define F_HIDEPROGRESS      0x0002
+#define F_DSAMELINE         0x0004
+#define F_FOLLOWLINKS       0x0008
+#define F_DELETEFILES       0x0010
+#define F_EXCLUDEEMPTY      0x0020
+#define F_CONSIDERHARDLINKS 0x0040
+#define F_SHOWSIZE          0x0080
+#define F_OMITFIRST         0x0100
+#define F_RECURSEAFTER      0x0200
+#define F_NOPROMPT          0x0400
+#define F_SUMMARIZEMATCHES  0x0800
 
 char *program_name;
 
@@ -58,11 +60,34 @@ unsigned long flags = 0;
 
 #define INPUT_SIZE 256
 
+#define PARTIAL_MD5_SIZE 4096
+
+/* 
+
+TODO: Partial sums (for working with very large files).
+
+typedef struct _signature
+{
+  md5_state_t state;
+  md5_byte_t  digest[16];
+} signature_t;
+
+typedef struct _signatures
+{
+  int         num_signatures;
+  signature_t *signatures;
+} signatures_t;
+
+*/
+
 typedef struct _file {
   char *d_name;
   off_t size;
+  char *crcpartial;
   char *crcsignature;
+  dev_t device;
   ino_t inode;
+  time_t mtime;
   int hasdupes; /* true only if file is first on duplicate chain */
   struct _file *duplicates;
   struct _file *next;
@@ -70,18 +95,9 @@ typedef struct _file {
 
 typedef struct _filetree {
   file_t *file; 
-#ifdef EXPERIMENTAL_RBTREE
-  unsigned char color;
-  struct _filetree *parent;
-#endif
   struct _filetree *left;
   struct _filetree *right;
 } filetree_t;
-
-#ifdef EXPERIMENTAL_RBTREE
-#define COLOR_RED    0
-#define COLOR_BLACK  1
-#endif
 
 void errormsg(char *message, ...)
 {
@@ -133,12 +149,28 @@ off_t filesize(char *filename) {
   return s.st_size;
 }
 
+dev_t getdevice(char *filename) {
+  struct stat s;
+
+  if (stat(filename, &s) != 0) return 0;
+
+  return s.st_dev;
+}
+
 ino_t getinode(char *filename) {
   struct stat s;
    
   if (stat(filename, &s) != 0) return 0;
 
   return s.st_ino;   
+}
+
+time_t getmtime(char *filename) {
+  struct stat s;
+
+  if (stat(filename, &s) != 0) return 0;
+
+  return s.st_mtime;
 }
 
 char **cloneargs(int argc, char **argv)
@@ -231,8 +263,10 @@ int grokdir(char *dir, file_t **filelistp)
 	exit(1);
       } else newfile->next = *filelistp;
 
+      newfile->device = 0;
       newfile->inode = 0;
       newfile->crcsignature = NULL;
+      newfile->crcpartial = NULL;
       newfile->duplicates = NULL;
       newfile->hasdupes = 0;
 
@@ -295,7 +329,7 @@ int grokdir(char *dir, file_t **filelistp)
 
 /* If EXTERNAL_MD5 is not defined, use L. Peter Deutsch's MD5 library. 
  */
-char *getcrcsignature(char *filename)
+char *getcrcsignatureuntil(char *filename, off_t max_read)
 {
   int x;
   off_t fsize;
@@ -309,7 +343,11 @@ char *getcrcsignature(char *filename)
    
   md5_init(&state);
 
+ 
   fsize = filesize(filename);
+  
+  if (max_read != 0 && fsize > max_read)
+    fsize = max_read;
 
   file = fopen(filename, "rb");
   if (file == NULL) {
@@ -321,6 +359,7 @@ char *getcrcsignature(char *filename)
     toread = (fsize % CHUNK_SIZE) ? (fsize % CHUNK_SIZE) : CHUNK_SIZE;
     if (fread(chunk, toread, 1, file) != 1) {
       errormsg("error reading from file %s\n", filename);
+      fclose(file); // bugfix
       return NULL;
     }
     md5_append(&state, chunk, toread);
@@ -339,6 +378,16 @@ char *getcrcsignature(char *filename)
   fclose(file);
 
   return signature;
+}
+
+char *getcrcsignature(char *filename)
+{
+  return getcrcsignatureuntil(filename, 0);
+}
+
+char *getcrcpartialsignature(char *filename)
+{
+  return getcrcsignatureuntil(filename, PARTIAL_MD5_SIZE);
 }
 
 #endif /* [#ifndef EXTERNAL_MD5] */
@@ -393,140 +442,17 @@ void purgetree(filetree_t *checktree)
   free(checktree);
 }
 
-#ifdef EXPERIMENTAL_RBTREE
-/* Use a red-black tree structure to store file information.
- */
-
-void rotate_left(filetree_t **root, filetree_t *node)
+void getfilestats(file_t *file)
 {
-  filetree_t *subject;
-
-  subject = node->right;
-  node->right = subject->left;
-
-  if (subject->left != NULL) subject->left->parent = node;
-  subject->parent = node->parent;
-
-  if (node->parent == NULL) {
-    *root = subject;
-  } else {
-    if (node == node->parent->left)
-      node->parent->left = subject;
-    else 
-      node->parent->right = subject;
-  }
-
-  subject->left = node;
-  node->parent = subject;
-}
-
-void rotate_right(filetree_t **root, filetree_t *node)
-{
-  filetree_t *subject;
-
-  subject = node->left;
-  node->left = subject->right;
-
-  if (subject->right != NULL) subject->right->parent = node;
-  subject->parent = node->parent;
-
-  if (node->parent == NULL) {
-    *root = subject;
-  } else {
-    if (node == node->parent->left)
-      node->parent->left = subject;
-    else 
-      node->parent->right = subject;
-  }
-
-  subject->right = node;
-  node->parent = subject;
-}
-
-#define TREE_LEFT -1
-#define TREE_RIGHT 1
-#define TREE_ROOT  0
-
-void registerfile(filetree_t **root, filetree_t *parent, int loc, file_t *file)
-{
-  filetree_t *node;
-  filetree_t *uncle;
-
   file->size = filesize(file->d_name);
   file->inode = getinode(file->d_name);
-
-  node = (filetree_t*) malloc(sizeof(filetree_t));
-  if (node == NULL) {
-    errormsg("out of memory!\n");
-    exit(1);
-  }
-  
-  node->file = file;
-  node->left = NULL;
-  node->right = NULL;
-  node->parent = parent;
-  node->color = COLOR_RED;
-
-  if (loc == TREE_ROOT)
-    *root = node;
-  else if (loc == TREE_LEFT) 
-    parent->left = node;
-  else 
-    parent->right = node;
-
-  while (node != *root && node->parent->color == COLOR_RED) {
-    if (node->parent->parent == NULL) return;
-
-    if (node->parent == node->parent->parent->left) {
-      uncle = node->parent->parent->right;
-      if (uncle == NULL) return;
-
-      if (uncle->color == COLOR_RED) {
-	node->parent->color = COLOR_BLACK;
-	uncle->color = COLOR_BLACK;
-	node->parent->parent->color = COLOR_RED;
-	node = node->parent->parent;
-      } else {
-	if (node == node->parent->right) {
-	  node = node->parent;
-	  rotate_left(root, node);
-	}
-	node->parent->color = COLOR_BLACK;
-	node->parent->parent->color = COLOR_RED;
-	rotate_right(root, node->parent->parent);
-      }
-    } else {
-      uncle = node->parent->parent->left;
-      if (uncle == NULL) return;
-
-      if (uncle->color == COLOR_RED) {
-	node->parent->color = COLOR_BLACK;
-	uncle->color = COLOR_BLACK;
-	node->parent->parent->color = COLOR_RED;
-	node = node->parent->parent;
-      } else {
-	if (node == node->parent->right) {
-	  node = node->parent;
-	  rotate_left(root, node);
-	}
-	node->parent->color = COLOR_BLACK;
-	node->parent->parent->color = COLOR_RED;
-	rotate_right(root, node->parent->parent);
-      }
-    }
-  }
-
-  (*root)->color = COLOR_BLACK;
+  file->device = getdevice(file->d_name);
+  file->mtime = getmtime(file->d_name);
 }
-
-#endif /* [#ifdef EXPERIMENTAL_RBTREE] */
-
-#ifndef EXPERIMENTAL_RBTREE
 
 int registerfile(filetree_t **branch, file_t *file)
 {
-  file->size = filesize(file->d_name);
-  file->inode = getinode(file->d_name);
+  getfilestats(file);
 
   *branch = (filetree_t*) malloc(sizeof(filetree_t));
   if (*branch == NULL) {
@@ -541,20 +467,21 @@ int registerfile(filetree_t **branch, file_t *file)
   return 1;
 }
 
-#endif /* [#ifndef EXPERIMENTAL_RBTREE] */
-
-file_t *checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
+file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 {
   int cmpresult;
   char *crcsignature;
   off_t fsize;
 
-  /* If inodes are equal one of the files is a hard link, which
-     is usually not accidental. We don't want to flag them as 
-     duplicates, unless the user specifies otherwise. */
+  /* If device and inode fields are equal one of the files is a 
+     hard link to the other or the files have been listed twice 
+     unintentionally. We don't want to flag these files as
+     duplicates unless the user specifies otherwise.
+  */    
 
-  if (!ISFLAG(flags, F_CONSIDERHARDLINKS) && getinode(file->d_name) == 
-   checktree->file->inode) return NULL;
+  if (!ISFLAG(flags, F_CONSIDERHARDLINKS) && (getinode(file->d_name) == 
+      checktree->file->inode) && (getdevice(file->d_name) ==
+      checktree->file->device)) return NULL; 
 
   fsize = filesize(file->d_name);
   
@@ -563,56 +490,86 @@ file_t *checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
   else 
     if (fsize > checktree->file->size) cmpresult = 1;
   else {
-    if (checktree->file->crcsignature == NULL) {
-      crcsignature = getcrcsignature(checktree->file->d_name);
+    if (checktree->file->crcpartial == NULL) {
+      crcsignature = getcrcpartialsignature(checktree->file->d_name);
       if (crcsignature == NULL) return NULL;
 
-      checktree->file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
+      checktree->file->crcpartial = (char*) malloc(strlen(crcsignature)+1);
+      if (checktree->file->crcpartial == NULL) {
+	errormsg("out of memory\n");
+	exit(1);
+      }
+      strcpy(checktree->file->crcpartial, crcsignature);
+    }
+
+    if (file->crcpartial == NULL) {
+      crcsignature = getcrcpartialsignature(file->d_name);
+      if (crcsignature == NULL) return NULL;
+
+      file->crcpartial = (char*) malloc(strlen(crcsignature)+1);
+      if (file->crcpartial == NULL) {
+	errormsg("out of memory\n");
+	exit(1);
+      }
+      strcpy(file->crcpartial, crcsignature);
+    }
+
+    cmpresult = strcmp(file->crcpartial, checktree->file->crcpartial);
+    //if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);
+
+    if (cmpresult == 0) {
       if (checktree->file->crcsignature == NULL) {
-	errormsg("out of memory\n");
-	exit(1);
+	crcsignature = getcrcsignature(checktree->file->d_name);
+	if (crcsignature == NULL) return NULL;
+
+	checktree->file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
+	if (checktree->file->crcsignature == NULL) {
+	  errormsg("out of memory\n");
+	  exit(1);
+	}
+	strcpy(checktree->file->crcsignature, crcsignature);
       }
-      strcpy(checktree->file->crcsignature, crcsignature);
-    }
 
-    if (file->crcsignature == NULL) {
-      crcsignature = getcrcsignature(file->d_name);
-      if (crcsignature == NULL) return NULL;
-
-      file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
       if (file->crcsignature == NULL) {
-	errormsg("out of memory\n");
-	exit(1);
-      }
-      strcpy(file->crcsignature, crcsignature);
-    }
+	crcsignature = getcrcsignature(file->d_name);
+	if (crcsignature == NULL) return NULL;
 
-    cmpresult = strcmp(file->crcsignature, checktree->file->crcsignature);
+	file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
+	if (file->crcsignature == NULL) {
+	  errormsg("out of memory\n");
+	  exit(1);
+	}
+	strcpy(file->crcsignature, crcsignature);
+      }
+
+      cmpresult = strcmp(file->crcsignature, checktree->file->crcsignature);
+      //if (cmpresult != 0) errormsg("P   on %s vs %s\n", 
+          //file->d_name, checktree->file->d_name);
+      //else errormsg("P F on %s vs %s\n", file->d_name,
+          //checktree->file->d_name);
+      //printf("%s matches %s\n", file->d_name, checktree->file->d_name);
+    }
   }
 
   if (cmpresult < 0) {
     if (checktree->left != NULL) {
       return checkmatch(root, checktree->left, file);
     } else {
-#ifndef EXPERIMENTAL_RBTREE
       registerfile(&(checktree->left), file);
-#else
-      registerfile(root, checktree, TREE_LEFT, file);
-#endif
       return NULL;
     }
   } else if (cmpresult > 0) {
     if (checktree->right != NULL) {
       return checkmatch(root, checktree->right, file);
     } else {
-#ifndef EXPERIMENTAL_RBTREE
       registerfile(&(checktree->right), file);
-#else
-      registerfile(root, checktree, TREE_RIGHT, file);
-#endif
       return NULL;
     }
-  } else return checktree->file;
+  } else 
+  {
+    getfilestats(file);
+    return &checktree->file;
+  }
 }
 
 /* Do a bit-for-bit comparison in case two different files produce the 
@@ -638,6 +595,45 @@ int confirmmatch(FILE *file1, FILE *file2)
   if (r1 != r2) return 0; /* file lengths are different */
 
   return 1;
+}
+
+void summarizematches(file_t *files)
+{
+  int numsets = 0;
+  double numbytes = 0.0;
+  int numfiles = 0;
+  file_t *tmpfile;
+
+  while (files != NULL)
+  {
+    if (files->hasdupes)
+    {
+      numsets++;
+
+      tmpfile = files->duplicates;
+      while (tmpfile != NULL)
+      {
+	numfiles++;
+	numbytes += files->size;
+	tmpfile = tmpfile->duplicates;
+      }
+    }
+
+    files = files->next;
+  }
+
+  if (numsets == 0)
+    printf("No duplicates found.\n\n");
+  else
+  {
+    if (numbytes < 1024.0)
+      printf("%d duplicate files (in %d sets), occupying %.0f bytes.\n\n", numfiles, numsets, numbytes);
+    else if (numbytes <= (1000.0 * 1000.0))
+      printf("%d duplicate files (in %d sets), occupying %.1f kylobytes\n\n", numfiles, numsets, numbytes / 1000.0);
+    else
+      printf("%d duplicate files (in %d sets), occupying %.1f megabytes\n\n", numfiles, numsets, numbytes / (1000.0 * 1000.0));
+ 
+  }
 }
 
 void printmatches(file_t *files)
@@ -666,7 +662,64 @@ void printmatches(file_t *files)
   }
 }
 
-void autodelete(file_t *files)
+/*
+#define REVISE_APPEND "_tmp"
+char *revisefilename(char *path, int seq)
+{
+  int digits;
+  char *newpath;
+  char *scratch;
+  char *dot;
+
+  digits = numdigits(seq);
+  newpath = malloc(strlen(path) + strlen(REVISE_APPEND) + digits + 1);
+  if (!newpath) return newpath;
+
+  scratch = malloc(strlen(path) + 1);
+  if (!scratch) return newpath;
+
+  strcpy(scratch, path);
+  dot = strrchr(scratch, '.');
+  if (dot) 
+  {
+    *dot = 0;
+    sprintf(newpath, "%s%s%d.%s", scratch, REVISE_APPEND, seq, dot + 1);
+  }
+
+  else
+  {
+    sprintf(newpath, "%s%s%d", path, REVISE_APPEND, seq);
+  }
+
+  free(scratch);
+
+  return newpath;
+} */
+
+int relink(char *oldfile, char *newfile)
+{
+  dev_t od;
+  dev_t nd;
+  ino_t oi;
+  ino_t ni;
+
+  od = getdevice(oldfile);
+  oi = getinode(oldfile);
+
+  if (link(oldfile, newfile) != 0)
+    return 0;
+
+  // make sure we're working with the right file (the one we created)
+  nd = getdevice(newfile);
+  ni = getinode(newfile);
+
+  if (nd != od || oi != ni)
+    return 0; // file is not what we expected
+
+  return 1;
+}
+
+void deletefiles(file_t *files, int prompt)
 {
   int counter;
   int groups = 0;
@@ -720,17 +773,25 @@ void autodelete(file_t *files)
       counter = 1;
       dupelist[counter] = files;
 
-      printf("[%d] %s\n", counter, files->d_name);
+      if (prompt) printf("[%d] %s\n", counter, files->d_name);
 
       tmpfile = files->duplicates;
 
       while (tmpfile) {
 	dupelist[++counter] = tmpfile;
-	printf("[%d] %s\n", counter, tmpfile->d_name);
+	if (prompt) printf("[%d] %s\n", counter, tmpfile->d_name);
 	tmpfile = tmpfile->duplicates;
       }
 
-      printf("\n");
+      if (prompt) printf("\n");
+
+      if (!prompt) /* preserve only the first file */
+      {
+         preserve[1] = 1;
+	 for (x = 2; x <= counter; x++) preserve[x] = 0;
+      }
+
+      else /* prompt for files to preserve */
 
       do {
 	printf("Set %d of %d, preserve files [1 - %d, all]", 
@@ -782,8 +843,12 @@ void autodelete(file_t *files)
 	if (preserve[x])
 	  printf("   [+] %s\n", dupelist[x]->d_name);
 	else {
-	  printf("   [-] %s\n", dupelist[x]->d_name);
-	  remove(dupelist[x]->d_name);
+	  if (remove(dupelist[x]->d_name) == 0) {
+	    printf("   [-] %s\n", dupelist[x]->d_name);
+	  } else {
+	    printf("   [!] %s ", dupelist[x]->d_name);
+	    printf("-- unable to delete file!\n");
+	  }
 	}
       }
       printf("\n");
@@ -795,6 +860,71 @@ void autodelete(file_t *files)
   free(dupelist);
   free(preserve);
   free(preservestr);
+}
+
+int sort_pairs_by_arrival(file_t *f1, file_t *f2)
+{
+  if (f2->duplicates != 0)
+    return 1;
+
+  return -1;
+}
+
+int sort_pairs_by_mtime(file_t *f1, file_t *f2)
+{
+  if (f1->mtime < f2->mtime)
+    return -1;
+  else if (f1->mtime > f2->mtime)
+    return 1;
+
+  //return sort_pairs_by_arrival(f1, f2);
+  return 0;
+}
+
+void registerpair(file_t **matchlist, file_t *newmatch, 
+		  int (*comparef)(file_t *f1, file_t *f2))
+{
+  file_t *traverse;
+  file_t *back;
+
+  (*matchlist)->hasdupes = 1;
+
+  back = 0;
+  traverse = *matchlist;
+  while (traverse)
+  {
+    if (comparef(newmatch, traverse) <= 0)
+    {
+      newmatch->duplicates = traverse;
+      
+      if (back == 0)
+      {
+	*matchlist = newmatch; // update pointer to head of list
+
+	newmatch->hasdupes = 1;
+	traverse->hasdupes = 0; // flag is only for first file in dupe chain
+      }
+      else
+	back->duplicates = newmatch;
+
+      break;
+    }
+    else
+    {
+      if (traverse->duplicates == 0)
+      {
+	traverse->duplicates = newmatch;
+	
+	if (back == 0)
+	  traverse->hasdupes = 1;
+	
+	break;
+      }
+    }
+    
+    back = traverse;
+    traverse = traverse->duplicates;
+  }
 }
 
 void help_text()
@@ -813,6 +943,7 @@ void help_text()
   printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
   printf(" -1 --sameline    \tlist each set of matches on a single line\n");
   printf(" -S --size        \tshow size of duplicate files\n");
+  printf(" -m --summarize   \tsummarize dupe information\n");
   printf(" -q --quiet       \thide progress indicator\n");
   printf(" -d --delete      \tprompt user for files to preserve and delete all\n"); 
   printf("                  \tothers; important: under particular circumstances,\n");
@@ -820,6 +951,10 @@ void help_text()
   printf("                  \twith -s or --symlinks, or when specifying a\n");
   printf("                  \tparticular directory more than once; refer to the\n");
   printf("                  \tfdupes documentation for additional information\n");
+  //printf(" -l --relink      \t(description)\n");
+  printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
+  printf("                  \teach set of duplicates and delete the rest without\n");
+  printf("                  \twithout prompting the user\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -834,7 +969,7 @@ int main(int argc, char **argv) {
   FILE *file2;
   file_t *files = NULL;
   file_t *curfile;
-  file_t *match = NULL;
+  file_t **match = NULL;
   filetree_t *checktree = NULL;
   int filecount = 0;
   int progress = 0;
@@ -846,16 +981,22 @@ int main(int argc, char **argv) {
   {
     { "omitfirst", 0, 0, 'f' },
     { "recurse", 0, 0, 'r' },
+    { "recursive", 0, 0, 'r' },
     { "recurse:", 0, 0, 'R' },
+    { "recursive:", 0, 0, 'R' },
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
     { "size", 0, 0, 'S' },
     { "symlinks", 0, 0, 's' },
     { "hardlinks", 0, 0, 'H' },
+    { "relink", 0, 0, 'l' },
     { "noempty", 0, 0, 'n' },
     { "delete", 0, 0, 'd' },
     { "version", 0, 0, 'v' },
     { "help", 0, 0, 'h' },
+    { "noprompt", 0, 0, 'N' },
+    { "summarize", 0, 0, 'm'},
+    { "summary", 0, 0, 'm' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -867,7 +1008,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHndvh"
+  while ((opt = GETOPT(argc, argv, "frRq1Ss::HlndvhNm"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -909,6 +1050,13 @@ int main(int argc, char **argv) {
     case 'h':
       help_text();
       exit(1);
+    case 'N':
+      SETFLAG(flags, F_NOPROMPT);
+      break;
+    case 'm':
+      SETFLAG(flags, F_SUMMARIZEMATCHES);
+      break;
+
     default:
       fprintf(stderr, "Try `fdupes --help' for more information.\n");
       exit(1);
@@ -925,8 +1073,21 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+  if (ISFLAG(flags, F_SUMMARIZEMATCHES) && ISFLAG(flags, F_DELETEFILES)) {
+    errormsg("options --summarize and --delete are not compatible\n");
+    exit(1);
+  }
+
   if (ISFLAG(flags, F_RECURSEAFTER)) {
     firstrecurse = nonoptafter("--recurse:", argc, oldargv, argv, optind);
+    
+    if (firstrecurse == argc)
+      firstrecurse = nonoptafter("-R", argc, oldargv, argv, optind);
+
+    if (firstrecurse == argc) {
+      errormsg("-R option must be isolated from other options\n");
+      exit(1);
+    }
 
     /* F_RECURSE is not set for directories before --recurse: */
     for (x = optind; x < firstrecurse; x++)
@@ -951,11 +1112,7 @@ int main(int argc, char **argv) {
 
   while (curfile) {
     if (!checktree) 
-#ifndef EXPERIMENTAL_RBTREE
       registerfile(&checktree, curfile);
-#else
-      registerfile(&checktree, NULL, TREE_ROOT, curfile);
-#endif
     else 
       match = checkmatch(&checktree, checktree, curfile);
 
@@ -965,18 +1122,20 @@ int main(int argc, char **argv) {
 	curfile = curfile->next;
 	continue;
       }
-
-      file2 = fopen(match->d_name, "rb");
+      
+      file2 = fopen((*match)->d_name, "rb");
       if (!file2) {
 	fclose(file1);
 	curfile = curfile->next;
 	continue;
       }
- 
+
       if (confirmmatch(file1, file2)) {
-	match->hasdupes = 1;
-        curfile->duplicates = match->duplicates;
-        match->duplicates = curfile;
+	registerpair(match, curfile, sort_pairs_by_mtime);
+	
+	//match->hasdupes = 1;
+        //curfile->duplicates = match->duplicates;
+        //match->duplicates = curfile;
       }
       
       fclose(file1);
@@ -994,8 +1153,22 @@ int main(int argc, char **argv) {
 
   if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
 
-  if (ISFLAG(flags, F_DELETEFILES)) autodelete(files); 
-  else printmatches(files);
+  if (ISFLAG(flags, F_DELETEFILES))
+  {
+    if (ISFLAG(flags, F_NOPROMPT))
+      deletefiles(files, 0);
+    else
+      deletefiles(files, 1);
+  }
+
+  else 
+
+    if (ISFLAG(flags, F_SUMMARIZEMATCHES))
+      summarizematches(files);
+      
+    else
+
+      printmatches(files);
 
   while (files) {
     curfile = files->next;

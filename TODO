@@ -1,5 +1,72 @@
-- Add option to highlight or identify symlinked files.
-- Verify correctness of red-black tree algorithm. Optimize.
+- A bug with -S shows wrong results.
+
+- A bug causes the following behavior:
+
+  $ fdupes --symlinks testdir
+  testdir/with spaces b
+  testdir/with spaces a
+
+  testdir/zero_b
+  testdir/zero_a
+
+  testdir/symlink_two
+  testdir/twice_one
+
+  $ cp testdir/two testdir/two_again
+  $ fdupes --symlinks testdir
+  testdir/two_again
+  testdir/two
+  testdir/twice_one
+  testdir/symlink_two
+
+  testdir/with spaces b
+  testdir/with spaces a
+
+  testdir/zero_b
+  testdir/zero_a
+
+  ** This is not the desired behavior. Likewise:
+
+  $ fdupes testdir
+  testdir/with spaces b
+  testdir/with spaces a
+
+  testdir/zero_b
+  testdir/zero_a
+
+  testdir/twice_one
+  testdir/two
+
+  $ fdupes --symlinks testdir
+  testdir/with spaces b
+  testdir/with spaces a
+
+  testdir/zero_b
+  testdir/zero_a
+
+  testdir/symlink_two
+  testdir/twice_one
+
+- Don't assume that stat always works.
+
+- Add partial checksumming where instead of MD5ing whole
+  files we MD5 and compare every so many bytes, caching
+  these partial results for subsequent comparisons.
+
+- Option -R should not have to be separated from the rest,
+  such that "fdupes -dR testdir", "fdupes -d -R testdir",
+  "fdupes -Rd testdir", etc., all yield the same results.
+
+- Add option to highlight or identify symlinked files (suggest
+  using --classify to identify symlinks with @ suffix... when
+  specified, files containing @ are listed using \@).
+
+- Consider autodeletion option without user intervention.
+
+- Consider option to match only to files in specific directory.
+
+- Do a little commenting, to avoid rolling eyes and/or snickering.
+
 - Fix problem where MD5 collisions will result in one of the
   files not being registered (causing it to be ignored).
 
