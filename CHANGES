@@ -9,6 +9,7 @@ contributors names and identifiers please see the CONTRIBUTORS file.
 
 Changes from 1.40 to 1.50-PR2
 
+- Fixed memory leak. [JB]
 - Added "--summarize" option. [AL]
 - Added "--recurse:" selective recursion option. [AL]
 - Added "--noprompt" option for totally automated deletion of

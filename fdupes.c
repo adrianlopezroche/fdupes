@@ -1173,10 +1173,17 @@ int main(int argc, char **argv) {
   while (files) {
     curfile = files->next;
     free(files->d_name);
+    free(files->crcsignature);
+    free(files->crcpartial);
     free(files);
     files = curfile;
   }
-  
+
+  for (x = 0; x < argc; x++)
+    free(oldargv[x]);
+
+  free(oldargv);
+
   purgetree(checktree);
 
   return 0;
