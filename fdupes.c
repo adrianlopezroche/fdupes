@@ -384,7 +384,6 @@ int grokpath(char *path, file_t **filelistp)
 	  free(newfile->d_name);
 	  free(newfile);
 	} else {
-	  printf("NIENTE!\n");
 	  free(newfile->d_name);
 	  free(newfile);
 	}
