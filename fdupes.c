@@ -32,6 +32,9 @@
 #include <string.h>
 #include <errno.h>
 
+#include "publicdomain/truefilename.h"
+#include "publicdomain/fgetline.h"
+
 #ifndef EXTERNAL_MD5
 #include "md5/md5.h"
 #endif
@@ -51,6 +54,7 @@
 #define F_RECURSEAFTER      0x0200
 #define F_NOPROMPT          0x0400
 #define F_SUMMARIZEMATCHES  0x0800
+#define F_STDIN             0x1000
 
 char *program_name;
 
@@ -229,11 +233,31 @@ int nonoptafter(char *option, int argc, char **oldargv,
   return x;
 }
 
-int grokdir(char *dir, file_t **filelistp)
+file_t *describecandidate(char *file, file_t *next)
+{
+  file_t *newfile = (file_t*) malloc(sizeof(file_t));
+
+  if (!newfile)
+    return 0;
+
+  newfile->d_name = file;
+  newfile->next = next;
+  newfile->device = 0;
+  newfile->inode = 0;
+  newfile->crcsignature = NULL;
+  newfile->crcpartial = NULL;
+  newfile->duplicates = NULL;
+  newfile->hasdupes = 0;
+
+  return newfile;
+}
+
+int grokpath(char *path, file_t **filelistp)
 {
   DIR *cd;
   file_t *newfile;
   struct dirent *dirinfo;
+  string_t *truename;
   int lastchar;
   int filecount = 0;
   struct stat info;
@@ -241,10 +265,56 @@ int grokdir(char *dir, file_t **filelistp)
   static int progress = 0;
   static char indicator[] = "-\\|/";
 
-  cd = opendir(dir);
+  if (stat(path, &info) == -1)
+  {
+    errormsg("could not stat %s\n", path);
+    return 0;
+  }
+
+  if (lstat(path, &linfo) == -1)
+  {
+    errormsg("could not stat %s\n", path);
+    return 0;
+  }
+
+  if (S_ISLNK(linfo.st_mode) && !S_ISDIR(info.st_mode))
+  {
+    truename = truefilename(path);
+
+    filecount = grokpath(truename->buffer, filelistp);
+
+    string_free(truename);
+
+    return filecount;
+  }
+
+  if (S_ISREG(linfo.st_mode) && (filesize(path) != 0 || !ISFLAG(flags, F_EXCLUDEEMPTY)))
+  {
+    if (!ISFLAG(flags, F_HIDEPROGRESS)) {
+      fprintf(stderr, "\rBuilding file list %c ", indicator[progress]);
+      progress = (progress + 1) % 4;
+    }
+
+    /* path may be a command-line parameter, which cannot be
+       free()'d, so use a malloc()'d copy instead. */
+    char *mallocedpath = (char*)malloc(strlen(path)+1);
+    if (!mallocedpath) {
+      errormsg("out of memory!\n");
+      exit(1);
+    }
+    strcpy(mallocedpath, path);
+    
+    newfile = describecandidate(mallocedpath, *filelistp);
+
+    *filelistp = newfile;
+
+    return 1;
+  }  
+
+  cd = opendir(path);
 
   if (!cd) {
-    errormsg("could not chdir to %s\n", dir);
+    errormsg("could not chdir to %s\n", path);
     return 0;
   }
 
@@ -255,35 +325,27 @@ int grokdir(char *dir, file_t **filelistp)
 	progress = (progress + 1) % 4;
       }
 
-      newfile = (file_t*) malloc(sizeof(file_t));
-
-      if (!newfile) {
+      char *mallocedpath = (char*)malloc(strlen(path)+strlen(dirinfo->d_name)+2);
+      if (!mallocedpath) {
 	errormsg("out of memory!\n");
-	closedir(cd);
-	exit(1);
-      } else newfile->next = *filelistp;
-
-      newfile->device = 0;
-      newfile->inode = 0;
-      newfile->crcsignature = NULL;
-      newfile->crcpartial = NULL;
-      newfile->duplicates = NULL;
-      newfile->hasdupes = 0;
-
-      newfile->d_name = (char*)malloc(strlen(dir)+strlen(dirinfo->d_name)+2);
-
-      if (!newfile->d_name) {
-	errormsg("out of memory!\n");
-	free(newfile);
 	closedir(cd);
 	exit(1);
       }
 
-      strcpy(newfile->d_name, dir);
-      lastchar = strlen(dir) - 1;
-      if (lastchar >= 0 && dir[lastchar] != '/')
-	strcat(newfile->d_name, "/");
-      strcat(newfile->d_name, dirinfo->d_name);
+      strcpy(mallocedpath, path);
+      lastchar = strlen(mallocedpath) - 1;
+      if (lastchar >= 0 && mallocedpath[lastchar] != '/')
+	strcat(mallocedpath, "/");
+      strcat(mallocedpath, dirinfo->d_name);
+
+      newfile = describecandidate(mallocedpath, *filelistp);
+      if (!newfile)
+      {
+	errormsg("out of memory!\n");
+	free(mallocedpath);
+	closedir(cd);
+	exit(1);
+      }
       
       if (filesize(newfile->d_name) == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
 	free(newfile->d_name);
@@ -305,14 +367,24 @@ int grokdir(char *dir, file_t **filelistp)
 
       if (S_ISDIR(info.st_mode)) {
 	if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)))
-	  filecount += grokdir(newfile->d_name, filelistp);
+	  filecount += grokpath(newfile->d_name, filelistp);
 	free(newfile->d_name);
 	free(newfile);
       } else {
-	if (S_ISREG(linfo.st_mode) || (S_ISLNK(linfo.st_mode) && ISFLAG(flags, F_FOLLOWLINKS))) {
+	if (S_ISREG(linfo.st_mode)) {
 	  *filelistp = newfile;
 	  filecount++;
+	} else if (S_ISLNK(linfo.st_mode) && ISFLAG(flags, F_FOLLOWLINKS)) {
+	  truename = truefilename(newfile->d_name);
+
+	  filecount += grokpath(truename->buffer, filelistp);
+
+	  string_free(truename);
+
+	  free(newfile->d_name);
+	  free(newfile);
 	} else {
+	  printf("NIENTE!\n");
 	  free(newfile->d_name);
 	  free(newfile);
 	}
@@ -473,16 +545,6 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
   char *crcsignature;
   off_t fsize;
 
-  /* If device and inode fields are equal one of the files is a 
-     hard link to the other or the files have been listed twice 
-     unintentionally. We don't want to flag these files as
-     duplicates unless the user specifies otherwise.
-  */    
-
-  if (!ISFLAG(flags, F_CONSIDERHARDLINKS) && (getinode(file->d_name) == 
-      checktree->file->inode) && (getdevice(file->d_name) ==
-      checktree->file->device)) return NULL; 
-
   fsize = filesize(file->d_name);
   
   if (fsize < checktree->file->size) 
@@ -572,6 +634,60 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
   }
 }
 
+/* If device and inode fields are equal one of the files is a 
+   hard link to the other or the files have been listed twice 
+   unintentionally. We don't want to flag these files as
+   duplicates unless the user specifies otherwise.
+*/
+int excludehardlink(file_t *potentialmatch, file_t *newfile)
+{
+  file_t *traverse = potentialmatch;
+  
+  if (ISFLAG(flags, F_CONSIDERHARDLINKS))
+    return 0;
+
+  while (traverse)
+  {
+    if (newfile->device == traverse->device && 
+	newfile->inode == traverse->inode)
+      return 1;
+
+    traverse = traverse->duplicates;
+  }
+
+  return 0;
+}
+
+int excludesamefile(file_t *potentialmatch, file_t *newfile)
+{
+  string_t *truename_newfile;
+  string_t *truename_existing;
+
+  truename_newfile = truefilename(newfile->d_name);
+
+  file_t *traverse = potentialmatch;
+  while (traverse)
+  {
+    truename_existing = truefilename(traverse->d_name);
+
+    if (strcmp(truename_existing->buffer, truename_newfile->buffer) == 0)
+    {
+      printf("EXCLUDED: %s same as %s\n", newfile->d_name, traverse->d_name);
+      string_free(truename_existing);
+      string_free(truename_newfile);
+      return 1;
+    }
+
+    string_free(truename_existing);
+
+    traverse = traverse->duplicates;
+  }
+
+  string_free(truename_newfile);
+
+  return 0;
+}
+
 /* Do a bit-for-bit comparison in case two different files produce the 
    same signature. Unlikely, but better safe than sorry. */
 
@@ -643,7 +759,7 @@ void printmatches(file_t *files)
   while (files != NULL) {
     if (files->hasdupes) {
       if (!ISFLAG(flags, F_OMITFIRST)) {
-	if (ISFLAG(flags, F_SHOWSIZE)) printf("%ld byte%seach:\n", files->size,
+	if (ISFLAG(flags, F_SHOWSIZE)) printf("%lld byte%seach:\n", files->size,
 	 (files->size != 1) ? "s " : " ");
 	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &files->d_name);
 	printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
@@ -719,7 +835,7 @@ int relink(char *oldfile, char *newfile)
   return 1;
 }
 
-void deletefiles(file_t *files, int prompt)
+void deletefiles(file_t *files, int prompt, FILE *tty)
 {
   int counter;
   int groups = 0;
@@ -796,12 +912,13 @@ void deletefiles(file_t *files, int prompt)
       do {
 	printf("Set %d of %d, preserve files [1 - %d, all]", 
           curgroup, groups, counter);
-	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%ld byte%seach)", files->size,
+	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%lld byte%seach)", files->size,
 	  (files->size != 1) ? "s " : " ");
 	printf(": ");
 	fflush(stdout);
 
-	fgets(preservestr, INPUT_SIZE, stdin);
+	if (!fgets(preservestr, INPUT_SIZE, tty))
+	  preservestr[0] = '\n'; /* treat fgets() failure as if nothing was entered */
 
 	i = strlen(preservestr) - 1;
 
@@ -814,8 +931,11 @@ void deletefiles(file_t *files, int prompt)
 	  }
 
 	  preservestr = tstr;
-	  if (!fgets(preservestr + i + 1, INPUT_SIZE, stdin))
-	    break; /* stop if fgets fails -- possible EOF? */
+	  if (!fgets(preservestr + i + 1, INPUT_SIZE, tty))
+	  {
+	    preservestr[0] = '\n'; /* treat fgets() failure as if nothing was entered */
+	    break;
+	  }
 	  i = strlen(preservestr)-1;
 	}
 
@@ -929,13 +1049,17 @@ void registerpair(file_t **matchlist, file_t *newmatch,
 
 void help_text()
 {
-  printf("Usage: fdupes [options] DIRECTORY...\n\n");
+  printf("Usage: fdupes [options] FILE|DIRECTORY...\n\n");
 
+  printf(" -i --stdin       \tget list of files/directories from standard input\n");
+  printf("                  \tas well as the command line\n");
   printf(" -r --recurse     \tfor every directory given follow subdirectories\n");
   printf("                  \tencountered within\n");
   printf(" -R --recurse:    \tfor each directory given after this option follow\n");
   printf("                  \tsubdirectories encountered within\n");
-  printf(" -s --symlinks    \tfollow symlinks\n");
+  printf(" -s --symlinks    \tfollow symlinks; this setting has no effect on\n");
+  printf("                  \tsymlinks given as command-line arguments or via\n");
+  printf("                  \tstandard input, which are always followed\n");
   printf(" -H --hardlinks   \tnormally, when two or more files point to the same\n");
   printf("                  \tdisk area they are treated as non-duplicates; this\n"); 
   printf("                  \toption will change this behavior\n");
@@ -954,7 +1078,7 @@ void help_text()
   //printf(" -l --relink      \t(description)\n");
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
-  printf("                  \twithout prompting the user\n");
+  printf("                  \tprompting the user\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -997,6 +1121,7 @@ int main(int argc, char **argv) {
     { "noprompt", 0, 0, 'N' },
     { "summarize", 0, 0, 'm'},
     { "summary", 0, 0, 'm' },
+    { "stdin", 0, 0, 'i' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1008,7 +1133,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1Ss::HlndvhNm"
+  while ((opt = GETOPT(argc, argv, "ifrRq1Ss::HlndvhNm"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1056,6 +1181,9 @@ int main(int argc, char **argv) {
     case 'm':
       SETFLAG(flags, F_SUMMARIZEMATCHES);
       break;
+    case 'i':
+      SETFLAG(flags, F_STDIN);
+      break;
 
     default:
       fprintf(stderr, "Try `fdupes --help' for more information.\n");
@@ -1063,8 +1191,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (optind >= argc) {
-    errormsg("no directories specified\n");
+  if (optind >= argc && !ISFLAG(flags, F_STDIN)) {
+    errormsg("no files specified\n");
     exit(1);
   }
 
@@ -1091,16 +1219,32 @@ int main(int argc, char **argv) {
 
     /* F_RECURSE is not set for directories before --recurse: */
     for (x = optind; x < firstrecurse; x++)
-      filecount += grokdir(argv[x], &files);
+      filecount += grokpath(argv[x], &files);
 
     /* Set F_RECURSE for directories after --recurse: */
     SETFLAG(flags, F_RECURSE);
 
     for (x = firstrecurse; x < argc; x++)
-      filecount += grokdir(argv[x], &files);
+      filecount += grokpath(argv[x], &files);
   } else {
     for (x = optind; x < argc; x++)
-      filecount += grokdir(argv[x], &files);
+      filecount += grokpath(argv[x], &files);
+  }
+  
+  if (ISFLAG(flags, F_STDIN))
+  {
+    string_t *linebuffer = string_init();
+ 
+    char *line = fgetline(stdin, linebuffer);
+    while (line)
+    {
+      if (line[0] != '\0')
+	filecount += grokpath(line, &files);
+      
+      line = fgetline(stdin, linebuffer);
+    }
+    
+    string_free(linebuffer);
   }
 
   if (!files) {
@@ -1117,6 +1261,18 @@ int main(int argc, char **argv) {
       match = checkmatch(&checktree, checktree, curfile);
 
     if (match != NULL) {
+      if (excludehardlink(*match, curfile))
+      {
+	curfile = curfile->next;
+	continue;
+      }
+
+      if (excludesamefile(*match, curfile))
+      {
+	curfile = curfile->next;
+	continue;
+      }
+      
       file1 = fopen(curfile->d_name, "rb");
       if (!file1) {
 	curfile = curfile->next;
@@ -1156,9 +1312,22 @@ int main(int argc, char **argv) {
   if (ISFLAG(flags, F_DELETEFILES))
   {
     if (ISFLAG(flags, F_NOPROMPT))
-      deletefiles(files, 0);
+    {
+      deletefiles(files, 0, 0);
+    }
     else
-      deletefiles(files, 1);
+    {
+      FILE *tty = fopen("/dev/tty", "r");
+      if (!tty)
+      {
+	errormsg("could not read from terminal!");
+	exit(1);
+      }
+
+      deletefiles(files, 1, tty);
+
+      fclose(tty);
+    }
   }
 
   else 

@@ -14,6 +14,12 @@
 PREFIX = /usr/local
 
 #
+# When compiling for 32-bit systems, FILEOFFSET_64BIT must be enabled
+# for fdupes to handle files greater than (2<<31)-1 bytes.
+#
+FILEOFFSET_64BIT = -D_FILE_OFFSET_BITS=64
+
+#
 # Certain platforms do not support long options (command line options).
 # To disable long options, uncomment the following line.
 #
@@ -74,7 +80,7 @@ MKDIR   = mkdir -p
 CC = gcc
 COMPILER_OPTIONS = -Wall -O -g
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(EXPERIMENTAL_RBTREE) $(OMIT_GETOPT_LONG)
+CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(EXPERIMENTAL_RBTREE) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
 
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
@@ -85,7 +91,7 @@ INSTALL_DATA    = $(INSTALL) -c -m 0644
 #
 #ADDITIONAL_OBJECTS = getopt.o
 
-OBJECT_FILES = fdupes.o md5/md5.o $(ADDITIONAL_OBJECTS)
+OBJECT_FILES = fdupes.o publicdomain/dynamicstring.o publicdomain/fgetline.o publicdomain/truefilename.o md5/md5.o $(ADDITIONAL_OBJECTS)
 
 #####################################################################
 # no need to modify anything beyond this point                      #
@@ -97,8 +103,8 @@ fdupes: $(OBJECT_FILES)
 	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
 
 installdirs:
-	test -d $(BIN_DIR) || -$(MKDIR) $(BIN_DIR)
-	test -d $(MAN_DIR) || -$(MKDIR) $(MAN_DIR)
+	test -d $(BIN_DIR) || $(MKDIR) $(BIN_DIR)
+	test -d $(MAN_DIR) || $(MKDIR) $(MAN_DIR)
 
 install: fdupes installdirs
 	$(INSTALL_PROGRAM)	fdupes   $(BIN_DIR)/$(PROGRAM_NAME)
@@ -107,7 +113,7 @@ install: fdupes installdirs
 clean:
 	$(RM) $(OBJECT_FILES)
 	$(RM) fdupes
-	$(RM) *~ md5/*~
+	$(RM) *~ md5/*~ publicdomain/*~
 
 love:
 	@echo You\'re not my type. Go find a human partner.
