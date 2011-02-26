@@ -31,7 +31,7 @@
 #endif
 #include <string.h>
 #include <errno.h>
-
+#include <ncurses.h>
 #include "publicdomain/truefilename.h"
 #include "publicdomain/fgetline.h"
 
@@ -834,6 +834,212 @@ int relink(char *oldfile, char *newfile)
   return 1;
 }
 
+int printline(int leftmargin, int rightmargin, int start, char *text)
+{
+}
+
+struct deletegroupfile
+{
+  file_t *file;
+  int preserve;
+};
+
+struct deletegroup
+{
+  struct deletegroupfile *files;
+  size_t filecount;
+  size_t startline;
+};
+
+void deletefiles_ncurses(file_t *files)
+{
+  int selectedgroup = 0;
+  int selectedfile = 0;
+  file_t *tmpfile;
+  file_t *curfile;
+  struct deletegroup *groups = 0;
+  size_t groupcount = 0;
+  int anchorgroup;
+  int anchorfile;
+  int anchorpos;
+  int ch;
+
+  curfile = files;
+  
+  while (curfile) {
+    if (curfile->hasdupes) {
+      ++groupcount;
+      groups = realloc(groups, sizeof(struct deletegroup) * groupcount);
+
+      groups[groupcount-1].files = 0;
+      groups[groupcount-1].filecount = 0;
+
+      tmpfile = curfile;
+      while (tmpfile) {
+	++groups[groupcount-1].filecount;
+	
+	groups[groupcount-1].files = realloc(groups[groupcount-1].files, groups[groupcount-1].filecount * sizeof(struct deletegroupfile));
+	groups[groupcount-1].files[groups[groupcount-1].filecount-1].file = tmpfile;
+	groups[groupcount-1].files[groups[groupcount-1].filecount-1].preserve = -1;
+
+	tmpfile = tmpfile->duplicates;
+      }
+    }
+    
+    curfile = curfile->next;
+  }
+
+  initscr();
+  noecho();
+  cbreak();
+  keypad(stdscr, 1);
+
+  do {
+    erase();
+    size_t group;
+    for (group = 0; group < groupcount; ++group) {
+	attron(A_BOLD);
+	printw("Set %d of %d", group+1, groupcount);
+	if (ISFLAG(flags, F_SHOWSIZE)) printw(" (%lld byte%seach)", groups[group].files[0].file->size,
+	  (groups[group].files[0].file->size != 1) ? "s " : " ");
+	printw("\n\n");
+	attroff(A_BOLD);
+	
+	size_t file;
+	for (file = 0; file < groups[group].filecount; ++file)
+	{
+	  char preservechar = ' ';
+	  switch (groups[group].files[file].preserve)
+	  {
+	  case 0:
+	    preservechar = '-';
+	    break;
+
+	  case 1:
+	    preservechar = '+';
+	    break;
+	  }
+
+	  int x;
+	  int y;
+	  getyx(stdscr, y, x);
+
+	  printw("%s   [%d] %s\n", group == selectedgroup && file == selectedfile ? ">" : " ", file+1, groups[group].files[file].file->d_name);
+
+	  int xnew;
+	  int ynew;
+	  getyx(stdscr, ynew, xnew);
+
+	  move(y, 2);
+	  attron(A_BOLD);
+	  addch(preservechar);
+	  attroff(A_BOLD);
+	  move(ynew,xnew);
+	}
+	
+	printw("\n");
+    }
+
+    int maxx = 0;
+    int maxy = 0;
+    getmaxyx(stdscr, maxy, maxx);
+
+    refresh();
+  
+    ch = getch();
+
+    switch (ch)
+    {
+    case '\n':
+      if (selectedgroup+1 < groupcount)
+      {
+	++selectedgroup;
+	selectedfile = 0;
+      }
+      break;
+
+    case '\'':
+      if (selectedgroup > 0)
+      {
+	--selectedgroup;
+	selectedfile = 0;
+      }
+      break;
+
+    case KEY_DOWN:
+      if (selectedfile+1 < groups[selectedgroup].filecount)
+	++selectedfile;
+      else if (selectedgroup+1 < groupcount)
+      {
+	++selectedgroup;
+	selectedfile = 0;
+      }
+      break;
+
+    case KEY_UP:
+      if (selectedfile > 0)
+	--selectedfile;
+      else if (selectedgroup > 0)
+      {
+	--selectedgroup;
+	selectedfile = groups[selectedgroup].filecount - 1;
+      }
+      break;
+
+    case KEY_LEFT:
+      {
+      if (groups[selectedgroup].files[selectedfile].preserve == -1)
+      {
+	size_t file;
+	for (file = 0; file < groups[selectedgroup].filecount; ++file)
+	  groups[selectedgroup].files[file].preserve = 1;
+      }
+
+      groups[selectedgroup].files[selectedfile].preserve = 0;
+      }
+      break;
+
+    case KEY_RIGHT:
+      if (groups[selectedgroup].files[selectedfile].preserve == -1)
+      {
+	size_t file;
+	for (file = 0; file < groups[selectedgroup].filecount; ++file)
+	  groups[selectedgroup].files[file].preserve = 0;
+      }
+      
+      groups[selectedgroup].files[selectedfile].preserve = 1;
+      
+      break;
+
+    case 'a':
+      {
+	size_t file;
+	for (file = 0; file < groups[selectedgroup].filecount; ++file)
+	  groups[selectedgroup].files[file].preserve = 1;
+	
+	if (selectedgroup+1 < groupcount)
+	{
+	  selectedgroup++;
+	  selectedfile = 0;
+	}
+      }
+      break;
+
+    case 'c':
+      {
+      size_t file;
+      for (file = 0; file < groups[selectedgroup].filecount; ++file)
+	groups[selectedgroup].files[file].preserve = -1;
+      break;
+      }
+    }
+
+    move(0,0);
+  } while (ch != 'q');
+
+  endwin();
+}
+
 void deletefiles(file_t *files, int prompt, FILE *tty)
 {
   int counter;
@@ -1315,17 +1521,19 @@ int main(int argc, char **argv) {
       deletefiles(files, 0, 0);
     }
     else
-    {
+    {/*
       FILE *tty = fopen("/dev/tty", "r");
       if (!tty)
       {
 	errormsg("could not read from terminal!");
 	exit(1);
-      }
+      }*/
 
-      deletefiles(files, 1, tty);
+      //deletefiles(files, 1, tty);
+      stdin = freopen("/dev/tty", "r", stdin);
+      deletefiles_ncurses(files);
 
-      fclose(tty);
+      //fclose(tty);
     }
   }
 

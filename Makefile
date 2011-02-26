@@ -80,7 +80,7 @@ MKDIR   = mkdir -p
 CC = gcc
 COMPILER_OPTIONS = -Wall -O -g
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(EXPERIMENTAL_RBTREE) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
+CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
 
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
@@ -100,7 +100,7 @@ OBJECT_FILES = fdupes.o publicdomain/dynamicstring.o publicdomain/fgetline.o pub
 all: fdupes
 
 fdupes: $(OBJECT_FILES)
-	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
+	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES) -lncurses
 
 installdirs:
 	test -d $(BIN_DIR) || $(MKDIR) $(BIN_DIR)
