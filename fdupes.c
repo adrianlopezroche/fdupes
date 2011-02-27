@@ -914,8 +914,6 @@ void deletefiles_ncurses(file_t *files)
   int y;
   int maxx;
   int maxy;
-  int xnew;
-  int ynew;
 
   curfile = files;
   
@@ -951,6 +949,12 @@ void deletefiles_ncurses(file_t *files)
     erase();
     for (group = 0; group < groupcount; ++group)
       lines = printgroup(group, groups, groupcount, selectedgroup, selectedfile, 0);
+
+    getmaxyx(curscr, maxy, maxx);
+    move(maxy-1, 0);
+    attron(A_REVERSE);
+    printw("Duplicate set %d of %d [h for help]", selectedgroup+1, groupcount);
+    attroff(A_REVERSE);
 
     refresh();
   
@@ -1034,8 +1038,6 @@ void deletefiles_ncurses(file_t *files)
 	groups[selectedgroup].files[file].preserve = -1;
       break;
     }
-
-    move(0,0);
   } while (ch != 'q');
 
   endwin();
