@@ -34,6 +34,7 @@
 #include <ncurses.h>
 #include "publicdomain/truefilename.h"
 #include "publicdomain/fgetline.h"
+#include "publicdomain/cursesprintsupport.h"
 
 #ifndef EXTERNAL_MD5
 #include "md5/md5.h"
@@ -257,6 +258,7 @@ int grokpath(char *path, file_t **filelistp)
   DIR *cd;
   file_t *newfile;
   struct dirent *dirinfo;
+  char *mallocedpath;
   string_t *truename;
   int lastchar;
   int filecount = 0;
@@ -297,7 +299,7 @@ int grokpath(char *path, file_t **filelistp)
 
     /* path may be a command-line parameter, which cannot be
        free()'d, so use a malloc()'d copy instead. */
-    char *mallocedpath = (char*)malloc(strlen(path)+1);
+    mallocedpath = (char*)malloc(strlen(path)+1);
     if (!mallocedpath) {
       errormsg("out of memory!\n");
       exit(1);
@@ -325,7 +327,7 @@ int grokpath(char *path, file_t **filelistp)
 	progress = (progress + 1) % 4;
       }
 
-      char *mallocedpath = (char*)malloc(strlen(path)+strlen(dirinfo->d_name)+2);
+      mallocedpath = (char*)malloc(strlen(path)+strlen(dirinfo->d_name)+2);
       if (!mallocedpath) {
 	errormsg("out of memory!\n");
 	closedir(cd);
@@ -430,7 +432,7 @@ char *getcrcsignatureuntil(char *filename, off_t max_read)
     toread = (fsize % CHUNK_SIZE) ? (fsize % CHUNK_SIZE) : CHUNK_SIZE;
     if (fread(chunk, toread, 1, file) != 1) {
       errormsg("error reading from file %s\n", filename);
-      fclose(file); // bugfix
+      fclose(file);
       return NULL;
     }
     md5_append(&state, chunk, toread);
@@ -576,7 +578,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     }
 
     cmpresult = strcmp(file->crcpartial, checktree->file->crcpartial);
-    //if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);
+    /*if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);*/
 
     if (cmpresult == 0) {
       if (checktree->file->crcsignature == NULL) {
@@ -604,11 +606,11 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
       }
 
       cmpresult = strcmp(file->crcsignature, checktree->file->crcsignature);
-      //if (cmpresult != 0) errormsg("P   on %s vs %s\n", 
-          //file->d_name, checktree->file->d_name);
-      //else errormsg("P F on %s vs %s\n", file->d_name,
-          //checktree->file->d_name);
-      //printf("%s matches %s\n", file->d_name, checktree->file->d_name);
+      /*if (cmpresult != 0) errormsg("P   on %s vs %s\n", 
+          file->d_name, checktree->file->d_name);
+      else errormsg("P F on %s vs %s\n", file->d_name,
+          checktree->file->d_name);
+      printf("%s matches %s\n", file->d_name, checktree->file->d_name);*/
     }
   }
 
@@ -661,10 +663,11 @@ int excludesamefile(file_t *potentialmatch, file_t *newfile)
 {
   string_t *truename_newfile;
   string_t *truename_existing;
+  file_t *traverse;
 
   truename_newfile = truefilename(newfile->d_name);
 
-  file_t *traverse = potentialmatch;
+  traverse = potentialmatch;
   while (traverse)
   {
     truename_existing = truefilename(traverse->d_name);
@@ -824,18 +827,14 @@ int relink(char *oldfile, char *newfile)
   if (link(oldfile, newfile) != 0)
     return 0;
 
-  // make sure we're working with the right file (the one we created)
+  /* make sure we're working with the right file (the one we created) */
   nd = getdevice(newfile);
   ni = getinode(newfile);
 
   if (nd != od || oi != ni)
-    return 0; // file is not what we expected
+    return 0; /* file is not what we expected */
 
   return 1;
-}
-
-int printline(int leftmargin, int rightmargin, int start, char *text)
-{
 }
 
 struct deletegroupfile
@@ -851,6 +850,51 @@ struct deletegroup
   size_t startline;
 };
 
+size_t printgroup(int group, struct deletegroup *groups, int groupcount, int selectedgroup, int selectedfile, int quiet)
+{
+  int maxx;
+  int maxy;
+  size_t lines;
+  size_t file;
+  char preservechar;
+
+  getmaxyx(curscr, maxy, maxx);
+
+  lines = marginprintw(0, maxx, quiet, "Set %d of %d\n\n", group + 1, groupcount);
+
+  for (file = 0; file < groups[group].filecount; ++file)
+  {
+    if (group == selectedgroup && file == selectedfile)
+    {
+      attron(A_BOLD);
+      marginprintw(0, maxx-1, quiet, ">");
+      attroff(A_BOLD);
+    }
+
+    preservechar = ' ';
+    switch (groups[group].files[file].preserve)
+    {
+    case 0:
+      preservechar = '-';
+      break;
+
+    case 1:
+      preservechar = '+';
+      break;
+    }
+
+    attron(A_BOLD);
+    marginprintw(2, maxx-1, quiet, "%c", preservechar);
+    attroff(A_BOLD);
+
+    lines += marginprintw(4, maxx-1, quiet, "[%d] %s\n", file + 1, groups[group].files[file].file->d_name);
+  }
+
+  lines += marginprintw(0, maxx-1, quiet, "\n");
+
+  return lines;
+}
+
 void deletefiles_ncurses(file_t *files)
 {
   int selectedgroup = 0;
@@ -859,10 +903,19 @@ void deletefiles_ncurses(file_t *files)
   file_t *curfile;
   struct deletegroup *groups = 0;
   size_t groupcount = 0;
-  int anchorgroup;
-  int anchorfile;
-  int anchorpos;
+  size_t group;
+  size_t file;
+  int topgroup;
+  int topfile;
+  int topline;
   int ch;
+  int lines;
+  int x;
+  int y;
+  int maxx;
+  int maxy;
+  int xnew;
+  int ynew;
 
   curfile = files;
   
@@ -896,53 +949,8 @@ void deletefiles_ncurses(file_t *files)
 
   do {
     erase();
-    size_t group;
-    for (group = 0; group < groupcount; ++group) {
-	attron(A_BOLD);
-	printw("Set %d of %d", group+1, groupcount);
-	if (ISFLAG(flags, F_SHOWSIZE)) printw(" (%lld byte%seach)", groups[group].files[0].file->size,
-	  (groups[group].files[0].file->size != 1) ? "s " : " ");
-	printw("\n\n");
-	attroff(A_BOLD);
-	
-	size_t file;
-	for (file = 0; file < groups[group].filecount; ++file)
-	{
-	  char preservechar = ' ';
-	  switch (groups[group].files[file].preserve)
-	  {
-	  case 0:
-	    preservechar = '-';
-	    break;
-
-	  case 1:
-	    preservechar = '+';
-	    break;
-	  }
-
-	  int x;
-	  int y;
-	  getyx(stdscr, y, x);
-
-	  printw("%s   [%d] %s\n", group == selectedgroup && file == selectedfile ? ">" : " ", file+1, groups[group].files[file].file->d_name);
-
-	  int xnew;
-	  int ynew;
-	  getyx(stdscr, ynew, xnew);
-
-	  move(y, 2);
-	  attron(A_BOLD);
-	  addch(preservechar);
-	  attroff(A_BOLD);
-	  move(ynew,xnew);
-	}
-	
-	printw("\n");
-    }
-
-    int maxx = 0;
-    int maxy = 0;
-    getmaxyx(stdscr, maxy, maxx);
+    for (group = 0; group < groupcount; ++group)
+      lines = printgroup(group, groups, groupcount, selectedgroup, selectedfile, 0);
 
     refresh();
   
@@ -1002,7 +1010,6 @@ void deletefiles_ncurses(file_t *files)
     case KEY_RIGHT:
       if (groups[selectedgroup].files[selectedfile].preserve == -1)
       {
-	size_t file;
 	for (file = 0; file < groups[selectedgroup].filecount; ++file)
 	  groups[selectedgroup].files[file].preserve = 0;
       }
@@ -1012,26 +1019,20 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case 'a':
-      {
-	size_t file;
-	for (file = 0; file < groups[selectedgroup].filecount; ++file)
-	  groups[selectedgroup].files[file].preserve = 1;
+      for (file = 0; file < groups[selectedgroup].filecount; ++file)
+	groups[selectedgroup].files[file].preserve = 1;
 	
-	if (selectedgroup+1 < groupcount)
-	{
-	  selectedgroup++;
-	  selectedfile = 0;
-	}
+      if (selectedgroup+1 < groupcount)
+      {
+	selectedgroup++;
+	selectedfile = 0;
       }
       break;
 
     case 'c':
-      {
-      size_t file;
       for (file = 0; file < groups[selectedgroup].filecount; ++file)
 	groups[selectedgroup].files[file].preserve = -1;
       break;
-      }
     }
 
     move(0,0);
@@ -1202,7 +1203,6 @@ int sort_pairs_by_mtime(file_t *f1, file_t *f2)
   else if (f1->mtime > f2->mtime)
     return 1;
 
-  //return sort_pairs_by_arrival(f1, f2);
   return 0;
 }
 
@@ -1224,10 +1224,10 @@ void registerpair(file_t **matchlist, file_t *newmatch,
       
       if (back == 0)
       {
-	*matchlist = newmatch; // update pointer to head of list
+	*matchlist = newmatch; /* update pointer to head of list */
 
 	newmatch->hasdupes = 1;
-	traverse->hasdupes = 0; // flag is only for first file in dupe chain
+	traverse->hasdupes = 0; /* flag is only for first file in dupe chain */
       }
       else
 	back->duplicates = newmatch;
@@ -1280,7 +1280,7 @@ void help_text()
   printf("                  \twith -s or --symlinks, or when specifying a\n");
   printf("                  \tparticular directory more than once; refer to the\n");
   printf("                  \tfdupes documentation for additional information\n");
-  //printf(" -l --relink      \t(description)\n");
+  /*printf(" -l --relink      \t(description)\n");*/
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
   printf("                  \tprompting the user\n");
@@ -1494,9 +1494,9 @@ int main(int argc, char **argv) {
       if (confirmmatch(file1, file2)) {
 	registerpair(match, curfile, sort_pairs_by_mtime);
 	
-	//match->hasdupes = 1;
-        //curfile->duplicates = match->duplicates;
-        //match->duplicates = curfile;
+	/*match->hasdupes = 1;
+        curfile->duplicates = match->duplicates;
+        match->duplicates = curfile;*/
       }
       
       fclose(file1);
@@ -1529,11 +1529,11 @@ int main(int argc, char **argv) {
 	exit(1);
       }*/
 
-      //deletefiles(files, 1, tty);
+      /*deletefiles(files, 1, tty);*/
       stdin = freopen("/dev/tty", "r", stdin);
       deletefiles_ncurses(files);
 
-      //fclose(tty);
+      /*fclose(tty);*/
     }
   }
 

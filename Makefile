@@ -91,7 +91,7 @@ INSTALL_DATA    = $(INSTALL) -c -m 0644
 #
 #ADDITIONAL_OBJECTS = getopt.o
 
-OBJECT_FILES = fdupes.o publicdomain/dynamicstring.o publicdomain/fgetline.o publicdomain/truefilename.o md5/md5.o $(ADDITIONAL_OBJECTS)
+OBJECT_FILES = fdupes.o publicdomain/dynamicstring.o publicdomain/fgetline.o publicdomain/truefilename.o publicdomain/cursesprintsupport.o md5/md5.o $(ADDITIONAL_OBJECTS)
 
 #####################################################################
 # no need to modify anything beyond this point                      #
