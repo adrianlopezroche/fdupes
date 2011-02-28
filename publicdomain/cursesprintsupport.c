@@ -28,17 +28,19 @@
 #include <stdio.h>
 #include <ncurses.h>
 
-size_t marginprintw(size_t leftmargin, size_t rightmargin, int quiet, char *text_in, ...)
+size_t marginprintw(int y, size_t leftmargin, size_t rightmargin, int quiet, char *text_in, ...)
 {
   size_t linestart = 0;
   size_t lineend = 0;
   size_t maxwidth = rightmargin - leftmargin;
-  size_t numlines = 0;
+  int numlines = 0;
   size_t textend;
-  int currentx;
-  int currenty;
   va_list args;
   char text[512];
+  int maxx;
+  int maxy;
+
+  getmaxyx(curscr, maxy, maxx);
 
   va_start(args, text_in);
   vsnprintf(text, 512, text_in, args);
@@ -48,38 +50,32 @@ size_t marginprintw(size_t leftmargin, size_t rightmargin, int quiet, char *text
     return 0;
 
   textend = strlen(text);
-
-  getyx(stdscr, currenty, currentx);
   
   do {
-    if (!quiet)
-      move(currenty, leftmargin);
+    if (!quiet && y + numlines >= 0 && y + numlines <= maxy)
+      move(y + numlines, leftmargin);
 
     while (lineend < textend && lineend - linestart < maxwidth)
     {
       if (text[lineend] == '\n')
       {
-	++currenty;
 	++numlines;
 	linestart = ++lineend;
 
-	if (!quiet)
-	  move(currenty, leftmargin);
+	if (!quiet && y + numlines >= 0 && y + numlines <= maxy)
+	  move(y + numlines, leftmargin);
       	
 	continue;
       }
 
-      if (!quiet)
-	addch(text[lineend]);
+      if (!quiet && y + numlines >= 0 && y + numlines <= maxy)
+     	addch(text[lineend]);
       
       ++lineend;
     }
     
     if (lineend - linestart == maxwidth)
-    {
-      ++currenty;
       ++numlines;
-    }
 
     linestart = lineend;
   } while (lineend < textend);

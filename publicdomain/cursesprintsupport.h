@@ -26,6 +26,6 @@
 
 #include <stddef.h>
  
-size_t marginprintw(size_t leftmargin, size_t rightmargin, int quiet, char *text_in, ...);
+size_t marginprintw(int y, size_t leftmargin, size_t rightmargin, int quiet, char *text_in, ...);
 
 #endif

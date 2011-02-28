@@ -850,24 +850,24 @@ struct deletegroup
   size_t startline;
 };
 
-size_t printgroup(int group, struct deletegroup *groups, int groupcount, int selectedgroup, int selectedfile, int quiet)
+size_t printgroup(struct deletegroup *groups, int groupcount, int group, int selectedgroup, int selectedfile, int y, int quiet)
 {
   int maxx;
   int maxy;
-  size_t lines;
+  size_t lines = 0;
   size_t file;
   char preservechar;
 
   getmaxyx(curscr, maxy, maxx);
 
-  lines = marginprintw(0, maxx, quiet, "Set %d of %d\n\n", group + 1, groupcount);
+  lines = marginprintw(y + lines, 0, maxx-1, quiet, "Set %d of %d\n\n", group + 1, groupcount);
 
   for (file = 0; file < groups[group].filecount; ++file)
   {
     if (group == selectedgroup && file == selectedfile)
     {
       attron(A_BOLD);
-      marginprintw(0, maxx-1, quiet, ">");
+      marginprintw(y + lines, 0, maxx-1, quiet, ">");
       attroff(A_BOLD);
     }
 
@@ -884,13 +884,13 @@ size_t printgroup(int group, struct deletegroup *groups, int groupcount, int sel
     }
 
     attron(A_BOLD);
-    marginprintw(2, maxx-1, quiet, "%c", preservechar);
+    marginprintw(y + lines, 2, maxx-1, quiet, "%c", preservechar);
     attroff(A_BOLD);
 
-    lines += marginprintw(4, maxx-1, quiet, "[%d] %s\n", file + 1, groups[group].files[file].file->d_name);
+    lines += marginprintw(y + lines, 4, maxx-1, quiet, "[%d] %s\n", file + 1, groups[group].files[file].file->d_name);
   }
 
-  lines += marginprintw(0, maxx-1, quiet, "\n");
+  lines += marginprintw(y + lines, 0, maxx-1, quiet, "\n");
 
   return lines;
 }
@@ -905,9 +905,8 @@ void deletefiles_ncurses(file_t *files)
   size_t groupcount = 0;
   size_t group;
   size_t file;
-  int topgroup;
-  int topfile;
-  int topline;
+  int topgroup = 0;
+  int topline = 0;
   int ch;
   int lines;
   int x;
@@ -947,8 +946,9 @@ void deletefiles_ncurses(file_t *files)
 
   do {
     erase();
+    lines = 0;
     for (group = 0; group < groupcount; ++group)
-      lines = printgroup(group, groups, groupcount, selectedgroup, selectedfile, 0);
+      lines += printgroup(groups, groupcount, group, selectedgroup, selectedfile, lines - topline, 0);
 
     getmaxyx(curscr, maxy, maxx);
     move(maxy-1, 0);
@@ -1036,6 +1036,14 @@ void deletefiles_ncurses(file_t *files)
     case 'c':
       for (file = 0; file < groups[selectedgroup].filecount; ++file)
 	groups[selectedgroup].files[file].preserve = -1;
+      break;
+
+    case KEY_NPAGE:
+      topline++;
+      break;
+
+    case KEY_PPAGE:
+      topline--;
       break;
     }
   } while (ch != 'q');
