@@ -850,7 +850,7 @@ struct deletegroup
   size_t startline;
 };
 
-size_t printgroup(struct deletegroup *groups, int groupcount, int group, int selectedgroup, int selectedfile, int y, int quiet)
+size_t printgroup(int *selectedfiley, struct deletegroup *groups, int groupcount, int group, int selectedgroup, int selectedfile, int y, int quiet)
 {
   int maxx;
   int maxy;
@@ -860,12 +860,17 @@ size_t printgroup(struct deletegroup *groups, int groupcount, int group, int sel
 
   getmaxyx(curscr, maxy, maxx);
 
+  attron(A_BOLD);
   lines = marginprintw(y + lines, 0, maxx-1, quiet, "Set %d of %d\n\n", group + 1, groupcount);
+  attroff(A_BOLD);
 
   for (file = 0; file < groups[group].filecount; ++file)
   {
     if (group == selectedgroup && file == selectedfile)
     {
+      if (selectedfiley)
+	*selectedfiley = y + lines;
+
       attron(A_BOLD);
       marginprintw(y + lines, 0, maxx-1, quiet, ">");
       attroff(A_BOLD);
@@ -875,10 +880,12 @@ size_t printgroup(struct deletegroup *groups, int groupcount, int group, int sel
     switch (groups[group].files[file].preserve)
     {
     case 0:
-      preservechar = '-';
+      /*color_set(2, 0);*/
+      preservechar = 'x';
       break;
 
     case 1:
+      /*color_set(3, 0);*/
       preservechar = '+';
       break;
     }
@@ -886,6 +893,8 @@ size_t printgroup(struct deletegroup *groups, int groupcount, int group, int sel
     attron(A_BOLD);
     marginprintw(y + lines, 2, maxx-1, quiet, "%c", preservechar);
     attroff(A_BOLD);
+
+    /*color_set(1, 0);*/
 
     lines += marginprintw(y + lines, 4, maxx-1, quiet, "[%d] %s\n", file + 1, groups[group].files[file].file->d_name);
   }
@@ -913,6 +922,8 @@ void deletefiles_ncurses(file_t *files)
   int y;
   int maxx;
   int maxy;
+  int selectedfiley;
+  int selectedgrouplastline;
 
   curfile = files;
   
@@ -940,17 +951,53 @@ void deletefiles_ncurses(file_t *files)
   }
 
   initscr();
+  /*
+  start_color();
+  use_default_colors();
+  init_pair(1, -1, -1);
+  init_pair(2, COLOR_RED, -1);
+  init_pair(3, COLOR_GREEN, -1);
+  color_set(1, 0);
+  */
   noecho();
   cbreak();
   keypad(stdscr, 1);
 
   do {
     erase();
-    lines = 0;
-    for (group = 0; group < groupcount; ++group)
-      lines += printgroup(groups, groupcount, group, selectedgroup, selectedfile, lines - topline, 0);
 
     getmaxyx(curscr, maxy, maxx);
+
+    lines = 0;
+    for (group = topgroup; group < groupcount; ++group)
+    {
+      if (group > selectedgroup && lines - topline >= maxy-1)
+	break;
+
+      lines += printgroup(&selectedfiley, groups, groupcount, group, selectedgroup, selectedfile, lines - topline, 1);
+
+      if (group == selectedgroup)
+	selectedgrouplastline = lines;
+    }
+
+    if (selectedgrouplastline - topline >= maxy-1)
+    {
+      topline += lines - topline - (maxy-1);
+    }
+    else if (selectedfiley < 0)
+    {
+      topline -= -selectedfiley;
+    }
+
+    lines = 0;
+    for (group = topgroup; group < groupcount; ++group)
+    {
+      if (lines - topline >= maxy-1)
+	break;
+
+      lines += printgroup(0, groups, groupcount, group, selectedgroup, selectedfile, lines - topline, 0);
+    }
+
     move(maxy-1, 0);
     attron(A_REVERSE);
     printw("Duplicate set %d of %d [h for help]", selectedgroup+1, groupcount);
@@ -999,7 +1046,6 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case KEY_LEFT:
-      {
       if (groups[selectedgroup].files[selectedfile].preserve == -1)
       {
 	size_t file;
@@ -1008,6 +1054,13 @@ void deletefiles_ncurses(file_t *files)
       }
 
       groups[selectedgroup].files[selectedfile].preserve = 0;
+      
+      if (selectedfile+1 < groups[selectedgroup].filecount)
+	++selectedfile;
+      else if (selectedgroup+1 < groupcount)
+      {
+	++selectedgroup;
+	selectedfile = 0;
       }
       break;
 
@@ -1020,6 +1073,13 @@ void deletefiles_ncurses(file_t *files)
       
       groups[selectedgroup].files[selectedfile].preserve = 1;
       
+      if (selectedfile+1 < groups[selectedgroup].filecount)
+	++selectedfile;
+      else if (selectedgroup+1 < groupcount)
+      {
+	++selectedgroup;
+	selectedfile = 0;
+      }
       break;
 
     case 'a':
@@ -1043,7 +1103,8 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case KEY_PPAGE:
-      topline--;
+      if (topline > 0)
+	topline--;
       break;
     }
   } while (ch != 'q');

@@ -52,7 +52,7 @@ size_t marginprintw(int y, size_t leftmargin, size_t rightmargin, int quiet, cha
   textend = strlen(text);
   
   do {
-    if (!quiet && y + numlines >= 0 && y + numlines <= maxy)
+    if (!quiet && y + numlines >= 0 && y + numlines < maxy)
       move(y + numlines, leftmargin);
 
     while (lineend < textend && lineend - linestart < maxwidth)
@@ -62,13 +62,13 @@ size_t marginprintw(int y, size_t leftmargin, size_t rightmargin, int quiet, cha
 	++numlines;
 	linestart = ++lineend;
 
-	if (!quiet && y + numlines >= 0 && y + numlines <= maxy)
+	if (!quiet && y + numlines >= 0 && y + numlines < maxy)
 	  move(y + numlines, leftmargin);
       	
 	continue;
       }
 
-      if (!quiet && y + numlines >= 0 && y + numlines <= maxy)
+      if (!quiet && y + numlines >= 0 && y + numlines < maxy)
      	addch(text[lineend]);
       
       ++lineend;
