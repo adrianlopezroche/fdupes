@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include <ncurses.h>
 
-size_t marginprintw(int y, size_t leftmargin, size_t rightmargin, int quiet, char *text_in, ...)
+size_t marginprintw(int y, size_t leftmargin, size_t rightmargin, int wrapstyle, int quiet, char *text_in, ...)
 {
   size_t linestart = 0;
   size_t lineend = 0;
@@ -50,35 +50,38 @@ size_t marginprintw(int y, size_t leftmargin, size_t rightmargin, int quiet, cha
     return 0;
 
   textend = strlen(text);
-  
-  do {
-    if (!quiet && y + numlines >= 0 && y + numlines < maxy)
-      move(y + numlines, leftmargin);
+ 
+  if (wrapstyle == MARGINPRINTW_WRAPCHARACTERS)
+  {
+    do {
+      if (!quiet && y + numlines >= 0 && y + numlines < maxy)
+	move(y + numlines, leftmargin);
 
-    while (lineend < textend && lineend - linestart < maxwidth)
-    {
-      if (text[lineend] == '\n')
+      while (lineend < textend && lineend - linestart < maxwidth)
       {
-	++numlines;
-	linestart = ++lineend;
+	if (text[lineend] == '\n')
+	{
+	  ++numlines;
+	  linestart = ++lineend;
+
+	  if (!quiet && y + numlines >= 0 && y + numlines < maxy)
+	    move(y + numlines, leftmargin);
+      	
+	  continue;
+	}
 
 	if (!quiet && y + numlines >= 0 && y + numlines < maxy)
-	  move(y + numlines, leftmargin);
-      	
-	continue;
-      }
-
-      if (!quiet && y + numlines >= 0 && y + numlines < maxy)
-     	addch(text[lineend]);
+	  addch(text[lineend]);
       
-      ++lineend;
-    }
+	++lineend;
+      }
     
-    if (lineend - linestart == maxwidth)
-      ++numlines;
+      if (lineend - linestart == maxwidth)
+	++numlines;
 
-    linestart = lineend;
-  } while (lineend < textend);
+      linestart = lineend;
+    } while (lineend < textend);
+  }
 
   return numlines;
 }

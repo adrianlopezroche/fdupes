@@ -850,7 +850,7 @@ struct deletegroup
   size_t startline;
 };
 
-size_t printgroup(int *selectedfiley, struct deletegroup *groups, int groupcount, int group, int selectedgroup, int selectedfile, int y, int quiet)
+size_t printgroup(int *selectedfile_y, struct deletegroup *groups, int groupcount, int group, int selectedgroup, int selectedfile, int y, int quiet)
 {
   int maxx;
   int maxy;
@@ -861,18 +861,18 @@ size_t printgroup(int *selectedfiley, struct deletegroup *groups, int groupcount
   getmaxyx(curscr, maxy, maxx);
 
   attron(A_BOLD);
-  lines = marginprintw(y + lines, 0, maxx-1, quiet, "Set %d of %d\n\n", group + 1, groupcount);
+  lines = marginprintw(y + lines, 0, maxx-1, MARGINPRINTW_WRAPCHARACTERS, quiet, "Set %d of %d\n\n", group + 1, groupcount);
   attroff(A_BOLD);
 
   for (file = 0; file < groups[group].filecount; ++file)
   {
     if (group == selectedgroup && file == selectedfile)
     {
-      if (selectedfiley)
-	*selectedfiley = y + lines;
+      if (selectedfile_y)
+	*selectedfile_y = y + lines;
 
       attron(A_BOLD);
-      marginprintw(y + lines, 0, maxx-1, quiet, ">");
+      marginprintw(y + lines, 0, maxx-1, MARGINPRINTW_WRAPCHARACTERS, quiet, ">");
       attroff(A_BOLD);
     }
 
@@ -891,39 +891,72 @@ size_t printgroup(int *selectedfiley, struct deletegroup *groups, int groupcount
     }
 
     attron(A_BOLD);
-    marginprintw(y + lines, 2, maxx-1, quiet, "%c", preservechar);
+    marginprintw(y + lines, 2, maxx-1, MARGINPRINTW_WRAPCHARACTERS, quiet, "%c", preservechar);
     attroff(A_BOLD);
 
     /*color_set(1, 0);*/
 
-    lines += marginprintw(y + lines, 4, maxx-1, quiet, "[%d] %s\n", file + 1, groups[group].files[file].file->d_name);
+    lines += marginprintw(y + lines, 4, maxx-1, MARGINPRINTW_WRAPCHARACTERS, quiet, "[%d] %s\n", file + 1, groups[group].files[file].file->d_name);
   }
 
-  lines += marginprintw(y + lines, 0, maxx-1, quiet, "\n");
+  lines += marginprintw(y + lines, 0, maxx-1, MARGINPRINTW_WRAPCHARACTERS, quiet, "\n");
 
   return lines;
 }
 
+void fitgrouphead(size_t group, struct deletegroup *groups, size_t groupcount, size_t *topgroup, int *topline)
+{
+  int g = 0;
+  int lines = 0;
+  int groupminy;
+  int groupmaxy;
+  int maxx;
+  int maxy;
+
+  getmaxyx(curscr, maxy, maxx);
+
+  for (g = *topgroup; g < group; ++g)
+    lines += printgroup(0, groups, groupcount, g, groupcount+1, 0, lines - *topline, 1);
+
+  groupminy = lines;
+
+  groupmaxy = lines + printgroup(0, groups, groupcount, g, groupcount+1, 0, lines - *topline, 1);
+
+  if (groupmaxy - *topline >= maxy)
+  {
+    if (groupmaxy - groupminy < maxy)
+      *topline += groupmaxy - *topline - (maxy - 1);
+    else
+      *topline += groupminy - *topline;
+  }
+}
+
+void fitgroupfoot(size_t group, struct deletegroup *groups, size_t groupcount, size_t *topgroup, int *topline)
+{
+}
+
+void determinetopgroup(struct deletegroup *groups, size_t groupcount, size_t *topgroup, int *topline)
+{
+}
+
 void deletefiles_ncurses(file_t *files)
 {
-  int selectedgroup = 0;
-  int selectedfile = 0;
+  size_t selectedgroup = 0;
+  size_t selectedfile = 0;
   file_t *tmpfile;
   file_t *curfile;
   struct deletegroup *groups = 0;
   size_t groupcount = 0;
   size_t group;
   size_t file;
-  int topgroup = 0;
+  size_t topgroup = 0;
+  int lines;
   int topline = 0;
   int ch;
-  int lines;
-  int x;
-  int y;
   int maxx;
   int maxy;
-  int selectedfiley;
-  int selectedgrouplastline;
+  int selectedfile_y;
+  int selectedgrouplastline = 0;
 
   curfile = files;
   
@@ -968,26 +1001,7 @@ void deletefiles_ncurses(file_t *files)
 
     getmaxyx(curscr, maxy, maxx);
 
-    lines = 0;
-    for (group = topgroup; group < groupcount; ++group)
-    {
-      if (group > selectedgroup && lines - topline >= maxy-1)
-	break;
-
-      lines += printgroup(&selectedfiley, groups, groupcount, group, selectedgroup, selectedfile, lines - topline, 1);
-
-      if (group == selectedgroup)
-	selectedgrouplastline = lines;
-    }
-
-    if (selectedgrouplastline - topline >= maxy-1)
-    {
-      topline += lines - topline - (maxy-1);
-    }
-    else if (selectedfiley < 0)
-    {
-      topline -= -selectedfiley;
-    }
+    fitgrouphead(selectedgroup, groups, groupcount, &topgroup, &topline);
 
     lines = 0;
     for (group = topgroup; group < groupcount; ++group)
