@@ -933,6 +933,29 @@ void fitgrouphead(size_t group, struct deletegroup *groups, size_t groupcount, s
 
 void fitgroupfoot(size_t group, struct deletegroup *groups, size_t groupcount, size_t *topgroup, int *topline)
 {
+  int g = 0;
+  int lines = 0;
+  int groupminy;
+  int groupmaxy;
+  int maxx;
+  int maxy;
+
+  getmaxyx(curscr, maxy, maxx);
+
+  for (g = *topgroup; g < group; ++g)
+    lines += printgroup(0, groups, groupcount, g, groupcount+1, 0, lines - *topline, 1);
+
+  groupminy = lines;
+
+  groupmaxy = lines + printgroup(0, groups, groupcount, g, groupcount+1, 0, lines - *topline, 1);
+
+  if (groupminy - *topline < 0)
+  {
+    if (groupmaxy - groupminy < maxy)
+      *topline -= *topline - groupminy;
+    else
+      *topline -= maxy - (groupmaxy - *topline);
+  }
 }
 
 void determinetopgroup(struct deletegroup *groups, size_t groupcount, size_t *topgroup, int *topline)
@@ -1001,8 +1024,6 @@ void deletefiles_ncurses(file_t *files)
 
     getmaxyx(curscr, maxy, maxx);
 
-    fitgrouphead(selectedgroup, groups, groupcount, &topgroup, &topline);
-
     lines = 0;
     for (group = topgroup; group < groupcount; ++group)
     {
@@ -1046,6 +1067,8 @@ void deletefiles_ncurses(file_t *files)
       {
 	++selectedgroup;
 	selectedfile = 0;
+
+	fitgrouphead(selectedgroup, groups, groupcount, &topgroup, &topline);
       }
       break;
 
@@ -1056,6 +1079,8 @@ void deletefiles_ncurses(file_t *files)
       {
 	--selectedgroup;
 	selectedfile = groups[selectedgroup].filecount - 1;
+
+	fitgroupfoot(selectedgroup, groups, groupcount, &topgroup, &topline);
       }
       break;
 
