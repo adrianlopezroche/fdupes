@@ -97,8 +97,8 @@ fdupes: $(OBJECT_FILES)
 	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
 
 installdirs:
-	test -d $(BIN_DIR) || -$(MKDIR) $(BIN_DIR)
-	test -d $(MAN_DIR) || -$(MKDIR) $(MAN_DIR)
+	test -d $(BIN_DIR) || $(MKDIR) $(BIN_DIR)
+	test -d $(MAN_DIR) || $(MKDIR) $(MAN_DIR)
 
 install: fdupes installdirs
 	$(INSTALL_PROGRAM)	fdupes   $(BIN_DIR)/$(PROGRAM_NAME)
