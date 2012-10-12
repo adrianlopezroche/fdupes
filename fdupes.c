@@ -370,7 +370,7 @@ char *getcrcsignatureuntil(char *filename, off_t max_read)
   }
  
   while (fsize > 0) {
-    toread = (fsize % CHUNK_SIZE) ? (fsize % CHUNK_SIZE) : CHUNK_SIZE;
+    toread = (fsize >= CHUNK_SIZE) ? CHUNK_SIZE : fsize;
     if (fread(chunk, toread, 1, file) != 1) {
       errormsg("error reading from file %s\n", filename);
       fclose(file);
@@ -606,8 +606,8 @@ int confirmmatch(FILE *file1, FILE *file2)
   fseek(file2, 0, SEEK_SET);
 
   do {
-    r1 = fread(c1, 1, sizeof(c1), file1);
-    r2 = fread(c2, 1, sizeof(c2), file2);
+    r1 = fread(c1, sizeof(unsigned char), sizeof(c1), file1);
+    r2 = fread(c2, sizeof(unsigned char), sizeof(c2), file2);
 
     if (r1 != r2) return 0; /* file lengths are different */
     if (memcmp (c1, c2, r1)) return 0; /* file contents are different */
