@@ -31,6 +31,7 @@
 #endif
 #include <string.h>
 #include <errno.h>
+#include <libgen.h>
 
 #ifndef EXTERNAL_MD5
 #include "md5/md5.h"
@@ -51,6 +52,7 @@
 #define F_RECURSEAFTER      0x0200
 #define F_NOPROMPT          0x0400
 #define F_SUMMARIZEMATCHES  0x0800
+#define F_EXCLUDEHIDDEN     0x1000
 
 char *program_name;
 
@@ -240,6 +242,7 @@ int grokdir(char *dir, file_t **filelistp)
   struct stat linfo;
   static int progress = 0;
   static char indicator[] = "-\\|/";
+  char *fullname, *name;
 
   cd = opendir(dir);
 
@@ -285,6 +288,17 @@ int grokdir(char *dir, file_t **filelistp)
 	strcat(newfile->d_name, "/");
       strcat(newfile->d_name, dirinfo->d_name);
       
+      if (ISFLAG(flags, F_EXCLUDEHIDDEN)) {
+	fullname = strdup(newfile->d_name);
+	name = basename(fullname);
+	if (name[0] == '.' && strcmp(name, ".") && strcmp(name, "..") ) {
+	  free(newfile->d_name);
+	  free(newfile);
+	  continue;
+	}
+	free(fullname);
+      }
+
       if (filesize(newfile->d_name) == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
 	free(newfile->d_name);
 	free(newfile);
@@ -948,6 +962,7 @@ void help_text()
   printf("                  \tdisk area they are treated as non-duplicates; this\n"); 
   printf("                  \toption will change this behavior\n");
   printf(" -n --noempty     \texclude zero-length files from consideration\n");
+  printf(" -A --nohidden    \texclude hidden files from consideration\n");
   printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
   printf(" -1 --sameline    \tlist each set of matches on a single line\n");
   printf(" -S --size        \tshow size of duplicate files\n");
@@ -999,6 +1014,7 @@ int main(int argc, char **argv) {
     { "hardlinks", 0, 0, 'H' },
     { "relink", 0, 0, 'l' },
     { "noempty", 0, 0, 'n' },
+    { "nohidden", 0, 0, 'A' },
     { "delete", 0, 0, 'd' },
     { "version", 0, 0, 'v' },
     { "help", 0, 0, 'h' },
@@ -1016,7 +1032,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1Ss::HlndvhNm"
+  while ((opt = GETOPT(argc, argv, "frRq1Ss::HlnAdvhNm"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1048,6 +1064,9 @@ int main(int argc, char **argv) {
       break;
     case 'n':
       SETFLAG(flags, F_EXCLUDEEMPTY);
+      break;
+    case 'A':
+      SETFLAG(flags, F_EXCLUDEHIDDEN);
       break;
     case 'd':
       SETFLAG(flags, F_DELETEFILES);
