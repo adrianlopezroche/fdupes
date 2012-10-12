@@ -492,7 +492,10 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
   else {
     if (checktree->file->crcpartial == NULL) {
       crcsignature = getcrcpartialsignature(checktree->file->d_name);
-      if (crcsignature == NULL) return NULL;
+      if (crcsignature == NULL) {
+        errormsg ("cannot read file %s\n", checktree->file->d_name);
+        return NULL;
+      }
 
       checktree->file->crcpartial = (char*) malloc(strlen(crcsignature)+1);
       if (checktree->file->crcpartial == NULL) {
@@ -504,7 +507,10 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 
     if (file->crcpartial == NULL) {
       crcsignature = getcrcpartialsignature(file->d_name);
-      if (crcsignature == NULL) return NULL;
+      if (crcsignature == NULL) {
+        errormsg ("cannot read file %s\n", file->d_name);
+        return NULL;
+      }
 
       file->crcpartial = (char*) malloc(strlen(crcsignature)+1);
       if (file->crcpartial == NULL) {
@@ -577,8 +583,8 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 
 int confirmmatch(FILE *file1, FILE *file2)
 {
-  unsigned char c1 = 0;
-  unsigned char c2 = 0;
+  unsigned char c1[CHUNK_SIZE];
+  unsigned char c2[CHUNK_SIZE];
   size_t r1;
   size_t r2;
   
@@ -586,14 +592,13 @@ int confirmmatch(FILE *file1, FILE *file2)
   fseek(file2, 0, SEEK_SET);
 
   do {
-    r1 = fread(&c1, sizeof(c1), 1, file1);
-    r2 = fread(&c2, sizeof(c2), 1, file2);
+    r1 = fread(c1, 1, sizeof(c1), file1);
+    r2 = fread(c2, 1, sizeof(c2), file2);
 
-    if (c1 != c2) return 0; /* file contents are different */
-  } while (r1 && r2);
+    if (r1 != r2) return 0; /* file lengths are different */
+    if (memcmp (c1, c2, r1)) return 0; /* file contents are different */
+  } while (r2);
   
-  if (r1 != r2) return 0; /* file lengths are different */
-
   return 1;
 }
 
