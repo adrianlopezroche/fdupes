@@ -45,6 +45,15 @@
 #include "md5.h"
 #include <string.h>
 
+/* endianness check using glibc endian.h */
+#include <endian.h>
+
+#if __BYTE_ORDER == __BIG_ENDIAN
+# define ARCH_IS_BIG_ENDIAN 1
+#elif __BYTE_ORDER == __LITTLE_ENDIAN
+# define ARCH_IS_BIG_ENDIAN 0
+#endif
+
 #ifdef TEST
 /*
  * Compile with -DTEST to create a self-contained executable test program.
