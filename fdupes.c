@@ -956,7 +956,8 @@ void help_text()
   printf(" -r --recurse     \tfor every directory given follow subdirectories\n");
   printf("                  \tencountered within\n");
   printf(" -R --recurse:    \tfor each directory given after this option follow\n");
-  printf("                  \tsubdirectories encountered within\n");
+  printf("                  \tsubdirectories encountered within (note the ':' at\n");
+  printf("                  \tthe end of the option, manpage for more details)\n");
   printf(" -s --symlinks    \tfollow symlinks\n");
   printf(" -H --hardlinks   \tnormally, when two or more files point to the same\n");
   printf("                  \tdisk area they are treated as non-duplicates; this\n"); 

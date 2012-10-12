@@ -23,7 +23,8 @@ for every directory given follow subdirectories encountered within
 .TP
 .B -R --recurse:
 for each directory given after this option follow subdirectories
-encountered within
+encountered within (note the ':' at the end of option; see the
+Examples section below for further explanation)
 .TP
 .B -s --symlinks
 follow symlinked directories
@@ -85,6 +86,15 @@ or
 .B --sameline
 is specified, spaces and backslash characters  (\fB\e\fP) appearing
 in a filename are preceded by a backslash character.
+
+.SH EXAMPLES
+.TP
+.B fdupes a --recurse: b
+will follow subdirectories under b, but not those under a.
+.TP
+.B fdupes a --recurse b
+will follow subdirectories under both a and b.
+
 .SH CAVEATS
 If fdupes returns with an error message such as
 .B fdupes: error invoking md5sum
