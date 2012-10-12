@@ -53,6 +53,7 @@
 #define F_NOPROMPT          0x0400
 #define F_SUMMARIZEMATCHES  0x0800
 #define F_EXCLUDEHIDDEN     0x1000
+#define F_PERMISSIONS       0x2000
 
 char *program_name;
 
@@ -481,6 +482,19 @@ int registerfile(filetree_t **branch, file_t *file)
   return 1;
 }
 
+int same_permissions(char* name1, char* name2)
+{
+    struct stat s1, s2;
+
+    if (stat(name1, &s1) != 0) return -1;
+    if (stat(name2, &s2) != 0) return -1;
+
+    return (s1.st_mode == s2.st_mode &&
+            s1.st_uid == s2.st_uid &&
+            s1.st_gid == s2.st_gid);
+}
+
+
 file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 {
   int cmpresult;
@@ -503,6 +517,10 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     cmpresult = -1;
   else 
     if (fsize > checktree->file->size) cmpresult = 1;
+  else
+    if (ISFLAG(flags, F_PERMISSIONS) &&
+        !same_permissions(file->d_name, checktree->file->d_name))
+        cmpresult = -1;
   else {
     if (checktree->file->crcpartial == NULL) {
       crcsignature = getcrcpartialsignature(checktree->file->d_name);
@@ -979,6 +997,7 @@ void help_text()
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
   printf("                  \tprompting the user\n");
+  printf(" -p --permissions \tdon't consider files with different owner/group or permission bits as duplicates\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -1022,6 +1041,7 @@ int main(int argc, char **argv) {
     { "noprompt", 0, 0, 'N' },
     { "summarize", 0, 0, 'm'},
     { "summary", 0, 0, 'm' },
+    { "permissions", 0, 0, 'p' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1033,7 +1053,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1Ss::HlnAdvhNm"
+  while ((opt = GETOPT(argc, argv, "frRq1Ss::HlnAdvhNmp"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1083,6 +1103,9 @@ int main(int argc, char **argv) {
       break;
     case 'm':
       SETFLAG(flags, F_SUMMARIZEMATCHES);
+      break;
+    case 'p':
+      SETFLAG(flags, F_PERMISSIONS);
       break;
 
     default:
