@@ -2,4 +2,4 @@
 # VERSION determines the program's version number.
 #
 
-VERSION = 1.50-PR2
+VERSION = 1.60-ALPHA
