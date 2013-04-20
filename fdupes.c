@@ -359,7 +359,7 @@ char *getcrcsignatureuntil(char *filename, off_t max_read)
     toread = (fsize % CHUNK_SIZE) ? (fsize % CHUNK_SIZE) : CHUNK_SIZE;
     if (fread(chunk, toread, 1, file) != 1) {
       errormsg("error reading from file %s\n", filename);
-      fclose(file); // bugfix
+      fclose(file);
       return NULL;
     }
     md5_append(&state, chunk, toread);
@@ -515,7 +515,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     }
 
     cmpresult = strcmp(file->crcpartial, checktree->file->crcpartial);
-    //if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);
+    /*if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);*/
 
     if (cmpresult == 0) {
       if (checktree->file->crcsignature == NULL) {
@@ -543,11 +543,11 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
       }
 
       cmpresult = strcmp(file->crcsignature, checktree->file->crcsignature);
-      //if (cmpresult != 0) errormsg("P   on %s vs %s\n", 
-          //file->d_name, checktree->file->d_name);
-      //else errormsg("P F on %s vs %s\n", file->d_name,
-          //checktree->file->d_name);
-      //printf("%s matches %s\n", file->d_name, checktree->file->d_name);
+      /*if (cmpresult != 0) errormsg("P   on %s vs %s\n", 
+          file->d_name, checktree->file->d_name);
+      else errormsg("P F on %s vs %s\n", file->d_name,
+          checktree->file->d_name);
+      printf("%s matches %s\n", file->d_name, checktree->file->d_name);*/
     }
   }
 
@@ -643,7 +643,7 @@ void printmatches(file_t *files)
   while (files != NULL) {
     if (files->hasdupes) {
       if (!ISFLAG(flags, F_OMITFIRST)) {
-	if (ISFLAG(flags, F_SHOWSIZE)) printf("%ld byte%seach:\n", files->size,
+	if (ISFLAG(flags, F_SHOWSIZE)) printf("%lld byte%seach:\n", files->size,
 	 (files->size != 1) ? "s " : " ");
 	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &files->d_name);
 	printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
@@ -709,17 +709,17 @@ int relink(char *oldfile, char *newfile)
   if (link(oldfile, newfile) != 0)
     return 0;
 
-  // make sure we're working with the right file (the one we created)
+  /* make sure we're working with the right file (the one we created) */
   nd = getdevice(newfile);
   ni = getinode(newfile);
 
   if (nd != od || oi != ni)
-    return 0; // file is not what we expected
+    return 0; /* file is not what we expected */
 
   return 1;
 }
 
-void deletefiles(file_t *files, int prompt)
+void deletefiles(file_t *files, int prompt, FILE *tty)
 {
   int counter;
   int groups = 0;
@@ -796,12 +796,13 @@ void deletefiles(file_t *files, int prompt)
       do {
 	printf("Set %d of %d, preserve files [1 - %d, all]", 
           curgroup, groups, counter);
-	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%ld byte%seach)", files->size,
+	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%lld byte%seach)", files->size,
 	  (files->size != 1) ? "s " : " ");
 	printf(": ");
 	fflush(stdout);
 
-	fgets(preservestr, INPUT_SIZE, stdin);
+	if (!fgets(preservestr, INPUT_SIZE, tty))
+	  preservestr[0] = '\n'; /* treat fgets() failure as if nothing was entered */
 
 	i = strlen(preservestr) - 1;
 
@@ -814,8 +815,11 @@ void deletefiles(file_t *files, int prompt)
 	  }
 
 	  preservestr = tstr;
-	  if (!fgets(preservestr + i + 1, INPUT_SIZE, stdin))
-	    break; /* stop if fgets fails -- possible EOF? */
+	  if (!fgets(preservestr + i + 1, INPUT_SIZE, tty))
+	  {
+	    preservestr[0] = '\n'; /* treat fgets() failure as if nothing was entered */
+	    break;
+	  }
 	  i = strlen(preservestr)-1;
 	}
 
@@ -877,7 +881,6 @@ int sort_pairs_by_mtime(file_t *f1, file_t *f2)
   else if (f1->mtime > f2->mtime)
     return 1;
 
-  //return sort_pairs_by_arrival(f1, f2);
   return 0;
 }
 
@@ -899,10 +902,10 @@ void registerpair(file_t **matchlist, file_t *newmatch,
       
       if (back == 0)
       {
-	*matchlist = newmatch; // update pointer to head of list
+	*matchlist = newmatch; /* update pointer to head of list */
 
 	newmatch->hasdupes = 1;
-	traverse->hasdupes = 0; // flag is only for first file in dupe chain
+	traverse->hasdupes = 0; /* flag is only for first file in dupe chain */
       }
       else
 	back->duplicates = newmatch;
@@ -951,10 +954,10 @@ void help_text()
   printf("                  \twith -s or --symlinks, or when specifying a\n");
   printf("                  \tparticular directory more than once; refer to the\n");
   printf("                  \tfdupes documentation for additional information\n");
-  //printf(" -l --relink      \t(description)\n");
+  /*printf(" -l --relink      \t(description)\n");*/
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
-  printf("                  \twithout prompting the user\n");
+  printf("                  \tprompting the user\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -1133,9 +1136,9 @@ int main(int argc, char **argv) {
       if (confirmmatch(file1, file2)) {
 	registerpair(match, curfile, sort_pairs_by_mtime);
 	
-	//match->hasdupes = 1;
-        //curfile->duplicates = match->duplicates;
-        //match->duplicates = curfile;
+	/*match->hasdupes = 1;
+        curfile->duplicates = match->duplicates;
+        match->duplicates = curfile;*/
       }
       
       fclose(file1);
@@ -1156,9 +1159,14 @@ int main(int argc, char **argv) {
   if (ISFLAG(flags, F_DELETEFILES))
   {
     if (ISFLAG(flags, F_NOPROMPT))
-      deletefiles(files, 0);
+    {
+      deletefiles(files, 0, 0);
+    }
     else
-      deletefiles(files, 1);
+    {
+      stdin = freopen("/dev/tty", "r", stdin);
+      deletefiles(files, 1, stdin);
+    }
   }
 
   else 

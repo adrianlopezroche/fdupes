@@ -14,6 +14,12 @@
 PREFIX = /usr/local
 
 #
+# When compiling for 32-bit systems, FILEOFFSET_64BIT must be enabled
+# for fdupes to handle files greater than (2<<31)-1 bytes.
+#
+FILEOFFSET_64BIT = -D_FILE_OFFSET_BITS=64
+
+#
 # Certain platforms do not support long options (command line options).
 # To disable long options, uncomment the following line.
 #
@@ -74,7 +80,7 @@ MKDIR   = mkdir -p
 CC = gcc
 COMPILER_OPTIONS = -Wall -O -g
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(EXPERIMENTAL_RBTREE) $(OMIT_GETOPT_LONG)
+CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
 
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
