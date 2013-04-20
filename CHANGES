@@ -7,6 +7,15 @@ those who've otherwise worked on that item. For a list of
 contributors names and identifiers please see the CONTRIBUTORS file.
 
 
+Changes from 1.50 to 1.51
+
+- Added support for 64-bit file offsets on 32-bit systems.
+- Using tty for interactive input instead of regular stdin. This is to
+  allow  feeding filenames via stdin in future versions of fdupes without
+  breaking interactive deletion feature.
+- Fixed some typos in --help.
+- Turned C++ style comments into C style comments.
+
 Changes from 1.40 to 1.50-PR2
 
 - Fixed memory leak. [JB]
