@@ -31,6 +31,7 @@
 #endif
 #include <string.h>
 #include <errno.h>
+#include <ncurses.h>
 
 #ifndef EXTERNAL_MD5
 #include "md5/md5.h"
@@ -89,6 +90,7 @@ typedef struct _file {
   ino_t inode;
   time_t mtime;
   int hasdupes; /* true only if file is first on duplicate chain */
+  int action;
   struct _file *duplicates;
   struct _file *next;
 } file_t;
@@ -269,6 +271,7 @@ int grokdir(char *dir, file_t **filelistp)
       newfile->crcpartial = NULL;
       newfile->duplicates = NULL;
       newfile->hasdupes = 0;
+      newfile->action = 0;
 
       newfile->d_name = (char*)malloc(strlen(dir)+strlen(dirinfo->d_name)+2);
 
@@ -884,6 +887,216 @@ int sort_pairs_by_mtime(file_t *f1, file_t *f2)
   return 0;
 }
 
+char *getstringline(char *buf, char *src, int line, int cols)
+{
+  int offset;
+
+  offset = line * cols;
+
+  if (strlen(src) <= offset)
+    buf[0] = '\0';
+  else
+    strncpy(buf, src + offset, cols);
+
+  buf[cols] = '\0';
+
+  return buf;
+}
+
+struct line
+{
+  file_t *file;
+  int group;
+  int filenameline;
+};
+
+void deletefiles_ncurses(file_t *files)
+{
+  WINDOW *filewin;
+  file_t *curfile;
+  file_t *dupefile;
+  struct line *lines;
+  struct line *realloclines;
+  int topline = 0;
+  int cursorline = 0;
+  int totallines = 0;
+  int allocatedlines = 0;
+  int needlines;
+  int totalgroups = 0;
+  size_t filenamelength;
+  int x;
+  int g;
+  int ch;
+
+  initscr();
+  noecho();
+  cbreak();
+
+  filewin = newwin(LINES - 1, COLS - 1, 0, 0);	
+
+  keypad(filewin, 1);
+
+  refresh();
+
+  allocatedlines = 8192; 
+  lines = malloc(sizeof(struct line) * allocatedlines);
+  if (lines == 0)
+  {
+    errormsg("out of memory\n");
+    exit(1);
+  }
+
+  curfile = files;
+  while (curfile)
+  {
+    if (curfile->hasdupes)
+    {
+      dupefile = curfile;
+      do
+      {
+        filenamelength = strlen(curfile->d_name);
+            
+        needlines = filenamelength / COLS;
+        if (filenamelength % COLS != 0)
+          ++needlines;
+
+        if (totallines + needlines > allocatedlines)
+        {
+          do
+            allocatedlines *= 2;
+          while (totallines + needlines > allocatedlines);
+          
+          realloclines = realloc(lines, sizeof(struct line) * allocatedlines);
+          if (realloclines == 0)
+          {
+            free(lines);
+            errormsg("out of memory\n");
+            exit(1);
+          }
+          
+          lines = realloclines;
+        }
+
+        for (x = 0; x < needlines; ++x)
+        {
+          lines[totallines].group = totalgroups;
+          lines[totallines].file = dupefile;
+          lines[totallines].filenameline = x;
+          ++totallines;
+        }
+      	
+        dupefile = dupefile->duplicates;
+      } while (dupefile);
+
+      lines[totallines++].file = 0;
+    }
+
+    ++totalgroups;
+    curfile = curfile->next;
+  }
+
+  do
+  {
+    wmove(filewin, 0, 0);
+    erase();
+      
+    for (x = 0; x < totallines; ++x)
+    {
+      if (lines[x].file != 0)
+      {
+        if (lines[x].filenameline == 0)
+        {
+          if (x == cursorline) 
+            wprintw(filewin, "> [%c] ", lines[x].file->action > 0 ? '+' : lines[x].file->action < 0 ? '-' : ' ');
+          else 
+            wprintw(filewin, "  [%c] ", lines[x].file->action > 0 ? '+' : lines[x].file->action < 0 ? '-' : ' ');
+        }
+        else
+          wprintw(filewin, "      ");
+
+        wprintw(filewin, "%s\n", lines[x].file->d_name);
+      }
+      else 
+      	wprintw(filewin, "\n");
+    }
+    
+    //box(filewin, 0, 0);
+
+    refresh();
+    wrefresh(filewin);
+
+    ch = wgetch(filewin);
+
+    switch (ch)
+    {
+    case KEY_DOWN:
+      if (cursorline + 1 < totallines)
+        do
+          ++cursorline;
+        while (cursorline + 1 < totallines && (lines[cursorline].file == 0 || lines[cursorline].filenameline != 0));
+        break;
+    
+    case KEY_UP:
+      if (cursorline > 0)
+        do
+          --cursorline;
+        while (cursorline > 0 && (lines[cursorline].file == 0 || lines[cursorline].filenameline != 0));
+        break;
+
+    case KEY_RIGHT:
+      lines[cursorline].file->action = 1;        
+      break;
+
+    case KEY_SRIGHT:
+      g = lines[cursorline].group;
+      x = cursorline;
+      while (x > 0 && lines[x-1].group == g)
+        --x;
+      while (x < totallines && lines[x].group == g)
+      {
+        if (lines[x].file->action == 0)
+          lines[x].file->action = 1;
+        ++x;
+      }
+      lines[cursorline].file->action = 1;
+      break;
+
+    case KEY_LEFT:
+      lines[cursorline].file->action = -1;
+      break;
+
+    case KEY_SLEFT:
+      g = lines[cursorline].group;
+      x = cursorline;
+      while (x > 0 && lines[x-1].group == g)
+        --x;
+      while (x < totallines && lines[x].group == g)
+      {
+        if (lines[x].file->action == 0)
+          lines[x].file->action = -1;
+        ++x;
+      }
+      lines[cursorline].file->action = -1;
+      break;
+
+    case '\n':
+      g = lines[cursorline].group;
+      x = cursorline + 1;
+      while (x < totallines && lines[x].group == g)
+        ++x;
+      while (x < totallines && lines[x].file == 0)
+        ++x;
+      if (x < totallines)
+        cursorline = x;
+      break;
+    }
+  } while (ch != 'q');
+  
+  endwin();
+  
+  free(lines);
+}
+
 void registerpair(file_t **matchlist, file_t *newmatch, 
 		  int (*comparef)(file_t *f1, file_t *f2))
 {
@@ -1164,8 +1377,11 @@ int main(int argc, char **argv) {
     }
     else
     {
+	deletefiles_ncurses(files);
+	/*
       stdin = freopen("/dev/tty", "r", stdin);
       deletefiles(files, 1, stdin);
+	*/
     }
   }
 

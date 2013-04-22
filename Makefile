@@ -86,6 +86,11 @@ INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
 
 #
+# EXTERNAL LIBRARIES
+#
+EXTERNAL_LIBRARIES = -lncurses
+
+#
 # ADDITIONAL_OBJECTS - some platforms will need additional object files
 # to support features not supplied by their vendor. Eg: GNU getopt()
 #
@@ -100,7 +105,7 @@ OBJECT_FILES = fdupes.o md5/md5.o $(ADDITIONAL_OBJECTS)
 all: fdupes
 
 fdupes: $(OBJECT_FILES)
-	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
+	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES) $(EXTERNAL_LIBRARIES)
 
 installdirs:
 	test -d $(BIN_DIR) || $(MKDIR) $(BIN_DIR)
