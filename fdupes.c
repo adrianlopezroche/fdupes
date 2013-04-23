@@ -1047,7 +1047,7 @@ void deletefiles_ncurses(file_t *files)
       lines[cursorline].file->action = 1;        
       break;
 
-    case KEY_SRIGHT:
+    case 'a':
       g = lines[cursorline].group;
       x = cursorline;
       while (x > 0 && lines[x-1].group == g)
@@ -1058,14 +1058,23 @@ void deletefiles_ncurses(file_t *files)
           lines[x].file->action = 1;
         ++x;
       }
-      lines[cursorline].file->action = 1;
+
+      g = lines[cursorline].group;
+      x = cursorline + 1;
+      while (x < totallines && lines[x].group == g)
+        ++x;
+      while (x < totallines && lines[x].file == 0)
+        ++x;
+      if (x < totallines)
+        cursorline = x;
+      
       break;
 
     case KEY_LEFT:
       lines[cursorline].file->action = -1;
       break;
 
-    case KEY_SLEFT:
+    case 'd':
       g = lines[cursorline].group;
       x = cursorline;
       while (x > 0 && lines[x-1].group == g)
@@ -1076,7 +1085,16 @@ void deletefiles_ncurses(file_t *files)
           lines[x].file->action = -1;
         ++x;
       }
-      lines[cursorline].file->action = -1;
+
+      g = lines[cursorline].group;
+      x = cursorline + 1;
+      while (x < totallines && lines[x].group == g)
+        ++x;
+      while (x < totallines && lines[x].file == 0)
+        ++x;
+      if (x < totallines)
+        cursorline = x;
+      
       break;
 
     case '\n':
@@ -1089,6 +1107,20 @@ void deletefiles_ncurses(file_t *files)
       if (x < totallines)
         cursorline = x;
       break;
+
+    case 'c':
+    case 'C':
+      g = lines[cursorline].group;
+      x = cursorline;
+      while (x > 0 && lines[x-1].group == g)
+        --x;
+      while (x < totallines && lines[x].group == g)
+      {
+        lines[x].file->action = 0;
+        ++x;
+      }
+      lines[cursorline].file->action = 0;
+      break;      
     }
   } while (ch != 'q');
   
