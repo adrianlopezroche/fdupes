@@ -924,6 +924,7 @@ void deletefiles_ncurses(file_t *files)
   int needlines;
   int totalgroups = 0;
   size_t filenamelength;
+  int preservecount;
   int x;
   int g;
   int ch;
@@ -1075,6 +1076,7 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case 'd':
+      preservecount = 0;
       g = lines[cursorline].group;
       x = cursorline;
       while (x > 0 && lines[x-1].group == g)
@@ -1083,18 +1085,22 @@ void deletefiles_ncurses(file_t *files)
       {
         if (lines[x].file->action == 0)
           lines[x].file->action = -1;
+        else if (lines[x].file->action == 1)
+          ++preservecount;
         ++x;
       }
 
-      g = lines[cursorline].group;
-      x = cursorline + 1;
-      while (x < totallines && lines[x].group == g)
-        ++x;
-      while (x < totallines && lines[x].file == 0)
-        ++x;
-      if (x < totallines)
-        cursorline = x;
-      
+      if (preservecount > 0)
+      {
+        g = lines[cursorline].group;
+        x = cursorline + 1;
+        while (x < totallines && lines[x].group == g)
+          ++x;
+        while (x < totallines && lines[x].file == 0)
+          ++x;
+        if (x < totallines)
+          cursorline = x;
+      }
       break;
 
     case '\n':
@@ -1120,7 +1126,7 @@ void deletefiles_ncurses(file_t *files)
         ++x;
       }
       lines[cursorline].file->action = 0;
-      break;      
+      break;
     }
   } while (ch != 'q');
   
