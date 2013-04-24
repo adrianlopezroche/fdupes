@@ -905,10 +905,13 @@ char *getstringline(char *buf, char *src, int line, int cols)
 
 struct line
 {
-  file_t *file;
+  int id;
   int group;
-  int filenameline;
+  file_t *file;
 };
+
+#define GROUP_HEADER -1
+#define GROUP_PADDING -2
 
 void deletefiles_ncurses(file_t *files)
 {
@@ -919,6 +922,7 @@ void deletefiles_ncurses(file_t *files)
   struct line *realloclines;
   int topline = 0;
   int cursorline = 0;
+  int groupfirstline;
   int totallines = 0;
   int allocatedlines = 0;
   int needlines;
@@ -952,6 +956,10 @@ void deletefiles_ncurses(file_t *files)
   {
     if (curfile->hasdupes)
     {
+      ++totalgroups;
+
+      groupfirstline = totallines;
+
       dupefile = curfile;
       do
       {
@@ -961,11 +969,11 @@ void deletefiles_ncurses(file_t *files)
         if (filenamelength % COLS != 0)
           ++needlines;
 
-        if (totallines + needlines > allocatedlines)
+        if (totallines + needlines + 3 > allocatedlines)
         {
           do
             allocatedlines *= 2;
-          while (totallines + needlines > allocatedlines);
+          while (totallines + needlines + 3 > allocatedlines);
           
           realloclines = realloc(lines, sizeof(struct line) * allocatedlines);
           if (realloclines == 0)
@@ -980,45 +988,65 @@ void deletefiles_ncurses(file_t *files)
 
         for (x = 0; x < needlines; ++x)
         {
-          lines[totallines].group = totalgroups;
-          lines[totallines].file = dupefile;
-          lines[totallines].filenameline = x;
+          lines[totallines + 2].group = totalgroups;
+          lines[totallines + 2].file = dupefile;
+          lines[totallines + 2].id = x;
           ++totallines;
         }
       	
         dupefile = dupefile->duplicates;
       } while (dupefile);
 
-      lines[totallines++].file = 0;
+      lines[groupfirstline].file = 0;
+      lines[groupfirstline].group = totalgroups;
+      lines[groupfirstline].id = GROUP_HEADER;
+
+      lines[groupfirstline + 1].file = 0;
+      lines[groupfirstline + 1].group = totalgroups;
+      lines[groupfirstline + 1].id = GROUP_PADDING;
+
+      lines[totallines + 2].file = 0;
+      lines[totallines + 2].group = totalgroups;
+      lines[totallines + 2].id = GROUP_PADDING;
+
+      totallines += 3;
     }
 
-    ++totalgroups;
     curfile = curfile->next;
   }
 
+  cursorline = 2;
   do
   {
     wmove(filewin, 0, 0);
     erase();
       
-    for (x = 0; x < totallines; ++x)
+    for (x = topline; x < topline + LINES - 1 && x < totallines; ++x)
     {
-      if (lines[x].file != 0)
+      switch (lines[x].id)
       {
-        if (lines[x].filenameline == 0)
-        {
+        case GROUP_HEADER:
+          wprintw(filewin, "Set %d of %d:\n", lines[x].group, totalgroups);
+          break;
+
+        case GROUP_PADDING:
+          wprintw(filewin, "\n");
+          break;
+
+        case 0:
           if (x == cursorline) 
             wprintw(filewin, "> [%c] ", lines[x].file->action > 0 ? '+' : lines[x].file->action < 0 ? '-' : ' ');
           else 
             wprintw(filewin, "  [%c] ", lines[x].file->action > 0 ? '+' : lines[x].file->action < 0 ? '-' : ' ');
-        }
-        else
-          wprintw(filewin, "      ");
 
-        wprintw(filewin, "%s\n", lines[x].file->d_name);
+          wprintw(filewin, "%s\n", lines[x].file->d_name);
+  
+          break;
+
+        default:
+          wprintw(filewin, "      %s", "...");
+          break;
       }
-      else 
-      	wprintw(filewin, "\n");
     }
     
     //box(filewin, 0, 0);
@@ -1034,14 +1062,14 @@ void deletefiles_ncurses(file_t *files)
       if (cursorline + 1 < totallines)
         do
           ++cursorline;
-        while (cursorline + 1 < totallines && (lines[cursorline].file == 0 || lines[cursorline].filenameline != 0));
+        while (cursorline + 1 < totallines && (lines[cursorline].file == 0 || lines[cursorline].id != 0));
         break;
     
     case KEY_UP:
-      if (cursorline > 0)
+      if (cursorline > 2)
         do
           --cursorline;
-        while (cursorline > 0 && (lines[cursorline].file == 0 || lines[cursorline].filenameline != 0));
+        while (cursorline > 0 && (lines[cursorline].file == 0 || lines[cursorline].id != 0));
         break;
 
     case KEY_RIGHT:
@@ -1055,7 +1083,7 @@ void deletefiles_ncurses(file_t *files)
         --x;
       while (x < totallines && lines[x].group == g)
       {
-        if (lines[x].file->action == 0)
+        if (lines[x].file != 0 && lines[x].file->action == 0)
           lines[x].file->action = 1;
         ++x;
       }
@@ -1083,10 +1111,13 @@ void deletefiles_ncurses(file_t *files)
         --x;
       while (x < totallines && lines[x].group == g)
       {
-        if (lines[x].file->action == 0)
-          lines[x].file->action = -1;
-        else if (lines[x].file->action == 1)
-          ++preservecount;
+        if (lines[x].file != 0)
+        {
+          if (lines[x].file->action == 0)
+            lines[x].file->action = -1;
+          else if (lines[x].file->action == 1)
+            ++preservecount;
+        }
         ++x;
       }
 
@@ -1122,10 +1153,12 @@ void deletefiles_ncurses(file_t *files)
         --x;
       while (x < totallines && lines[x].group == g)
       {
-        lines[x].file->action = 0;
+        if (lines[x].file != 0)
+          lines[x].file->action = 0;
         ++x;
       }
-      lines[cursorline].file->action = 0;
+      if (lines[cursorline].file != 0)
+        lines[cursorline].file->action = 0;
       break;
     }
   } while (ch != 'q');
