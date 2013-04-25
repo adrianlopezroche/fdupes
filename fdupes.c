@@ -906,6 +906,7 @@ char *getstringline(char *buf, char *src, int line, int cols)
 struct line
 {
   int id;
+  int fileno;
   int group;
   file_t *file;
 };
@@ -913,9 +914,13 @@ struct line
 #define GROUP_HEADER -1
 #define GROUP_PADDING -2
 
+#define MODE_ARROWSELECT 1
+#define MODE_NUMBERSELECT 2
+
 void deletefiles_ncurses(file_t *files)
 {
   WINDOW *filewin;
+  WINDOW *statuswin;
   file_t *curfile;
   file_t *dupefile;
   struct line *lines;
@@ -929,6 +934,8 @@ void deletefiles_ncurses(file_t *files)
   int totalgroups = 0;
   size_t filenamelength;
   int preservecount;
+  int fileno;
+  int mode = MODE_ARROWSELECT;
   int x;
   int g;
   int ch;
@@ -937,11 +944,12 @@ void deletefiles_ncurses(file_t *files)
   noecho();
   cbreak();
 
-  filewin = newwin(LINES - 1, COLS - 1, 0, 0);	
+  filewin = newwin(LINES - 1, COLS, 0, 0);	
+  statuswin = newwin(1, COLS, LINES - 1, 0);
 
-  keypad(filewin, 1);
+  wattron(statuswin, A_REVERSE);
 
-  refresh();
+  keypad(statuswin, 1);
 
   allocatedlines = 8192; 
   lines = malloc(sizeof(struct line) * allocatedlines);
@@ -960,6 +968,7 @@ void deletefiles_ncurses(file_t *files)
 
       groupfirstline = totallines;
 
+      fileno = 1;
       dupefile = curfile;
       do
       {
@@ -988,26 +997,31 @@ void deletefiles_ncurses(file_t *files)
 
         for (x = 0; x < needlines; ++x)
         {
+          lines[totallines + 2].id = x;
           lines[totallines + 2].group = totalgroups;
           lines[totallines + 2].file = dupefile;
-          lines[totallines + 2].id = x;
+          lines[totallines + 2].fileno = fileno;
           ++totallines;
         }
       	
+        ++fileno;
         dupefile = dupefile->duplicates;
       } while (dupefile);
 
-      lines[groupfirstline].file = 0;
-      lines[groupfirstline].group = totalgroups;
       lines[groupfirstline].id = GROUP_HEADER;
+      lines[groupfirstline].group = totalgroups;
+      lines[groupfirstline].file = 0;
+      lines[groupfirstline].fileno = 0;
 
-      lines[groupfirstline + 1].file = 0;
-      lines[groupfirstline + 1].group = totalgroups;
       lines[groupfirstline + 1].id = GROUP_PADDING;
+      lines[groupfirstline + 1].group = totalgroups;
+      lines[groupfirstline + 1].file = 0;
+      lines[groupfirstline + 1].fileno = 0;
 
-      lines[totallines + 2].file = 0;
-      lines[totallines + 2].group = totalgroups;
       lines[totallines + 2].id = GROUP_PADDING;
+      lines[totallines + 2].group = totalgroups;
+      lines[totallines + 2].file = 0;
+      lines[totallines + 2].fileno = 0;
 
       totallines += 3;
     }
@@ -1026,7 +1040,9 @@ void deletefiles_ncurses(file_t *files)
       switch (lines[x].id)
       {
         case GROUP_HEADER:
+          wattron(filewin, A_BOLD);
           wprintw(filewin, "Set %d of %d:\n", lines[x].group, totalgroups);
+          wattroff(filewin, A_BOLD);
           break;
 
         case GROUP_PADDING:
@@ -1034,13 +1050,19 @@ void deletefiles_ncurses(file_t *files)
           break;
 
         case 0:
-          if (x == cursorline) 
-            wprintw(filewin, "> [%c] ", lines[x].file->action > 0 ? '+' : lines[x].file->action < 0 ? '-' : ' ');
-          else 
-            wprintw(filewin, "  [%c] ", lines[x].file->action > 0 ? '+' : lines[x].file->action < 0 ? '-' : ' ');
+          if (mode == MODE_ARROWSELECT || lines[cursorline].group != lines[x].group)
+          {
+            if (x == cursorline)
+              wprintw(filewin, "> ");
+            else
+              wprintw(filewin, "  ");
 
-          wprintw(filewin, "%s\n", lines[x].file->d_name);
-  
+            wprintw(filewin, "%c %s\n", lines[x].file->action > 0 ? '+' : lines[x].file->action < 0 ? '-' : ' ', lines[x].file->d_name);            
+          }
+          else
+          {
+            wprintw(filewin, "[%d] %s\n", lines[x].fileno, lines[x].file->d_name);
+          }
           break;
 
         default:
@@ -1051,10 +1073,13 @@ void deletefiles_ncurses(file_t *files)
     
     //box(filewin, 0, 0);
 
-    refresh();
     wrefresh(filewin);
 
-    ch = wgetch(filewin);
+	wclear(statuswin);
+    wprintw(statuswin, "h for help");
+    wrefresh(statuswin);
+
+    ch = wgetch(statuswin);
 
     switch (ch)
     {
@@ -1071,6 +1096,15 @@ void deletefiles_ncurses(file_t *files)
           --cursorline;
         while (cursorline > 0 && (lines[cursorline].file == 0 || lines[cursorline].id != 0));
         break;
+
+    case ']':
+      topline++;
+      break;
+
+    case '[':
+      if (topline > 0)
+        --topline;
+      break;
 
     case KEY_RIGHT:
       lines[cursorline].file->action = 1;        
@@ -1145,6 +1179,17 @@ void deletefiles_ncurses(file_t *files)
         cursorline = x;
       break;
 
+    case KEY_BACKSPACE:
+      g = lines[cursorline].group;
+      if (g > 1)
+      {
+        while (cursorline > 1 && lines[cursorline].group == g)
+          --cursorline;
+        while (cursorline > 1 && lines[cursorline].fileno != 1)
+          --cursorline;
+      }
+      break;
+
     case 'c':
     case 'C':
       g = lines[cursorline].group;
@@ -1160,9 +1205,22 @@ void deletefiles_ncurses(file_t *files)
       if (lines[cursorline].file != 0)
         lines[cursorline].file->action = 0;
       break;
+
+    case KEY_IC:
+      switch (mode)
+      {
+        case MODE_ARROWSELECT:
+          mode = MODE_NUMBERSELECT;
+          break;
+
+        case MODE_NUMBERSELECT:
+          mode = MODE_ARROWSELECT;
+          break;
+      }
+      break;
     }
   } while (ch != 'q');
-  
+
   endwin();
   
   free(lines);
