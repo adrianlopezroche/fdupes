@@ -77,7 +77,7 @@ MKDIR   = mkdir -p
 #
 # Make Configuration
 #
-CC = gcc
+CC ?= gcc
 COMPILER_OPTIONS = -Wall -O -g
 
 CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
