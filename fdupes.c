@@ -55,6 +55,11 @@
 #define F_EXCLUDEHIDDEN     0x1000
 #define F_PERMISSIONS       0x2000
 
+typedef enum {
+  ORDER_TIME = 0,
+  ORDER_NAME
+} ordertype_t;
+
 char *program_name;
 
 unsigned long flags = 0;
@@ -921,6 +926,11 @@ int sort_pairs_by_mtime(file_t *f1, file_t *f2)
   return 0;
 }
 
+int sort_pairs_by_filename(file_t *f1, file_t *f2)
+{
+  return strcmp(f1->d_name, f2->d_name);
+}
+
 void registerpair(file_t **matchlist, file_t *newmatch, 
 		  int (*comparef)(file_t *f1, file_t *f2))
 {
@@ -998,6 +1008,9 @@ void help_text()
   printf("                  \teach set of duplicates and delete the rest without\n");
   printf("                  \tprompting the user\n");
   printf(" -p --permissions \tdon't consider files with different owner/group or permission bits as duplicates\n");
+  printf(" -o --order       \tselect sort order for output, linking and deleting. One of:\n");
+  printf("    time          \torder by mtime (default)\n");
+  printf("    name          \torder by filename\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -1018,6 +1031,7 @@ int main(int argc, char **argv) {
   int progress = 0;
   char **oldargv;
   int firstrecurse;
+  ordertype_t ordertype = ORDER_TIME;
   
 #ifndef OMIT_GETOPT_LONG
   static struct option long_options[] = 
@@ -1042,6 +1056,7 @@ int main(int argc, char **argv) {
     { "summarize", 0, 0, 'm'},
     { "summary", 0, 0, 'm' },
     { "permissions", 0, 0, 'p' },
+    { "order", 1, 0, 'o' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1053,7 +1068,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1Ss::HlnAdvhNmp"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1106,6 +1121,16 @@ int main(int argc, char **argv) {
       break;
     case 'p':
       SETFLAG(flags, F_PERMISSIONS);
+      break;
+    case 'o':
+      if (!strcasecmp("name", optarg)) {
+        ordertype = ORDER_NAME;
+      } else if (!strcasecmp("time", optarg)) {
+        ordertype = ORDER_TIME;
+      } else {
+        errormsg("invalid value for --order: '%s'\n", optarg);
+        exit(1);
+      }
       break;
 
     default:
@@ -1182,7 +1207,8 @@ int main(int argc, char **argv) {
       }
 
       if (confirmmatch(file1, file2)) {
-	registerpair(match, curfile, sort_pairs_by_mtime);
+        registerpair(match, curfile,
+            (ordertype == ORDER_TIME) ? sort_pairs_by_mtime : sort_pairs_by_filename );
 	
 	/*match->hasdupes = 1;
         curfile->duplicates = match->duplicates;
