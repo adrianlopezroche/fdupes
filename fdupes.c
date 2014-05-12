@@ -1119,13 +1119,10 @@ void deletefiles_ncurses(file_t *files)
       {
         if (lines[x].file != 0 && lines[x].file->action == 0)
           lines[x].file->action = 1;
+
         ++x;
       }
 
-      g = lines[cursorline].group;
-      x = cursorline + 1;
-      while (x < totallines && lines[x].group == g)
-        ++x;
       while (x < totallines && lines[x].file == 0)
         ++x;
       if (x < totallines)
