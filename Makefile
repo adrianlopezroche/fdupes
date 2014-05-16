@@ -11,7 +11,7 @@
 # determination of the actual installation directories.
 # Suggested values are "/usr/local", "/usr", "/pkgs/fdupes-$(VERSION)"
 #
-PREFIX = /usr/local
+PREFIX ?= /usr/local
 
 #
 # When compiling for 32-bit systems, FILEOFFSET_64BIT must be enabled
@@ -78,9 +78,9 @@ MKDIR   = mkdir -p
 # Make Configuration
 #
 CC = gcc
-COMPILER_OPTIONS = -Wall -O -g
+COMPILER_OPTIONS = -Wall
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
+CFLAGS += $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
 
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
