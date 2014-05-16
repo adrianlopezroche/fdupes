@@ -1,0 +1,6 @@
+#
+# Running "make custom" in parent directory will execute this target
+# prior to executing other build targets.
+#
+pre-build:
+	@echo "starting custom build"

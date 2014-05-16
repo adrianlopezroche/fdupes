@@ -1,0 +1,6 @@
+#
+# Running "make custom" in parent directory will execute this target
+# after executing other build targets. 
+#
+post-build: main-build
+	@echo "custom build finished"

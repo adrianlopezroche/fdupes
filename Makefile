@@ -99,6 +99,16 @@ OBJECT_FILES = fdupes.o md5/md5.o $(ADDITIONAL_OBJECTS)
 
 all: fdupes
 
+include custom_build/Makefile.def
+
+custom: post-build
+
+include custom_build/Makefile.pre
+include custom_build/Makefile.post
+
+main-build: pre-build
+	@$(MAKE) --no-print-directory fdupes
+
 fdupes: $(OBJECT_FILES)
 	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
 
