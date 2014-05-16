@@ -56,7 +56,7 @@ BIN_DIR = $(PREFIX)/bin
 # MAN_DIR indicates directory where the fdupes man page is to be 
 # installed. Suggested value is "$(PREFIX)/man/man1"
 #
-MAN_BASE_DIR = $(PREFIX)/man
+MAN_BASE_DIR = $(PREFIX)/share/man
 MAN_DIR = $(MAN_BASE_DIR)/man1
 MAN_EXT = 1
 
