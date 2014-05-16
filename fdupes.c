@@ -1088,6 +1088,10 @@ void deletefiles_ncurses(file_t *files)
         do
           ++cursorline;
         while (cursorline + 1 < totallines && (lines[cursorline].file == 0 || lines[cursorline].id != 0));
+
+        if (cursorline - topline >= (LINES - 1))
+          topline += (cursorline - topline) - LINES + 2; 
+        
         break;
     
     case KEY_UP:
@@ -1095,6 +1099,13 @@ void deletefiles_ncurses(file_t *files)
         do
           --cursorline;
         while (cursorline > 0 && (lines[cursorline].file == 0 || lines[cursorline].id != 0));
+
+        if (cursorline - topline < 2)
+          topline += cursorline - topline - 2;
+
+        if (topline < 0)
+          topline = 0;
+
         break;
 
     case ']':
