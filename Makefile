@@ -100,7 +100,7 @@ OBJECT_FILES = fdupes.o md5/md5.o $(ADDITIONAL_OBJECTS)
 all: fdupes
 
 fdupes: $(OBJECT_FILES)
-	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o fdupes $(OBJECT_FILES)
 
 installdirs:
 	test -d $(BIN_DIR) || $(MKDIR) $(BIN_DIR)
