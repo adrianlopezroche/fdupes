@@ -11,7 +11,7 @@
 # determination of the actual installation directories.
 # Suggested values are "/usr/local", "/usr", "/pkgs/fdupes-$(VERSION)"
 #
-PREFIX = /usr/local
+PREFIX ?= /usr/local
 
 #
 # When compiling for 32-bit systems, FILEOFFSET_64BIT must be enabled
@@ -56,7 +56,7 @@ BIN_DIR = $(PREFIX)/bin
 # MAN_DIR indicates directory where the fdupes man page is to be 
 # installed. Suggested value is "$(PREFIX)/man/man1"
 #
-MAN_BASE_DIR = $(PREFIX)/man
+MAN_BASE_DIR = $(PREFIX)/share/man
 MAN_DIR = $(MAN_BASE_DIR)/man1
 MAN_EXT = 1
 
@@ -78,9 +78,9 @@ MKDIR   = mkdir -p
 # Make Configuration
 #
 CC = gcc
-COMPILER_OPTIONS = -Wall -O -g
+COMPILER_OPTIONS = -Wall
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
+CFLAGS += $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
 
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
@@ -100,7 +100,7 @@ OBJECT_FILES = fdupes.o md5/md5.o $(ADDITIONAL_OBJECTS)
 all: fdupes
 
 fdupes: $(OBJECT_FILES)
-	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o fdupes $(OBJECT_FILES)
 
 installdirs:
 	test -d $(BIN_DIR) || $(MKDIR) $(BIN_DIR)

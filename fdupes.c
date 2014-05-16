@@ -31,6 +31,7 @@
 #endif
 #include <string.h>
 #include <errno.h>
+#include <libgen.h>
 
 #ifndef EXTERNAL_MD5
 #include "md5/md5.h"
@@ -51,6 +52,13 @@
 #define F_RECURSEAFTER      0x0200
 #define F_NOPROMPT          0x0400
 #define F_SUMMARIZEMATCHES  0x0800
+#define F_EXCLUDEHIDDEN     0x1000
+#define F_PERMISSIONS       0x2000
+
+typedef enum {
+  ORDER_TIME = 0,
+  ORDER_NAME
+} ordertype_t;
 
 char *program_name;
 
@@ -240,6 +248,7 @@ int grokdir(char *dir, file_t **filelistp)
   struct stat linfo;
   static int progress = 0;
   static char indicator[] = "-\\|/";
+  char *fullname, *name;
 
   cd = opendir(dir);
 
@@ -285,6 +294,17 @@ int grokdir(char *dir, file_t **filelistp)
 	strcat(newfile->d_name, "/");
       strcat(newfile->d_name, dirinfo->d_name);
       
+      if (ISFLAG(flags, F_EXCLUDEHIDDEN)) {
+	fullname = strdup(newfile->d_name);
+	name = basename(fullname);
+	if (name[0] == '.' && strcmp(name, ".") && strcmp(name, "..") ) {
+	  free(newfile->d_name);
+	  free(newfile);
+	  continue;
+	}
+	free(fullname);
+      }
+
       if (filesize(newfile->d_name) == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
 	free(newfile->d_name);
 	free(newfile);
@@ -356,7 +376,7 @@ char *getcrcsignatureuntil(char *filename, off_t max_read)
   }
  
   while (fsize > 0) {
-    toread = (fsize % CHUNK_SIZE) ? (fsize % CHUNK_SIZE) : CHUNK_SIZE;
+    toread = (fsize >= CHUNK_SIZE) ? CHUNK_SIZE : fsize;
     if (fread(chunk, toread, 1, file) != 1) {
       errormsg("error reading from file %s\n", filename);
       fclose(file);
@@ -467,6 +487,17 @@ int registerfile(filetree_t **branch, file_t *file)
   return 1;
 }
 
+int same_permissions(char* name1, char* name2)
+{
+  struct stat s1, s2;
+
+  if (stat(name1, &s1) != 0) return -1;
+  if (stat(name2, &s2) != 0) return -1;
+  return (s1.st_mode == s2.st_mode &&
+          s1.st_uid == s2.st_uid &&
+          s1.st_gid == s2.st_gid);
+}
+
 file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 {
   int cmpresult;
@@ -489,10 +520,17 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     cmpresult = -1;
   else 
     if (fsize > checktree->file->size) cmpresult = 1;
+  else
+    if (ISFLAG(flags, F_PERMISSIONS) &&
+       !same_permissions(file->d_name, checktree->file->d_name))
+      cmpresult = -1;
   else {
     if (checktree->file->crcpartial == NULL) {
       crcsignature = getcrcpartialsignature(checktree->file->d_name);
-      if (crcsignature == NULL) return NULL;
+      if (crcsignature == NULL) {
+        errormsg ("cannot read file %s\n", checktree->file->d_name);
+        return NULL;
+      }
 
       checktree->file->crcpartial = (char*) malloc(strlen(crcsignature)+1);
       if (checktree->file->crcpartial == NULL) {
@@ -504,7 +542,10 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 
     if (file->crcpartial == NULL) {
       crcsignature = getcrcpartialsignature(file->d_name);
-      if (crcsignature == NULL) return NULL;
+      if (crcsignature == NULL) {
+        errormsg ("cannot read file %s\n", file->d_name);
+        return NULL;
+      }
 
       file->crcpartial = (char*) malloc(strlen(crcsignature)+1);
       if (file->crcpartial == NULL) {
@@ -577,8 +618,8 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 
 int confirmmatch(FILE *file1, FILE *file2)
 {
-  unsigned char c1 = 0;
-  unsigned char c2 = 0;
+  unsigned char c1[CHUNK_SIZE];
+  unsigned char c2[CHUNK_SIZE];
   size_t r1;
   size_t r2;
   
@@ -586,14 +627,13 @@ int confirmmatch(FILE *file1, FILE *file2)
   fseek(file2, 0, SEEK_SET);
 
   do {
-    r1 = fread(&c1, sizeof(c1), 1, file1);
-    r2 = fread(&c2, sizeof(c2), 1, file2);
+    r1 = fread(c1, sizeof(unsigned char), sizeof(c1), file1);
+    r2 = fread(c2, sizeof(unsigned char), sizeof(c2), file2);
 
-    if (c1 != c2) return 0; /* file contents are different */
-  } while (r1 && r2);
+    if (r1 != r2) return 0; /* file lengths are different */
+    if (memcmp (c1, c2, r1)) return 0; /* file contents are different */
+  } while (r2);
   
-  if (r1 != r2) return 0; /* file lengths are different */
-
   return 1;
 }
 
@@ -884,6 +924,11 @@ int sort_pairs_by_mtime(file_t *f1, file_t *f2)
   return 0;
 }
 
+int sort_pairs_by_filename(file_t *f1, file_t *f2)
+{
+  return strcmp(f1->d_name, f2->d_name);
+}
+
 void registerpair(file_t **matchlist, file_t *newmatch, 
 		  int (*comparef)(file_t *f1, file_t *f2))
 {
@@ -937,12 +982,14 @@ void help_text()
   printf(" -r --recurse     \tfor every directory given follow subdirectories\n");
   printf("                  \tencountered within\n");
   printf(" -R --recurse:    \tfor each directory given after this option follow\n");
-  printf("                  \tsubdirectories encountered within\n");
+  printf("                  \tsubdirectories encountered within (note the ':' at\n");
+  printf("                  \tthe end of the option, manpage for more details)\n");
   printf(" -s --symlinks    \tfollow symlinks\n");
   printf(" -H --hardlinks   \tnormally, when two or more files point to the same\n");
   printf("                  \tdisk area they are treated as non-duplicates; this\n"); 
   printf("                  \toption will change this behavior\n");
   printf(" -n --noempty     \texclude zero-length files from consideration\n");
+  printf(" -A --nohidden    \texclude hidden files from consideration\n");
   printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
   printf(" -1 --sameline    \tlist each set of matches on a single line\n");
   printf(" -S --size        \tshow size of duplicate files\n");
@@ -958,6 +1005,10 @@ void help_text()
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
   printf("                  \tprompting the user\n");
+  printf(" -p --permissions \tdon't consider files with different owner/group or permission bits as duplicates\n");
+  printf(" -o --order       \tselect sort order for output, linking and deleting. One of:\n");
+  printf("    time          \torder by mtime (default)\n");
+  printf("    name          \torder by filename\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -978,6 +1029,7 @@ int main(int argc, char **argv) {
   int progress = 0;
   char **oldargv;
   int firstrecurse;
+  ordertype_t ordertype = ORDER_TIME;
   
 #ifndef OMIT_GETOPT_LONG
   static struct option long_options[] = 
@@ -994,12 +1046,15 @@ int main(int argc, char **argv) {
     { "hardlinks", 0, 0, 'H' },
     { "relink", 0, 0, 'l' },
     { "noempty", 0, 0, 'n' },
+    { "nohidden", 0, 0, 'A' },
     { "delete", 0, 0, 'd' },
     { "version", 0, 0, 'v' },
     { "help", 0, 0, 'h' },
     { "noprompt", 0, 0, 'N' },
     { "summarize", 0, 0, 'm'},
     { "summary", 0, 0, 'm' },
+    { "permissions", 0, 0, 'p' },
+    { "order", 1, 0, 'o' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1011,7 +1066,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1Ss::HlndvhNm"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1044,6 +1099,9 @@ int main(int argc, char **argv) {
     case 'n':
       SETFLAG(flags, F_EXCLUDEEMPTY);
       break;
+    case 'A':
+      SETFLAG(flags, F_EXCLUDEHIDDEN);
+      break;
     case 'd':
       SETFLAG(flags, F_DELETEFILES);
       break;
@@ -1058,6 +1116,19 @@ int main(int argc, char **argv) {
       break;
     case 'm':
       SETFLAG(flags, F_SUMMARIZEMATCHES);
+      break;
+    case 'p':
+      SETFLAG(flags, F_PERMISSIONS);
+      break;
+    case 'o':
+      if (!strcasecmp("name", optarg)) {
+        ordertype = ORDER_NAME;
+      } else if (!strcasecmp("time", optarg)) {
+        ordertype = ORDER_TIME;
+      } else {
+        errormsg("invalid value for --order: '%s'\n", optarg);
+        exit(1);
+      }
       break;
 
     default:
@@ -1134,7 +1205,8 @@ int main(int argc, char **argv) {
       }
 
       if (confirmmatch(file1, file2)) {
-	registerpair(match, curfile, sort_pairs_by_mtime);
+        registerpair(match, curfile,
+            (ordertype == ORDER_TIME) ? sort_pairs_by_mtime : sort_pairs_by_filename );
 	
 	/*match->hasdupes = 1;
         curfile->duplicates = match->duplicates;

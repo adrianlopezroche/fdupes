@@ -13,7 +13,7 @@ fdupes \- finds duplicate files in a given set of directories
 
 .SH "DESCRIPTION"
 Searches the given path for duplicate files. Such files are found by
-comparing file sizes and MD5 signatures, followed by a 
+comparing file sizes and MD5 signatures, followed by a
 byte-by-byte comparison.
 
 .SH OPTIONS
@@ -23,7 +23,8 @@ for every directory given follow subdirectories encountered within
 .TP
 .B -R --recurse:
 for each directory given after this option follow subdirectories
-encountered within
+encountered within (note the ':' at the end of option; see the
+Examples section below for further explanation)
 .TP
 .B -s --symlinks
 follow symlinked directories
@@ -38,11 +39,17 @@ exclude zero-length files from consideration
 .B -f --omitfirst
 omit the first file in each set of matches
 .TP
+.B -A --nohidden
+exclude hidden files from consideration
+.TP
 .B -1 --sameline
 list each set of matches on a single line
 .TP
 .B -S --size
 show size of duplicate files
+.TP
+.B -m --summarize
+summarize duplicate files information
 .TP
 .B -q --quiet
 hide progress indicator
@@ -53,8 +60,15 @@ prompt user for files to preserve, deleting all others (see
 below)
 .TP
 .B -N --noprompt
-when used together with --delete, preserve the first file in each
-set of duplicates and delete the others without prompting the user 
+when used together with \-\-delete, preserve the first file in each
+set of duplicates and delete the others without prompting the user
+.TP
+.B -p --permissions
+don't consider files with different owner/group or permission bits as duplicates
+.TP
+.B -o --order\fR=\fIWORD\fR
+order files according to WORD:
+time - sort by mtime, name - sort by filename
 .TP
 .B -v --version
 display fdupes version
@@ -79,14 +93,23 @@ or
 .B --sameline
 is specified, spaces and backslash characters  (\fB\e\fP) appearing
 in a filename are preceded by a backslash character.
+
+.SH EXAMPLES
+.TP
+.B fdupes a --recurse: b
+will follow subdirectories under b, but not those under a.
+.TP
+.B fdupes a --recurse b
+will follow subdirectories under both a and b.
+
 .SH CAVEATS
 If fdupes returns with an error message such as
 .B fdupes: error invoking md5sum
 it means the program has been compiled to use an external
 program to calculate MD5 signatures (otherwise, fdupes uses
-interal routines for this purpose), and an error has occurred
-while attempting to execute it. If this is the case, the 
-specified program should be properly installed prior 
+internal routines for this purpose), and an error has occurred
+while attempting to execute it. If this is the case, the
+specified program should be properly installed prior
 to running fdupes.
 
 When using
