@@ -13,7 +13,7 @@ fdupes \- finds duplicate files in a given set of directories
 
 .SH "DESCRIPTION"
 Searches the given path for duplicate files. Such files are found by
-comparing file sizes and MD5 signatures, followed by a 
+comparing file sizes and MD5 signatures, followed by a
 byte-by-byte comparison.
 
 .SH OPTIONS
@@ -61,7 +61,7 @@ below)
 .TP
 .B -N --noprompt
 when used together with \-\-delete, preserve the first file in each
-set of duplicates and delete the others without prompting the user 
+set of duplicates and delete the others without prompting the user
 .TP
 .B -v --version
 display fdupes version
@@ -92,7 +92,7 @@ in a filename are preceded by a backslash character.
 .B fdupes a --recurse: b
 will follow subdirectories under b, but not those under a.
 .TP
-.B fdupes a --recurse b 
+.B fdupes a --recurse b
 will follow subdirectories under both a and b.
 
 .SH CAVEATS
@@ -101,8 +101,8 @@ If fdupes returns with an error message such as
 it means the program has been compiled to use an external
 program to calculate MD5 signatures (otherwise, fdupes uses
 internal routines for this purpose), and an error has occurred
-while attempting to execute it. If this is the case, the 
-specified program should be properly installed prior 
+while attempting to execute it. If this is the case, the
+specified program should be properly installed prior
 to running fdupes.
 
 When using
