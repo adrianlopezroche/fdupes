@@ -31,7 +31,11 @@
 #endif
 #include <string.h>
 #include <errno.h>
-#include <ncurses.h>
+#include <locale.h>
+#define __USE_XOPEN
+#include <wchar.h>
+#define _XOPEN_SOURCE_EXTENDED
+#include <ncursesw/ncurses.h>
 
 #ifndef EXTERNAL_MD5
 #include "md5/md5.h"
@@ -887,20 +891,80 @@ int sort_pairs_by_mtime(file_t *f1, file_t *f2)
   return 0;
 }
 
-char *getstringline(char *buf, char *src, int line, int cols)
+void putline(WINDOW *window, const char *str, const int line, const int columns, const int compensate_indent)
 {
-  int offset;
+  wchar_t *dest = 0;
+  int inputlength;
+  int linestart;
+  int linelength;
+  int linewidth;
+  int first_line_columns;
+  int l;
 
-  offset = line * cols;
+  inputlength = mbstowcs(0, str, 0);
+  if (inputlength == 0)
+    return;
 
-  if (strlen(src) <= offset)
-    buf[0] = '\0';
+  dest = (wchar_t *) malloc((inputlength + 1) * sizeof(wchar_t));
+  if (dest == NULL)
+  {
+    errormsg("out of memory\n");
+    exit(1);
+  }
+
+  first_line_columns = columns - compensate_indent;
+
+  linestart = 0;
+
+  if (line > 0)
+  {
+    linewidth = wcwidth(str[linestart]);
+
+    while (linestart + 1 < inputlength && linewidth + wcwidth(str[linestart + 1]) <= first_line_columns)
+      linewidth += wcwidth(str[++linestart]);
+
+    if (++linestart == inputlength)
+      return;
+
+    for (l = 1; l < line; ++l)
+    {
+      linewidth = wcwidth(str[linestart]);
+
+      while (linestart + 1 < inputlength && linewidth + wcwidth(str[linestart + 1]) <= columns)
+        linewidth += wcwidth(str[++linestart]);
+
+      if (++linestart == inputlength)
+        return;
+    }
+  }
+
+  linewidth = wcwidth(str[linestart]);
+  linelength = 1;
+
+  if (line == 0)
+  {
+    while (linestart + linelength < inputlength && linewidth + wcwidth(str[linestart + linelength]) <= first_line_columns)
+    {
+      linewidth += wcwidth(str[linestart + linelength]);
+      ++linelength;
+    }
+  }
   else
-    strncpy(buf, src + offset, cols);
+  {
+    while (linestart + linelength < inputlength && linewidth + wcwidth(str[linestart + linelength]) <= columns)
+    {
+      linewidth += wcwidth(str[linestart + linelength]);
+      ++linelength;
+    }    
+  }
 
-  buf[cols] = '\0';
+  mbstowcs(dest, str, inputlength);
 
-  return buf;
+  dest[inputlength] = L'\0';
+
+  waddnwstr(window, dest + linestart, linelength);
+
+  free(dest);
 }
 
 struct line
@@ -910,6 +974,8 @@ struct line
   int group;
   file_t *file;
 };
+
+#define FILENAME_INDENT 4
 
 #define GROUP_HEADER -1
 #define GROUP_PADDING -2
@@ -939,7 +1005,9 @@ void deletefiles_ncurses(file_t *files)
   int x;
   int g;
   int ch;
+  int cy;
 
+  setlocale(LC_CTYPE, "");
   initscr();
   noecho();
   cbreak();
@@ -974,8 +1042,8 @@ void deletefiles_ncurses(file_t *files)
       {
         filenamelength = strlen(curfile->d_name);
             
-        needlines = filenamelength / COLS;
-        if (filenamelength % COLS != 0)
+        needlines = (filenamelength + FILENAME_INDENT) / COLS;
+        if ((filenamelength + FILENAME_INDENT) % COLS != 0)
           ++needlines;
 
         if (totallines + needlines + 3 > allocatedlines)
@@ -1057,7 +1125,12 @@ void deletefiles_ncurses(file_t *files)
             else
               wprintw(filewin, "  ");
 
-            wprintw(filewin, "%c %s\n", lines[x].file->action > 0 ? '+' : lines[x].file->action < 0 ? '-' : ' ', lines[x].file->d_name);            
+            wprintw(filewin, "%c ", lines[x].file->action > 0 ? '+' : lines[x].file->action < 0 ? '-' : ' ');
+
+            cy = getcury(filewin);
+            putline(filewin, lines[x].file->d_name, 0, COLS, FILENAME_INDENT);
+            wclrtoeol(filewin);
+            wmove(filewin, cy+1, 0);
           }
           else
           {
@@ -1066,7 +1139,10 @@ void deletefiles_ncurses(file_t *files)
           break;
 
         default:
-          wprintw(filewin, "      %s", "...");
+          cy = getcury(filewin);
+          putline(filewin, lines[x].file->d_name, lines[x].id, COLS, FILENAME_INDENT);
+          wclrtoeol(filewin);
+          wmove(filewin, cy+1, 0);
           break;
       }
     }
@@ -1075,7 +1151,7 @@ void deletefiles_ncurses(file_t *files)
 
     wrefresh(filewin);
 
-	wclear(statuswin);
+    wclear(statuswin);
     wprintw(statuswin, "h for help");
     wrefresh(statuswin);
 

@@ -88,7 +88,7 @@ INSTALL_DATA    = $(INSTALL) -c -m 0644
 #
 # EXTERNAL LIBRARIES
 #
-EXTERNAL_LIBRARIES = -lncurses
+EXTERNAL_LIBRARIES = -lncursesw
 
 #
 # ADDITIONAL_OBJECTS - some platforms will need additional object files
