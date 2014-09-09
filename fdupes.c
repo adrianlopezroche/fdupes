@@ -1007,10 +1007,10 @@ void help_text()
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
   printf("                  \tprompting the user\n");
-  printf(" -p --permissions \tdon't consider files with different owner/group or permission bits as duplicates\n");
-  printf(" -o --order       \tselect sort order for output, linking and deleting. One of:\n");
-  printf("    time          \torder by mtime (default)\n");
-  printf("    name          \torder by filename\n");
+  printf(" -p --permissions \tdon't consider files with different owner/group or\n");
+  printf("                  \tpermission bits as duplicates\n");
+  printf(" -o --order=BY    \tselect sort order for output, linking and deleting; by\n");
+  printf("                  \tmtime (BY='time'; default) or filename (BY='filename')\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
