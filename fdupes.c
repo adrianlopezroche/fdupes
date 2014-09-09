@@ -685,7 +685,7 @@ void printmatches(file_t *files)
   while (files != NULL) {
     if (files->hasdupes) {
       if (!ISFLAG(flags, F_OMITFIRST)) {
-	if (ISFLAG(flags, F_SHOWSIZE)) printf("%lld byte%seach:\n", files->size,
+	if (ISFLAG(flags, F_SHOWSIZE)) printf("%lld byte%seach:\n", (long long int)files->size,
 	 (files->size != 1) ? "s " : " ");
 	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &files->d_name);
 	printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
@@ -838,7 +838,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
       do {
 	printf("Set %d of %d, preserve files [1 - %d, all]", 
           curgroup, groups, counter);
-	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%lld byte%seach)", files->size,
+	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%lld byte%seach)", (long long int)files->size,
 	  (files->size != 1) ? "s " : " ");
 	printf(": ");
 	fflush(stdout);
