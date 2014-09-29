@@ -48,6 +48,9 @@ list each set of matches on a single line
 .B -S --size
 show size of duplicate files
 .TP
+.B -b --bigger\fR=\fISIZE in KB\fR
+Consider only files bigger than N KB
+.TP
 .B -m --summarize
 summarize duplicate files information
 .TP
@@ -101,6 +104,9 @@ will follow subdirectories under b, but not those under a.
 .TP
 .B fdupes a --recurse b
 will follow subdirectories under both a and b.
+.TP
+.B fdupes a --bigger 3000
+will consider only files bigger than 3000KB (3 MB)
 
 .SH CAVEATS
 If fdupes returns with an error message such as
