@@ -7,6 +7,10 @@
  *
  * Copyright (C) 2014-2015 by Jody Bruchon <jody@jodybruchon.com>
  * Released under the terms of the GNU GPL version 2
+ *
+ * 2015-01-03: Re-licensed under the fdupes license as detailed in the
+ * README file. Though no longer required, I would still request that
+ * anyone who improves this code send me patches! Thanks. -Jody
  */
 
 #include <stdio.h>
