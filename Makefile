@@ -38,7 +38,7 @@ FILEOFFSET_64BIT = -D_FILE_OFFSET_BITS=64
 # has occasional hash collisions that may result in more full-file
 # comparisons in some instances.
 #
-#SUM_FUNC = -DJODY_HASH
+SUM_FUNC = -DJODY_HASH
 
 #####################################################################
 # Developer Configuration Section                                   #

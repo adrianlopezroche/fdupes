@@ -34,14 +34,28 @@
 #include <errno.h>
 #include <libgen.h>
 
+/* Include headers based on selected hash function */
 #ifdef JODY_HASH
- #undef USE_MD5
  #include "jody_hash.h"
+#else
+ #ifndef EXTERNAL_MD5
+  #include "md5/md5.h"
+ #endif
 #endif
 
-#ifndef EXTERNAL_MD5
- #include "md5/md5.h"
-#endif
+/* Use appropriate code for selected hash function */
+#ifdef JODY_HASH
+ #define CRC_MALLOC() (hash_t *) malloc(sizeof(hash_t))
+ #define CRC_CPY(a,b) memcpy(a,b,sizeof(hash_t))
+ #define CRC_CMP(a,b) memcmp(a,b,sizeof(hash_t))
+ #define CRC_T hash_t
+#else	/* Using MD5 instead */
+ #define CRC_MALLOC() (char *) malloc(strlen(crcsignature)+1)
+ #define CRC_CPY(a,b) strcpy(a,b)
+ #define CRC_CMP(a,b) strcmp(a,b)
+ #define CRC_T char
+#endif  /* JODY_HASH */
+
 
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
@@ -99,13 +113,8 @@ typedef struct _signatures
 typedef struct _file {
   char *d_name;
   off_t size;
-#ifdef JODY_HASH
-  hash_t *crcpartial;
-  hash_t *crcsignature;
-#else
-  char *crcpartial;
-  char *crcsignature;
-#endif	/* JODY_HASH */
+  CRC_T *crcpartial;
+  CRC_T *crcsignature;
   dev_t device;
   ino_t inode;
   time_t mtime;
@@ -398,7 +407,7 @@ static hash_t *getcrcsignatureuntil(char *filename, off_t max_read)
   return hash;
 }
 
-#else	/* JODY_HASH */
+#else	/* Use MD5 instead of jody_hash */
  #ifndef EXTERNAL_MD5
 
 /* If EXTERNAL_MD5 is not defined, use L. Peter Deutsch's MD5 library.
@@ -454,7 +463,7 @@ static char *getcrcsignatureuntil(char *filename, off_t max_read)
   return signature;
 }
 
- #else
+ #else	/* EXTERNAL_MD5 */
 
 /* If EXTERNAL_MD5 is defined, use md5sum program to calculate signatures.
  */
@@ -548,17 +557,19 @@ static int same_permissions(char* name1, char* name2)
  #define CRC_MALLOC() (hash_t *) malloc(sizeof(hash_t))
  #define CRC_CPY(a,b) memcpy(a,b,sizeof(hash_t))
  #define CRC_CMP(a,b) memcmp(a,b,sizeof(hash_t))
+ #define CRC_T hash_t
 #else
  #define CRC_MALLOC() (char *) malloc(strlen(crcsignature)+1)
  #define CRC_CPY(a,b) strcpy(a,b)
  #define CRC_CMP(a,b) strcmp(a,b)
+ #define CRC_T char
 #endif	/* JODY_HASH */
 
 /* Change to hashes */
 static file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 {
   int cmpresult;
-  hash_t *crcsignature;
+  CRC_T *crcsignature;
   off_t fsize;
 
   /* If device and inode fields are equal one of the files is a
@@ -589,12 +600,12 @@ static file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *fil
         return NULL;
       }
 
-      checktree->file->crcpartial = (hash_t *) malloc(sizeof(hash_t));
+      checktree->file->crcpartial = CRC_MALLOC();
       if (checktree->file->crcpartial == NULL) {
 	errormsg("out of memory\n");
 	exit(1);
       }
-      memcpy(checktree->file->crcpartial, crcsignature, sizeof(hash_t));
+      CRC_CPY(checktree->file->crcpartial, crcsignature);
     }
 
     if (file->crcpartial == NULL) {
@@ -604,15 +615,15 @@ static file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *fil
         return NULL;
       }
 
-      file->crcpartial = (hash_t *) malloc(sizeof(hash_t));
+      file->crcpartial = CRC_MALLOC();
       if (file->crcpartial == NULL) {
 	errormsg("out of memory\n");
 	exit(1);
       }
-      memcpy(file->crcpartial, crcsignature, sizeof(hash_t));
+      CRC_CPY(file->crcpartial, crcsignature);
     }
 
-    cmpresult = memcmp(file->crcpartial, checktree->file->crcpartial, sizeof(hash_t));
+    cmpresult = CRC_CMP(file->crcpartial, checktree->file->crcpartial);
     /*if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);*/
 
     if (cmpresult == 0) {
@@ -620,27 +631,27 @@ static file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *fil
 	crcsignature = getcrcsignature(checktree->file->d_name);
 	if (crcsignature == NULL) return NULL;
 
-	checktree->file->crcsignature = (hash_t *) malloc(sizeof(hash_t));
+	checktree->file->crcsignature = CRC_MALLOC();
 	if (checktree->file->crcsignature == NULL) {
 	  errormsg("out of memory\n");
 	  exit(1);
 	}
-	memcpy(checktree->file->crcsignature, crcsignature, sizeof(hash_t));
+	CRC_CPY(checktree->file->crcsignature, crcsignature);
       }
 
       if (file->crcsignature == NULL) {
 	crcsignature = getcrcsignature(file->d_name);
 	if (crcsignature == NULL) return NULL;
 
-	file->crcsignature = (hash_t *) malloc(sizeof(hash_t));
+	file->crcsignature = CRC_MALLOC();
 	if (file->crcsignature == NULL) {
 	  errormsg("out of memory\n");
 	  exit(1);
 	}
-	memcpy(file->crcsignature, crcsignature, sizeof(hash_t));
+	CRC_CPY(file->crcsignature, crcsignature);
       }
 
-      cmpresult = memcmp(file->crcsignature, checktree->file->crcsignature, sizeof(hash_t));
+      cmpresult = CRC_CMP(file->crcsignature, checktree->file->crcsignature);
       /*if (cmpresult != 0) errormsg("P   on %s vs %s\n",
           file->d_name, checktree->file->d_name);
       else errormsg("P F on %s vs %s\n", file->d_name,
@@ -669,123 +680,6 @@ static file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *fil
     return &checktree->file;
   }
 }
-
-#if 0
-static file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
-{
-  int cmpresult;
-  char *crcsignature;
-  off_t fsize;
-
-  /* If device and inode fields are equal one of the files is a
-     hard link to the other or the files have been listed twice
-     unintentionally. We don't want to flag these files as
-     duplicates unless the user specifies otherwise.
-  */
-
-  if (!ISFLAG(flags, F_CONSIDERHARDLINKS) && (getinode(file->d_name) ==
-      checktree->file->inode) && (getdevice(file->d_name) ==
-      checktree->file->device)) return NULL;
-
-  fsize = filesize(file->d_name);
-
-  if (fsize < checktree->file->size)
-    cmpresult = -1;
-  else
-    if (fsize > checktree->file->size) cmpresult = 1;
-  else
-    if (ISFLAG(flags, F_PERMISSIONS) &&
-        !same_permissions(file->d_name, checktree->file->d_name))
-        cmpresult = -1;
-  else {
-    if (checktree->file->crcpartial == NULL) {
-      crcsignature = getcrcpartialsignature(checktree->file->d_name);
-      if (crcsignature == NULL) {
-        errormsg ("cannot read file %s\n", checktree->file->d_name);
-        return NULL;
-      }
-
-      checktree->file->crcpartial = (char*) malloc(strlen(crcsignature)+1);
-      if (checktree->file->crcpartial == NULL) {
-	errormsg("out of memory\n");
-	exit(1);
-      }
-      strcpy(checktree->file->crcpartial, crcsignature);
-    }
-
-    if (file->crcpartial == NULL) {
-      crcsignature = getcrcpartialsignature(file->d_name);
-      if (crcsignature == NULL) {
-        errormsg ("cannot read file %s\n", file->d_name);
-        return NULL;
-      }
-
-      file->crcpartial = (char*) malloc(strlen(crcsignature)+1);
-      if (file->crcpartial == NULL) {
-	errormsg("out of memory\n");
-	exit(1);
-      }
-      strcpy(file->crcpartial, crcsignature);
-    }
-
-    cmpresult = strcmp(file->crcpartial, checktree->file->crcpartial);
-    /*if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);*/
-
-    if (cmpresult == 0) {
-      if (checktree->file->crcsignature == NULL) {
-	crcsignature = getcrcsignature(checktree->file->d_name);
-	if (crcsignature == NULL) return NULL;
-
-	checktree->file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
-	if (checktree->file->crcsignature == NULL) {
-	  errormsg("out of memory\n");
-	  exit(1);
-	}
-	strcpy(checktree->file->crcsignature, crcsignature);
-      }
-
-      if (file->crcsignature == NULL) {
-	crcsignature = getcrcsignature(file->d_name);
-	if (crcsignature == NULL) return NULL;
-
-	file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
-	if (file->crcsignature == NULL) {
-	  errormsg("out of memory\n");
-	  exit(1);
-	}
-	strcpy(file->crcsignature, crcsignature);
-      }
-
-      cmpresult = strcmp(file->crcsignature, checktree->file->crcsignature);
-      /*if (cmpresult != 0) errormsg("P   on %s vs %s\n",
-          file->d_name, checktree->file->d_name);
-      else errormsg("P F on %s vs %s\n", file->d_name,
-          checktree->file->d_name);
-      printf("%s matches %s\n", file->d_name, checktree->file->d_name);*/
-    }
-  }
-
-  if (cmpresult < 0) {
-    if (checktree->left != NULL) {
-      return checkmatch(root, checktree->left, file);
-    } else {
-      registerfile(&(checktree->left), file);
-      return NULL;
-    }
-  } else if (cmpresult > 0) {
-    if (checktree->right != NULL) {
-      return checkmatch(root, checktree->right, file);
-    } else {
-      registerfile(&(checktree->right), file);
-      return NULL;
-    }
-  } else
-  {
-    getfilestats(file);
-    return &checktree->file;
-  }
-}
-#endif
 
 
 /* Do a bit-for-bit comparison in case two different files produce the
