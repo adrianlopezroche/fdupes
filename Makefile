@@ -111,12 +111,12 @@ fdupes: $(OBJECT_FILES)
 	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
 
 installdirs:
-	test -d $(BIN_DIR) || $(MKDIR) $(BIN_DIR)
-	test -d $(MAN_DIR) || $(MKDIR) $(MAN_DIR)
+	test -d $(BIN_DIR) || $(MKDIR) $(DESTDIR)/$(BIN_DIR)
+	test -d $(MAN_DIR) || $(MKDIR) $(DESTDIR)/$(MAN_DIR)
 
 install: fdupes installdirs
-	$(INSTALL_PROGRAM)	fdupes   $(BIN_DIR)/$(PROGRAM_NAME)
-	$(INSTALL_DATA)		fdupes.1 $(MAN_DIR)/$(PROGRAM_NAME).$(MAN_EXT)
+	$(INSTALL_PROGRAM)	fdupes   $(DESTDIR)/$(BIN_DIR)/$(PROGRAM_NAME)
+	$(INSTALL_DATA)		fdupes.1 $(DESTDIR)/$(MAN_DIR)/$(PROGRAM_NAME).$(MAN_EXT)
 
 clean:
 	$(RM) $(OBJECT_FILES)
