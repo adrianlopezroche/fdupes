@@ -30,7 +30,6 @@ extern hash_t jody_block_hash(const hash_t * data,
 	register hash_t hash = start_hash;
 	unsigned int len;
 	hash_t tail;
-//	const unsigned char *tail_p;
 
 #ifdef ARCH_HAS_LITTLE_ENDIAN
 	/* Little-endian 64-bit hash_t tail mask */
