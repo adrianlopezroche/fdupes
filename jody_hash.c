@@ -24,7 +24,7 @@
  * of any amount of data. If data is not divisible by the size of
  * hash_t, it is MANDATORY that the caller provide a data buffer
  * which is divisible by sizeof(hash_t). */
-extern hash_t jody_block_hash(const hash_t * data,
+extern hash_t jody_block_hash(const hash_t * restrict data,
 		const hash_t start_hash, const unsigned int count)
 {
 	register hash_t hash = start_hash;
