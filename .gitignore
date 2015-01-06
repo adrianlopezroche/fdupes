@@ -1,0 +1,36 @@
+#
+# Build ignores
+#
+.*
+*.o
+*.o.*
+*.a
+*.so
+*.so.*
+*.1.gz
+
+#
+# Never ignore these
+#
+!.gitignore
+
+#
+# Normal output and testing dirs
+#
+/fdupes
+
+#
+# Backups / patches
+#
+*~
+*.orig
+*.rej
+/*.patch
+
+#
+# debugging stuff
+#
+core
+.gdb_history
+.gdbinit
+
