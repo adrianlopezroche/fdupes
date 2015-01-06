@@ -12,7 +12,7 @@
 typedef uint64_t hash_t;
 #define JODY_HASH_SHIFT 11
 
-extern hash_t jody_block_hash(const hash_t * const restrict data,
+extern hash_t jody_block_hash(const hash_t * restrict data,
 		const hash_t start_hash, const unsigned int count);
 
 #endif	/* _JODY_HASH_H */
