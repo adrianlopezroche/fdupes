@@ -82,7 +82,7 @@ typedef enum {
   ORDER_NAME
 } ordertype_t;
 
-char *program_name;
+const char *program_name;
 
 uint_fast16_t flags = 0;
 
@@ -171,7 +171,7 @@ static void escapefilename(char *escape_list, char **filename_ptr)
   }
 }
 
-static inline off_t filesize(char *filename) {
+static inline off_t filesize(const char * const filename) {
   struct stat s;
 
   if (stat(filename, &s) != 0) return -1;
@@ -179,7 +179,7 @@ static inline off_t filesize(char *filename) {
   return s.st_size;
 }
 
-static inline dev_t getdevice(char *filename) {
+static inline dev_t getdevice(const char * const filename) {
   struct stat s;
 
   if (stat(filename, &s) != 0) return 0;
@@ -187,7 +187,7 @@ static inline dev_t getdevice(char *filename) {
   return s.st_dev;
 }
 
-static inline ino_t getinode(char *filename) {
+static inline ino_t getinode(const char * const filename) {
   struct stat s;
 
   if (stat(filename, &s) != 0) return 0;
@@ -195,7 +195,7 @@ static inline ino_t getinode(char *filename) {
   return s.st_ino;
 }
 
-static inline time_t getmtime(char *filename) {
+static inline time_t getmtime(const char * const filename) {
   struct stat s;
 
   if (stat(filename, &s) != 0) return 0;
@@ -203,7 +203,7 @@ static inline time_t getmtime(char *filename) {
   return s.st_mtime;
 }
 
-static char **cloneargs(int argc, char **argv)
+static char **cloneargs(const int argc, char **argv)
 {
   int x;
   char **args;
@@ -228,7 +228,8 @@ static char **cloneargs(int argc, char **argv)
   return args;
 }
 
-static int findarg(char *arg, int start, int argc, char **argv)
+static int findarg(const char * const arg, const int start,
+		const int argc, char **argv)
 {
   int x;
 
@@ -240,8 +241,8 @@ static int findarg(char *arg, int start, int argc, char **argv)
 }
 
 /* Find the first non-option argument after specified option. */
-static int nonoptafter(char *option, int argc, char **oldargv,
-		      char **newargv, int optind)
+static int nonoptafter(const char *option, const int argc,
+		char **oldargv, char **newargv, int optind)
 {
   int x;
   int targetind;
@@ -259,7 +260,7 @@ static int nonoptafter(char *option, int argc, char **oldargv,
   return x;
 }
 
-static int grokdir(char *dir, file_t **filelistp)
+static int grokdir(const char *dir, file_t ** const filelistp)
 {
   DIR *cd;
   file_t *newfile;
@@ -369,7 +370,8 @@ static int grokdir(char *dir, file_t **filelistp)
 
 /* Use Jody Bruchon's hash function instead of MD5 */
 #ifdef JODY_HASH
-static hash_t *getcrcsignatureuntil(char *filename, off_t max_read)
+static hash_t *getcrcsignatureuntil(const char * const filename,
+		const off_t max_read)
 {
   off_t fsize;
   off_t toread;
