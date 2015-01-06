@@ -56,6 +56,8 @@
  #define CRC_T char
 #endif  /* JODY_HASH */
 
+/* How many operations to wait before updating progress counters */
+#define DELAY_COUNT 256
 
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
@@ -270,6 +272,7 @@ static int grokdir(const char *dir, file_t ** const filelistp)
   struct stat info;
   struct stat linfo;
   static int progress = 0;
+  static int delay = 0;
   static char indicator[] = "-\\|/";
   char *fullname, *name;
 
@@ -283,8 +286,11 @@ static int grokdir(const char *dir, file_t ** const filelistp)
   while ((dirinfo = readdir(cd)) != NULL) {
     if (strcmp(dirinfo->d_name, ".") && strcmp(dirinfo->d_name, "..")) {
       if (!ISFLAG(flags, F_HIDEPROGRESS)) {
-	fprintf(stderr, "\rBuilding file list %c ", indicator[progress]);
-	progress = (progress + 1) % 4;
+        if (delay == DELAY_COUNT) {
+		delay = 0;
+		fprintf(stderr, "\rBuilding file list %c ", indicator[progress]);
+		progress = (progress + 1) % 4;
+	} else delay++;
       }
 
       newfile = (file_t*) malloc(sizeof(file_t));
@@ -516,7 +522,7 @@ static inline void purgetree(filetree_t *checktree)
   free(checktree);
 }
 
-static inline void getfilestats(file_t *file)
+static inline void getfilestats(file_t * const file)
 {
   file->size = filesize(file->d_name);
   file->inode = getinode(file->d_name);
@@ -1101,6 +1107,8 @@ int main(int argc, char **argv) {
   char **oldargv;
   int firstrecurse;
   ordertype_t ordertype = ORDER_TIME;
+  int pct_step;
+  int delay = 0;
 
 #ifndef OMIT_GETOPT_LONG
   static struct option long_options[] =
@@ -1253,9 +1261,13 @@ int main(int argc, char **argv) {
     exit(0);
   }
 
+  pct_step = filecount / 100;
+  if (pct_step == 0) pct_step = 1;
+
   curfile = files;
 
   while (curfile) {
+
     if (!checktree)
       registerfile(&checktree, curfile);
     else
@@ -1291,8 +1303,11 @@ int main(int argc, char **argv) {
     curfile = curfile->next;
 
     if (!ISFLAG(flags, F_HIDEPROGRESS)) {
-      fprintf(stderr, "\rProgress [%d/%d] %d%% ", progress, filecount,
-       (int)((float) progress / (float) filecount * 100.0));
+      if (delay == DELAY_COUNT) {
+	delay = 0;
+        fprintf(stderr, "\rProgress [%d/%d] %d%% ", progress, filecount,
+          progress / pct_step);
+      } else delay++;
       progress++;
     }
   }
