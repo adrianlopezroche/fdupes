@@ -42,6 +42,7 @@
   1999-05-03 lpd Original version.
  */
 
+#include <stdint.h>
 #include "md5.h"
 #include <string.h>
 

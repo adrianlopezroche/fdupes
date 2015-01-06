@@ -30,7 +30,15 @@ FILEOFFSET_64BIT = -D_FILE_OFFSET_BITS=64
 # built in MD5 message digest routines) uncomment the following
 # line (try this if you're having trouble with built in code).
 #
-#EXTERNAL_MD5 = -DEXTERNAL_MD5=\"md5sum\"
+#SUM_FUNC = -DEXTERNAL_MD5=\"md5sum\"
+
+#
+# To use Jody Bruchon's hash function instead of MD5 signatures,
+# uncomment the following line. This algorithm is faster than MD5 but
+# has occasional hash collisions that may result in more full-file
+# comparisons in some instances.
+#
+SUM_FUNC = -DJODY_HASH
 
 #####################################################################
 # Developer Configuration Section                                   #
@@ -78,9 +86,9 @@ MKDIR   = mkdir -p
 # Make Configuration
 #
 CC ?= gcc
-COMPILER_OPTIONS = -Wall -O -g
+COMPILER_OPTIONS = -Wall -pedantic -std=gnu99 -O2 -g
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
+CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(SUM_FUNC) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
 
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
@@ -91,7 +99,7 @@ INSTALL_DATA    = $(INSTALL) -c -m 0644
 #
 #ADDITIONAL_OBJECTS = getopt.o
 
-OBJECT_FILES = fdupes.o md5/md5.o $(ADDITIONAL_OBJECTS)
+OBJECT_FILES = fdupes.o md5/md5.o jody_hash.o $(ADDITIONAL_OBJECTS)
 
 #####################################################################
 # no need to modify anything beyond this point                      #
@@ -103,12 +111,12 @@ fdupes: $(OBJECT_FILES)
 	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
 
 installdirs:
-	test -d $(BIN_DIR) || $(MKDIR) $(BIN_DIR)
-	test -d $(MAN_DIR) || $(MKDIR) $(MAN_DIR)
+	test -d $(BIN_DIR) || $(MKDIR) $(DESTDIR)/$(BIN_DIR)
+	test -d $(MAN_DIR) || $(MKDIR) $(DESTDIR)/$(MAN_DIR)
 
 install: fdupes installdirs
-	$(INSTALL_PROGRAM)	fdupes   $(BIN_DIR)/$(PROGRAM_NAME)
-	$(INSTALL_DATA)		fdupes.1 $(MAN_DIR)/$(PROGRAM_NAME).$(MAN_EXT)
+	$(INSTALL_PROGRAM)	fdupes   $(DESTDIR)/$(BIN_DIR)/$(PROGRAM_NAME)
+	$(INSTALL_DATA)		fdupes.1 $(DESTDIR)/$(MAN_DIR)/$(PROGRAM_NAME).$(MAN_EXT)
 
 clean:
 	$(RM) $(OBJECT_FILES)
