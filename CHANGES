@@ -6,6 +6,9 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 1.51 to 1.52
+
+- Added "--bigger" option to filter out smaller files [GL]
 
 Changes from 1.50 to 1.51
 

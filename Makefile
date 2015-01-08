@@ -102,6 +102,14 @@ all: fdupes
 fdupes: $(OBJECT_FILES)
 	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
 
+rpm: fdupes
+	-mkdir -p BUILD/
+	-mkdir -p   SRC/1.x/root/usr/local/bin/
+	-mkdir -p   SRC/1.x/root/usr/local/man/man1/
+	cp fdupes   SRC/1.x/root/usr/local/bin/
+	cp fdupes.1 SRC/1.x/root/usr/local/man/man1/fdupes.1
+	rpmbuild -ba fdupes.spec
+
 installdirs:
 	test -d $(DESTDIR)$(BIN_DIR) || $(MKDIR) $(DESTDIR)$(BIN_DIR)
 	test -d $(DESTDIR)$(MAN_DIR) || $(MKDIR) $(DESTDIR)$(MAN_DIR)
