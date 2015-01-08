@@ -56,7 +56,7 @@ BIN_DIR = $(PREFIX)/bin
 # MAN_DIR indicates directory where the fdupes man page is to be 
 # installed. Suggested value is "$(PREFIX)/man/man1"
 #
-MAN_BASE_DIR = $(PREFIX)/man
+MAN_BASE_DIR = $(PREFIX)/share/man
 MAN_DIR = $(MAN_BASE_DIR)/man1
 MAN_EXT = 1
 
@@ -103,12 +103,12 @@ fdupes: $(OBJECT_FILES)
 	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES)
 
 installdirs:
-	test -d $(BIN_DIR) || $(MKDIR) $(BIN_DIR)
-	test -d $(MAN_DIR) || $(MKDIR) $(MAN_DIR)
+	test -d $(DESTDIR)$(BIN_DIR) || $(MKDIR) $(DESTDIR)$(BIN_DIR)
+	test -d $(DESTDIR)$(MAN_DIR) || $(MKDIR) $(DESTDIR)$(MAN_DIR)
 
 install: fdupes installdirs
-	$(INSTALL_PROGRAM)	fdupes   $(BIN_DIR)/$(PROGRAM_NAME)
-	$(INSTALL_DATA)		fdupes.1 $(MAN_DIR)/$(PROGRAM_NAME).$(MAN_EXT)
+	$(INSTALL_PROGRAM)	fdupes   $(DESTDIR)$(BIN_DIR)/$(PROGRAM_NAME)
+	$(INSTALL_DATA)		fdupes.1 $(DESTDIR)$(MAN_DIR)/$(PROGRAM_NAME).$(MAN_EXT)
 
 clean:
 	$(RM) $(OBJECT_FILES)
