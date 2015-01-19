@@ -33,9 +33,7 @@
 #include <errno.h>
 #include <libgen.h>
 
-#ifndef EXTERNAL_MD5
 #include "md5/md5.h"
-#endif
 
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
@@ -345,10 +343,6 @@ int grokdir(char *dir, file_t **filelistp)
   return filecount;
 }
 
-#ifndef EXTERNAL_MD5
-
-/* If EXTERNAL_MD5 is not defined, use L. Peter Deutsch's MD5 library. 
- */
 char *getcrcsignatureuntil(char *filename, off_t max_read)
 {
   int x;
@@ -409,49 +403,6 @@ char *getcrcpartialsignature(char *filename)
 {
   return getcrcsignatureuntil(filename, PARTIAL_MD5_SIZE);
 }
-
-#endif /* [#ifndef EXTERNAL_MD5] */
-
-#ifdef EXTERNAL_MD5
-
-/* If EXTERNAL_MD5 is defined, use md5sum program to calculate signatures.
- */
-char *getcrcsignature(char *filename)
-{
-  static char signature[256];
-  char *command;
-  char *separator;
-  FILE *result;
-
-  command = (char*) malloc(strlen(filename)+strlen(EXTERNAL_MD5)+2);
-  if (command == NULL) {
-    errormsg("out of memory\n");
-    exit(1);
-  }
-
-  sprintf(command, "%s %s", EXTERNAL_MD5, filename);
-
-  result = popen(command, "r");
-  if (result == NULL) {
-    errormsg("error invoking %s\n", EXTERNAL_MD5);
-    exit(1);
-  }
- 
-  free(command);
-
-  if (fgets(signature, 256, result) == NULL) {
-    errormsg("error generating signature for %s\n", filename);
-    return NULL;
-  }    
-  separator = strchr(signature, ' ');
-  if (separator) *separator = '\0';
-
-  pclose(result);
-
-  return signature;
-}
-
-#endif /* [#ifdef EXTERNAL_MD5] */
 
 void purgetree(filetree_t *checktree)
 {
