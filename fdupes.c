@@ -56,6 +56,7 @@
 #define F_SUMMARIZEMATCHES  0x0800
 #define F_EXCLUDEHIDDEN     0x1000
 #define F_PERMISSIONS       0x2000
+#define F_SHALLOW           0x4000
 
 typedef enum {
   ORDER_TIME = 0,
@@ -533,7 +534,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     cmpresult = strcmp(file->crcpartial, checktree->file->crcpartial);
     /*if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);*/
 
-    if (cmpresult == 0) {
+    if (!ISFLAG(flags, F_SHALLOW) && cmpresult == 0) {
       if (checktree->file->crcsignature == NULL) {
 	crcsignature = getcrcsignature(checktree->file->d_name);
 	if (crcsignature == NULL) return NULL;
@@ -984,6 +985,9 @@ void help_text()
   printf("                  \tpermission bits as duplicates\n");
   printf(" -o --order=BY    \tselect sort order for output, linking and deleting; by\n");
   printf("                  \tmtime (BY='time'; default) or filename (BY='filename')\n");
+  printf(" -w --shallow     \tskip full file hashing and match verification; use this\n");
+  printf("                  \tif you have lots of very larch files and fdupes is too\n");
+  printf("                  \tslow for you and you don't mind getting false positives\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -1030,6 +1034,7 @@ int main(int argc, char **argv) {
     { "summary", 0, 0, 'm' },
     { "permissions", 0, 0, 'p' },
     { "order", 1, 0, 'o' },
+    { "shallow", 0, 0, 'w' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1041,7 +1046,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:w"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1104,6 +1109,9 @@ int main(int argc, char **argv) {
         errormsg("invalid value for --order: '%s'\n", optarg);
         exit(1);
       }
+      break;
+    case 'w':
+      SETFLAG(flags, F_SHALLOW);
       break;
 
     default:
@@ -1179,7 +1187,7 @@ int main(int argc, char **argv) {
 	continue;
       }
 
-      if (confirmmatch(file1, file2)) {
+      if (ISFLAG(flags, F_SHALLOW) || confirmmatch(file1, file2)) {
         registerpair(match, curfile,
             (ordertype == ORDER_TIME) ? sort_pairs_by_mtime : sort_pairs_by_filename );
 	
