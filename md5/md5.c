@@ -46,7 +46,11 @@
 #include <string.h>
 
 /* endianness check using glibc endian.h */
-#include <endian.h>
+#ifdef __APPLE__
+# include <machine/endian.h>
+#else
+# include <endian.h>
+#endif
 
 #if __BYTE_ORDER == __BIG_ENDIAN
 # define ARCH_IS_BIG_ENDIAN 1
