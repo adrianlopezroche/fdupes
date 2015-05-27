@@ -35,7 +35,9 @@
 
   contributors
    chl - Charles Longeau <chl@tuxfamily.org>
+   tom - Tom Hoover <tom@hisword.net>
 
+  2015-02-04 tom Added #ifdef __APPLE__ for proper compilation under OSX.
   2002-05-31 chl Relocated string.h to avoid memcpy warning. 
   1999-11-04 lpd Edited comments slightly for automatic TOC extraction.
   1999-10-18 lpd Fixed typo in header comment (ansi2knr rather than md5).
