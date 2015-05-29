@@ -33,7 +33,9 @@
 #include <errno.h>
 #include <libgen.h>
 
-#ifndef EXTERNAL_MD5
+#ifdef WITH_OPENSSL
+#include <openssl/md5.h>
+#else
 #include "md5/md5.h"
 #endif
 
@@ -54,6 +56,7 @@
 #define F_SUMMARIZEMATCHES  0x0800
 #define F_EXCLUDEHIDDEN     0x1000
 #define F_PERMISSIONS       0x2000
+#define F_SHALLOW           0x4000
 
 typedef enum {
   ORDER_TIME = 0,
@@ -345,25 +348,31 @@ int grokdir(char *dir, file_t **filelistp)
   return filecount;
 }
 
-#ifndef EXTERNAL_MD5
-
-/* If EXTERNAL_MD5 is not defined, use L. Peter Deutsch's MD5 library. 
- */
 char *getcrcsignatureuntil(char *filename, off_t max_read)
 {
   int x;
   off_t fsize;
   off_t toread;
-  md5_state_t state;
-  md5_byte_t digest[16];  
-  static md5_byte_t chunk[CHUNK_SIZE];
-  static char signature[16*2 + 1]; 
   char *sigp;
   FILE *file;
-   
-  md5_init(&state);
 
- 
+#ifdef WITH_OPENSSL
+  static char chunk[CHUNK_SIZE];
+  static char signature[MD5_DIGEST_LENGTH*2 + 1];
+  unsigned char digest[MD5_DIGEST_LENGTH];
+  MD5_CTX c;
+
+  MD5_Init(&c);
+#else
+  static md5_byte_t chunk[CHUNK_SIZE];
+  static char signature[16*2 + 1];
+  md5_state_t state;
+  md5_byte_t digest[16];
+
+  md5_init(&state);
+#endif
+
+
   fsize = filesize(filename);
   
   if (max_read != 0 && fsize > max_read)
@@ -382,11 +391,19 @@ char *getcrcsignatureuntil(char *filename, off_t max_read)
       fclose(file);
       return NULL;
     }
+#ifdef WITH_OPENSSL
+    MD5_Update(&c, chunk, toread);
+#else
     md5_append(&state, chunk, toread);
+#endif
     fsize -= toread;
   }
 
+#ifdef WITH_OPENSSL
+  MD5_Final(digest, &c);
+#else
   md5_finish(&state, digest);
+#endif
 
   sigp = signature;
 
@@ -409,49 +426,6 @@ char *getcrcpartialsignature(char *filename)
 {
   return getcrcsignatureuntil(filename, PARTIAL_MD5_SIZE);
 }
-
-#endif /* [#ifndef EXTERNAL_MD5] */
-
-#ifdef EXTERNAL_MD5
-
-/* If EXTERNAL_MD5 is defined, use md5sum program to calculate signatures.
- */
-char *getcrcsignature(char *filename)
-{
-  static char signature[256];
-  char *command;
-  char *separator;
-  FILE *result;
-
-  command = (char*) malloc(strlen(filename)+strlen(EXTERNAL_MD5)+2);
-  if (command == NULL) {
-    errormsg("out of memory\n");
-    exit(1);
-  }
-
-  sprintf(command, "%s %s", EXTERNAL_MD5, filename);
-
-  result = popen(command, "r");
-  if (result == NULL) {
-    errormsg("error invoking %s\n", EXTERNAL_MD5);
-    exit(1);
-  }
- 
-  free(command);
-
-  if (fgets(signature, 256, result) == NULL) {
-    errormsg("error generating signature for %s\n", filename);
-    return NULL;
-  }    
-  separator = strchr(signature, ' ');
-  if (separator) *separator = '\0';
-
-  pclose(result);
-
-  return signature;
-}
-
-#endif /* [#ifdef EXTERNAL_MD5] */
 
 void purgetree(filetree_t *checktree)
 {
@@ -560,7 +534,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     cmpresult = strcmp(file->crcpartial, checktree->file->crcpartial);
     /*if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);*/
 
-    if (cmpresult == 0) {
+    if (!ISFLAG(flags, F_SHALLOW) && cmpresult == 0) {
       if (checktree->file->crcsignature == NULL) {
 	crcsignature = getcrcsignature(checktree->file->d_name);
 	if (crcsignature == NULL) return NULL;
@@ -1011,6 +985,9 @@ void help_text()
   printf("                  \tpermission bits as duplicates\n");
   printf(" -o --order=BY    \tselect sort order for output, linking and deleting; by\n");
   printf("                  \tmtime (BY='time'; default) or filename (BY='filename')\n");
+  printf(" -w --shallow     \tskip full file hashing and match verification; use this\n");
+  printf("                  \tif you have lots of very larch files and fdupes is too\n");
+  printf("                  \tslow for you and you don't mind getting false positives\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -1057,6 +1034,7 @@ int main(int argc, char **argv) {
     { "summary", 0, 0, 'm' },
     { "permissions", 0, 0, 'p' },
     { "order", 1, 0, 'o' },
+    { "shallow", 0, 0, 'w' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1068,7 +1046,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:w"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1131,6 +1109,9 @@ int main(int argc, char **argv) {
         errormsg("invalid value for --order: '%s'\n", optarg);
         exit(1);
       }
+      break;
+    case 'w':
+      SETFLAG(flags, F_SHALLOW);
       break;
 
     default:
@@ -1206,7 +1187,7 @@ int main(int argc, char **argv) {
 	continue;
       }
 
-      if (confirmmatch(file1, file2)) {
+      if (ISFLAG(flags, F_SHALLOW) || confirmmatch(file1, file2)) {
         registerpair(match, curfile,
             (ordertype == ORDER_TIME) ? sort_pairs_by_mtime : sort_pairs_by_filename );
 	

@@ -26,11 +26,13 @@ FILEOFFSET_64BIT = -D_FILE_OFFSET_BITS=64
 #OMIT_GETOPT_LONG = -DOMIT_GETOPT_LONG
 
 #
-# To use the md5sum program for calculating signatures (instead of the
-# built in MD5 message digest routines) uncomment the following
-# line (try this if you're having trouble with built in code).
+# Choose md5 implementation to use.
 #
-#EXTERNAL_MD5 = -DEXTERNAL_MD5=\"md5sum\"
+# Openssl
+MD5LIB_CFLAGS = -lcrypto -DWITH_OPENSSL
+#
+# Internal
+#MD5LIB_OBJECT_FILE = md5/md5.o
 
 #####################################################################
 # Developer Configuration Section                                   #
@@ -80,8 +82,7 @@ MKDIR   = mkdir -p
 CC ?= gcc
 COMPILER_OPTIONS = -Wall -O -g
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
-
+CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(OMIT_GETOPT_LONG) $(MD5LIB_CFLAGS) $(FILEOFFSET_64BIT)
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
 
@@ -91,7 +92,7 @@ INSTALL_DATA    = $(INSTALL) -c -m 0644
 #
 #ADDITIONAL_OBJECTS = getopt.o
 
-OBJECT_FILES = fdupes.o md5/md5.o $(ADDITIONAL_OBJECTS)
+OBJECT_FILES = fdupes.o $(MD5LIB_OBJECT_FILE) $(ADDITIONAL_OBJECTS)
 
 #####################################################################
 # no need to modify anything beyond this point                      #
