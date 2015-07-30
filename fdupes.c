@@ -778,6 +778,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
   int max = 0;
   int x;
   int i;
+  int min_files_preserved;
 
   curfile = files;
   
@@ -836,7 +837,8 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
       else /* prompt for files to preserve */
 
       do {
-	printf("Set %d of %d, preserve files [1 - %d, all]", 
+	min_files_preserved = 1;
+	printf("Set %d of %d, preserve files [1 - %d, all, none!]",
           curgroup, groups, counter);
 	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%lld byte%seach)", (long long int)files->size,
 	  (files->size != 1) ? "s " : " ");
@@ -870,6 +872,8 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
 	token = strtok(preservestr, " ,\n");
 	
 	while (token != NULL) {
+	  /* if none! is the only token, remove all files */
+	  if (strcasecmp(token, "none!") == 0) min_files_preserved = 0;
 	  if (strcasecmp(token, "all") == 0)
 	    for (x = 0; x <= counter; x++) preserve[x] = 1;
 	  
@@ -881,7 +885,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
 	}
       
 	for (sum = 0, x = 1; x <= counter; x++) sum += preserve[x];
-      } while (sum < 1); /* make sure we've preserved at least one file */
+      } while (sum < min_files_preserved); /* make sure we've preserved at least min files */
 
       printf("\n");
 
