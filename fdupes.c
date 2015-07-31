@@ -32,6 +32,7 @@
 #include <string.h>
 #include <errno.h>
 #include <libgen.h>
+#include <sys/queue.h>
 
 #ifndef EXTERNAL_MD5
 #include "md5/md5.h"
@@ -54,6 +55,7 @@
 #define F_SUMMARIZEMATCHES  0x0800
 #define F_EXCLUDEHIDDEN     0x1000
 #define F_PERMISSIONS       0x2000
+#define F_EXCLUDEDIR        0x4000
 
 typedef enum {
   ORDER_TIME = 0,
@@ -88,6 +90,13 @@ typedef struct _signatures
 
 */
 
+struct Directory {
+  char *name;
+  LIST_ENTRY(Directory) dirs;
+};
+
+LIST_HEAD(DirectoriesHead, Directory) dirshead;
+
 typedef struct _file {
   char *d_name;
   off_t size;
@@ -106,6 +115,16 @@ typedef struct _filetree {
   struct _filetree *left;
   struct _filetree *right;
 } filetree_t;
+
+int isExcluded(char *dirname)
+{
+  struct Directory *dir;
+  int excluded = 0;
+  LIST_FOREACH(dir, &dirshead, dirs)
+    if (!strcmp(dir->name, dirname))
+      excluded = 1;
+  return excluded;
+}
 
 void errormsg(char *message, ...)
 {
@@ -324,7 +343,8 @@ int grokdir(char *dir, file_t **filelistp)
       }
 
       if (S_ISDIR(info.st_mode)) {
-	if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)))
+	if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode))
+	  && (!ISFLAG(flags, F_EXCLUDEDIR) || !isExcluded(newfile->d_name)))
 	  filecount += grokdir(newfile->d_name, filelistp);
 	free(newfile->d_name);
 	free(newfile);
@@ -986,6 +1006,7 @@ void help_text()
   printf(" -R --recurse:    \tfor each directory given after this option follow\n");
   printf("                  \tsubdirectories encountered within (note the ':' at\n");
   printf("                  \tthe end of the option, manpage for more details)\n");
+  printf(" -e --exclude-dir=\tdo not follow the given directory (option can be repeated)\n");
   printf(" -s --symlinks    \tfollow symlinks\n");
   printf(" -H --hardlinks   \tnormally, when two or more files point to the same\n");
   printf("                  \tdisk area they are treated as non-duplicates; this\n"); 
@@ -1032,7 +1053,11 @@ int main(int argc, char **argv) {
   char **oldargv;
   int firstrecurse;
   ordertype_t ordertype = ORDER_TIME;
-  
+  char *exclude_dir;
+  struct Directory *exclude_dir_entry;
+
+  LIST_INIT(&dirshead);
+
 #ifndef OMIT_GETOPT_LONG
   static struct option long_options[] = 
   {
@@ -1041,6 +1066,7 @@ int main(int argc, char **argv) {
     { "recursive", 0, 0, 'r' },
     { "recurse:", 0, 0, 'R' },
     { "recursive:", 0, 0, 'R' },
+    { "exclude-dir", 1, 0, 'e' },
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
     { "size", 0, 0, 'S' },
@@ -1068,7 +1094,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:"
+  while ((opt = GETOPT(argc, argv, "frRe:q1SsHlndvhNmpo:"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1082,6 +1108,27 @@ int main(int argc, char **argv) {
       break;
     case 'R':
       SETFLAG(flags, F_RECURSEAFTER);
+      break;
+    case 'e':
+      if (optarg) {
+        SETFLAG(flags, F_EXCLUDEDIR);
+        exclude_dir = (char*) malloc(strlen(optarg) + 1);
+        if (exclude_dir == NULL) {
+          errormsg("out of memory!\n");
+          exit(1);
+        }
+        exclude_dir_entry = malloc(sizeof(struct Directory));
+        if (exclude_dir_entry == NULL) {
+          errormsg("out of memory!\n");
+          exit(1);
+        }
+        exclude_dir_entry->name = exclude_dir;
+        strcpy(exclude_dir_entry->name, optarg);
+        LIST_INSERT_HEAD(&dirshead, exclude_dir_entry, dirs);
+      } else {
+        errormsg("no directory given for --exclude-dir\n");
+        exit(1);
+      }
       break;
     case 'q':
       SETFLAG(flags, F_HIDEPROGRESS);
