@@ -1238,7 +1238,7 @@ int main(int argc, char **argv) {
     }
     else
     {
-      stdin = freopen("/dev/tty", "r", stdin);
+      freopen("/dev/tty", "r", stdin);
       deletefiles(files, 1, stdin);
     }
   }
