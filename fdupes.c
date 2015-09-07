@@ -928,7 +928,7 @@ int sort_pairs_by_mtime(file_t *f1, file_t *f2)
 
 int sort_pairs_by_filename(file_t *f1, file_t *f2)
 {
-  return strcmp(f1->d_name, f2->d_name);
+  return -strcmp(f1->d_name, f2->d_name);
 }
 
 void registerpair(file_t **matchlist, file_t *newmatch, 
