@@ -246,13 +246,11 @@ int skipfile(file_t *file)
 {
   if(ISFLAG(flags, F_MINFILESIZE) && filesize(file->d_name) < min_file_size*1024)
   {
-    printf("%s is too small: %ld > %ld\n", file->d_name, min_file_size*1024, filesize(file->d_name));
     return 1;
   }
 
   if(ISFLAG(flags, F_MAXFILESIZE) && filesize(file->d_name) > max_file_size*1024)
   {
-    printf("%s is too big: %ld < %ld\n", file->d_name, max_file_size*1024, filesize(file->d_name));
     return 2;
   }
 
@@ -1153,7 +1151,6 @@ int main(int argc, char **argv) {
       SETFLAG(flags, F_SUMMARIZEMATCHES);
       break;
     case 'b':
-      printf("opt: %s\n", optarg);
       SETFLAG(flags, F_MINFILESIZE);
       if (strlen(optarg) == 0) {
             fprintf(stderr,"fdupes -b: provide numeric argument >0 for minimum file size to consider");
