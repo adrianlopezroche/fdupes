@@ -54,6 +54,8 @@
 #define F_SUMMARIZEMATCHES  0x0800
 #define F_EXCLUDEHIDDEN     0x1000
 #define F_PERMISSIONS       0x2000
+#define F_MINFILESIZE       0x4000
+#define F_MAXFILESIZE       0x8000
 
 typedef enum {
   ORDER_TIME = 0,
@@ -63,6 +65,9 @@ typedef enum {
 char *program_name;
 
 unsigned long flags = 0;
+
+long min_file_size = 0;
+long max_file_size = 0;
 
 #define CHUNK_SIZE 8192
 
@@ -237,6 +242,23 @@ int nonoptafter(char *option, int argc, char **oldargv,
   return x;
 }
 
+int skipfile(file_t *file)
+{
+  if(ISFLAG(flags, F_MINFILESIZE) && filesize(file->d_name) < min_file_size*1024)
+  {
+    printf("%s is too small: %ld > %ld\n", file->d_name, min_file_size*1024, filesize(file->d_name));
+    return 1;
+  }
+
+  if(ISFLAG(flags, F_MAXFILESIZE) && filesize(file->d_name) > max_file_size*1024)
+  {
+    printf("%s is too big: %ld < %ld\n", file->d_name, max_file_size*1024, filesize(file->d_name));
+    return 2;
+  }
+
+  return 0;
+}
+
 int grokdir(char *dir, file_t **filelistp)
 {
   DIR *cd;
@@ -303,6 +325,13 @@ int grokdir(char *dir, file_t **filelistp)
 	  continue;
 	}
 	free(fullname);
+      }
+
+      if(skipfile(newfile))
+      {
+        free(newfile->d_name);
+        free(newfile);
+        continue;
       }
 
       if (filesize(newfile->d_name) == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
@@ -995,6 +1024,8 @@ void help_text()
   printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
   printf(" -1 --sameline    \tlist each set of matches on a single line\n");
   printf(" -S --size        \tshow size of duplicate files\n");
+  printf(" -b --minfilesize \tConsider only files larger than N KB\n");
+  printf(" -B --maxfilesize \tConsider only files smaller than N KB\n");
   printf(" -m --summarize   \tsummarize dupe information\n");
   printf(" -q --quiet       \thide progress indicator\n");
   printf(" -d --delete      \tprompt user for files to preserve and delete all\n"); 
@@ -1057,6 +1088,8 @@ int main(int argc, char **argv) {
     { "summary", 0, 0, 'm' },
     { "permissions", 0, 0, 'p' },
     { "order", 1, 0, 'o' },
+    { "minfilesize", 1, 0, 'b' },
+    { "maxfilesize", 1, 0, 'B' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1068,7 +1101,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:b:B:"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1118,6 +1151,43 @@ int main(int argc, char **argv) {
       break;
     case 'm':
       SETFLAG(flags, F_SUMMARIZEMATCHES);
+      break;
+    case 'b':
+      printf("opt: %s\n", optarg);
+      SETFLAG(flags, F_MINFILESIZE);
+      if (strlen(optarg) == 0) {
+            fprintf(stderr,"fdupes -b: provide numeric argument >0 for minimum file size to consider");
+            exit(1);
+      }
+      char * endPtrb = NULL;
+      long arg_b = strtol(optarg,&endPtrb,10);
+
+      if ( endPtrb == NULL || arg_b == 0){
+             fprintf(stderr, "fdupes -b: provide numeric argument >0 for minimum file size to consider");
+             exit(1);
+      }
+      min_file_size  = arg_b;
+      break;
+    case 'B':
+      SETFLAG(flags, F_MAXFILESIZE);
+      if (strlen(optarg) == 0) {
+            fprintf(stderr,"fdupes -B: provide numeric argument >0 for maximum file size to consider");
+            exit(1);
+      }
+      char * endPtrB = NULL;
+      long arg_B = strtol(optarg,&endPtrB,10);
+
+      if ( endPtrB == NULL || arg_B == 0){
+             fprintf(stderr, "fdupes -B: provide numeric argument >0 for minimum file size to consider");
+             exit(1);
+      }
+      max_file_size = arg_B;
+
+      if (ISFLAG(flags, F_MAXFILESIZE) && ISFLAG(flags, F_MINFILESIZE) && min_file_size > max_file_size){
+             fprintf(stderr, "fdupes -B: min file size (-b) must be smaller then max file size(-B)");
+             exit(1);
+      }
+
       break;
     case 'p':
       SETFLAG(flags, F_PERMISSIONS);
