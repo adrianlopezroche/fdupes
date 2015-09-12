@@ -242,14 +242,15 @@ int nonoptafter(char *option, int argc, char **oldargv,
   return x;
 }
 
-int skipfile(file_t *file)
+int skipfile(file_t *file, struct stat info)
 {
-  if(ISFLAG(flags, F_MINFILESIZE) && filesize(file->d_name) < min_file_size*1024)
+  if(ISFLAG(flags, F_MINFILESIZE) && !S_ISDIR(info.st_mode) && filesize(file->d_name) < min_file_size*1024)
   {
+    //printf("Small: %s %ld - %ld\n", file->d_name, min_file_size, filesize(file->d_name));
     return 1;
   }
 
-  if(ISFLAG(flags, F_MAXFILESIZE) && filesize(file->d_name) > max_file_size*1024)
+  if(ISFLAG(flags, F_MAXFILESIZE) && !S_ISDIR(info.st_mode) && filesize(file->d_name) > max_file_size*1024)
   {
     return 2;
   }
@@ -325,13 +326,6 @@ int grokdir(char *dir, file_t **filelistp)
 	free(fullname);
       }
 
-      if(skipfile(newfile))
-      {
-        free(newfile->d_name);
-        free(newfile);
-        continue;
-      }
-
       if (filesize(newfile->d_name) == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
 	free(newfile->d_name);
 	free(newfile);
@@ -348,6 +342,13 @@ int grokdir(char *dir, file_t **filelistp)
 	free(newfile->d_name);
 	free(newfile);
 	continue;
+      }
+      
+      if(skipfile(newfile, info))
+      {
+        free(newfile->d_name);
+        free(newfile);
+        continue;
       }
 
       if (S_ISDIR(info.st_mode)) {
