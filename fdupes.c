@@ -56,6 +56,7 @@
 #define F_PERMISSIONS       0x2000
 #define F_MINFILESIZE       0x4000
 #define F_MAXFILESIZE       0x8000
+#define F_SKIPBYTEVERIFY    0x10000
 
 typedef enum {
   ORDER_TIME = 0,
@@ -1100,7 +1101,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:b:B:"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpeo:b:B:"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1151,17 +1152,20 @@ int main(int argc, char **argv) {
     case 'm':
       SETFLAG(flags, F_SUMMARIZEMATCHES);
       break;
+    case 'e':
+      SETFLAG(flags, F_SKIPBYTEVERIFY);
+      break;
     case 'b':
       SETFLAG(flags, F_MINFILESIZE);
       if (strlen(optarg) == 0) {
-            fprintf(stderr,"fdupes -b: provide numeric argument >0 for minimum file size to consider");
+            fprintf(stderr,"fdupes -b: provide numeric argument >0 for minimum file size to consider\n");
             exit(1);
       }
       char * endPtrb = NULL;
       long arg_b = strtol(optarg,&endPtrb,10);
 
       if ( endPtrb == NULL || arg_b == 0){
-             fprintf(stderr, "fdupes -b: provide numeric argument >0 for minimum file size to consider");
+             fprintf(stderr, "fdupes -b: provide numeric argument >0 for minimum file size to consider\n");
              exit(1);
       }
       min_file_size  = arg_b;
@@ -1169,20 +1173,20 @@ int main(int argc, char **argv) {
     case 'B':
       SETFLAG(flags, F_MAXFILESIZE);
       if (strlen(optarg) == 0) {
-            fprintf(stderr,"fdupes -B: provide numeric argument >0 for maximum file size to consider");
+            fprintf(stderr,"fdupes -B: provide numeric argument >0 for maximum file size to consider\n");
             exit(1);
       }
       char * endPtrB = NULL;
       long arg_B = strtol(optarg,&endPtrB,10);
 
       if ( endPtrB == NULL || arg_B == 0){
-             fprintf(stderr, "fdupes -B: provide numeric argument >0 for minimum file size to consider");
+             fprintf(stderr, "fdupes -B: provide numeric argument >0 for minimum file size to consider\n");
              exit(1);
       }
       max_file_size = arg_B;
 
       if (ISFLAG(flags, F_MAXFILESIZE) && ISFLAG(flags, F_MINFILESIZE) && min_file_size > max_file_size){
-             fprintf(stderr, "fdupes -B: min file size (-b) must be smaller then max file size(-B)");
+             fprintf(stderr, "fdupes -B: min file size (-b) must be smaller then max file size(-B)\n");
              exit(1);
       }
 
@@ -1274,7 +1278,7 @@ int main(int argc, char **argv) {
 	continue;
       }
 
-      if (confirmmatch(file1, file2)) {
+      if (ISFLAG(flags, F_SKIPBYTEVERIFY) || confirmmatch(file1, file2)) {
         registerpair(match, curfile,
             (ordertype == ORDER_TIME) ? sort_pairs_by_mtime : sort_pairs_by_filename );
 	

@@ -2,4 +2,4 @@
 # VERSION determines the program's version number.
 #
 
-VERSION = 1.51
+VERSION = 1.52-dev
