@@ -245,18 +245,26 @@ int nonoptafter(char *option, int argc, char **oldargv,
 
 int skipfile(file_t *file, struct stat info)
 {
-  if(ISFLAG(flags, F_MINFILESIZE) && !S_ISDIR(info.st_mode) && filesize(file->d_name) < min_file_size*1024)
+  if(ISFLAG(flags, F_MINFILESIZE) && !S_ISDIR(info.st_mode) && file->size < min_file_size*1024)
   {
     //printf("Small: %s %ld - %ld\n", file->d_name, min_file_size, filesize(file->d_name));
     return 1;
   }
 
-  if(ISFLAG(flags, F_MAXFILESIZE) && !S_ISDIR(info.st_mode) && filesize(file->d_name) > max_file_size*1024)
+  if(ISFLAG(flags, F_MAXFILESIZE) && !S_ISDIR(info.st_mode) && file->size > max_file_size*1024)
   {
     return 2;
   }
 
   return 0;
+}
+
+void getfilestats(file_t *file)
+{
+  file->size = filesize(file->d_name);
+  file->inode = getinode(file->d_name);
+  file->device = getdevice(file->d_name);
+  file->mtime = getmtime(file->d_name);
 }
 
 int grokdir(char *dir, file_t **filelistp)
@@ -315,6 +323,8 @@ int grokdir(char *dir, file_t **filelistp)
       if (lastchar >= 0 && dir[lastchar] != '/')
 	strcat(newfile->d_name, "/");
       strcat(newfile->d_name, dirinfo->d_name);
+
+      getfilestats(newfile);
       
       if (ISFLAG(flags, F_EXCLUDEHIDDEN)) {
 	fullname = strdup(newfile->d_name);
@@ -327,7 +337,7 @@ int grokdir(char *dir, file_t **filelistp)
 	free(fullname);
       }
 
-      if (filesize(newfile->d_name) == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
+      if (newfile->size == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
 	free(newfile->d_name);
 	free(newfile);
 	continue;
@@ -491,17 +501,10 @@ void purgetree(filetree_t *checktree)
   free(checktree);
 }
 
-void getfilestats(file_t *file)
-{
-  file->size = filesize(file->d_name);
-  file->inode = getinode(file->d_name);
-  file->device = getdevice(file->d_name);
-  file->mtime = getmtime(file->d_name);
-}
 
 int registerfile(filetree_t **branch, file_t *file)
 {
-  getfilestats(file);
+  //getfilestats(file);
 
   *branch = (filetree_t*) malloc(sizeof(filetree_t));
   if (*branch == NULL) {
@@ -541,11 +544,11 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
      duplicates unless the user specifies otherwise.
   */    
 
-  if (!ISFLAG(flags, F_CONSIDERHARDLINKS) && (getinode(file->d_name) == 
-      checktree->file->inode) && (getdevice(file->d_name) ==
+  if (!ISFLAG(flags, F_CONSIDERHARDLINKS) && (file->inode == 
+      checktree->file->inode) && (file->device ==
       checktree->file->device)) return NULL; 
 
-  fsize = filesize(file->d_name);
+  fsize = file->size;
   
   if (fsize < checktree->file->size) 
     cmpresult = -1;
@@ -639,7 +642,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     }
   } else 
   {
-    getfilestats(file);
+    //getfilestats(file);
     return &checktree->file;
   }
 }
