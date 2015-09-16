@@ -1029,6 +1029,7 @@ void help_text()
   printf(" -S --size        \tshow size of duplicate files\n");
   printf(" -b --minfilesize \tConsider only files larger than N KB\n");
   printf(" -B --maxfilesize \tConsider only files smaller than N KB\n");
+  printf(" -e --skipverify  \tSkip final byte to byte verification after checksum match\n");
   printf(" -m --summarize   \tsummarize dupe information\n");
   printf(" -q --quiet       \thide progress indicator\n");
   printf(" -d --delete      \tprompt user for files to preserve and delete all\n"); 
@@ -1093,6 +1094,7 @@ int main(int argc, char **argv) {
     { "order", 1, 0, 'o' },
     { "minfilesize", 1, 0, 'b' },
     { "maxfilesize", 1, 0, 'B' },
+    { "skipverify", 0, 0, 'e' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
