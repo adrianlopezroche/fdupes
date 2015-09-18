@@ -57,6 +57,7 @@
 #define F_MINFILESIZE       0x4000
 #define F_MAXFILESIZE       0x8000
 #define F_SKIPBYTEVERIFY    0x10000
+#define F_XDEVICE           0x20000
 
 typedef enum {
   ORDER_TIME = 0,
@@ -67,8 +68,9 @@ char *program_name;
 
 unsigned long flags = 0;
 
-long min_file_size = 0;
-long max_file_size = 0;
+unsigned long long int min_file_size = 0;
+unsigned long long int max_file_size = 0;
+dev_t workingdevice;
 
 #define CHUNK_SIZE 8192
 
@@ -245,13 +247,13 @@ int nonoptafter(char *option, int argc, char **oldargv,
 
 int skipfile(file_t *file, struct stat info)
 {
-  if(ISFLAG(flags, F_MINFILESIZE) && !S_ISDIR(info.st_mode) && file->size < min_file_size*1024)
+  if(ISFLAG(flags, F_MINFILESIZE) && !S_ISDIR(info.st_mode) && file->size < min_file_size)
   {
     //printf("Small: %s %ld - %ld\n", file->d_name, min_file_size, filesize(file->d_name));
     return 1;
   }
 
-  if(ISFLAG(flags, F_MAXFILESIZE) && !S_ISDIR(info.st_mode) && file->size > max_file_size*1024)
+  if(ISFLAG(flags, F_MAXFILESIZE) && !S_ISDIR(info.st_mode) && file->size > max_file_size)
   {
     return 2;
   }
@@ -279,7 +281,11 @@ int grokdir(char *dir, file_t **filelistp)
   static int progress = 0;
   static char indicator[] = "-\\|/";
   char *fullname, *name;
-
+  
+  if (ISFLAG(flags, F_XDEVICE) && getdevice(dir) != workingdevice) {
+  	printf("Skipping out of device item: %s\n", dir);
+	return 0;
+  }
   cd = opendir(dir);
 
   if (!cd) {
@@ -1030,6 +1036,7 @@ void help_text()
   printf(" -b --minfilesize \tConsider only files larger than N KB\n");
   printf(" -B --maxfilesize \tConsider only files smaller than N KB\n");
   printf(" -e --skipverify  \tSkip final byte to byte verification after checksum match\n");
+  printf(" -x --xdevice     \tDo not cross into another device from the given arguments starting device\n");
   printf(" -m --summarize   \tsummarize dupe information\n");
   printf(" -q --quiet       \thide progress indicator\n");
   printf(" -d --delete      \tprompt user for files to preserve and delete all\n"); 
@@ -1053,6 +1060,42 @@ void help_text()
 #endif
 }
 
+unsigned long long int parsesizeinput(char* input){
+	unsigned long long int inputsize;
+	char * endptr = NULL;
+	inputsize = strtoull(input, &endptr,10);
+	switch(*endptr){
+		case '\0':
+			inputsize = inputsize * 1024;
+			break;
+		case 'k':
+		case 'K':
+			inputsize = inputsize * 1024;
+			endptr++;
+			break;
+		case 'm':
+		case 'M':
+			inputsize = inputsize * 1024*1024;
+			endptr++;
+			break;
+		case 'g':
+		case 'G':
+			inputsize = inputsize *1024*1024*1024;
+			endptr++;
+			break;
+		default:
+			break;
+	}
+	printf("Size: %lld - %d\n", inputsize, *endptr);
+
+	if (*endptr != '\0'){
+            fprintf(stderr,"fdupes: provide numeric argument >0 for file size to consider\n");
+		exit(1);
+	}
+	printf("Size: %lld\n", inputsize);
+	return inputsize;
+}
+
 int main(int argc, char **argv) {
   int x;
   int opt;
@@ -1067,7 +1110,8 @@ int main(int argc, char **argv) {
   char **oldargv;
   int firstrecurse;
   ordertype_t ordertype = ORDER_TIME;
-  
+
+
 #ifndef OMIT_GETOPT_LONG
   static struct option long_options[] = 
   {
@@ -1095,6 +1139,7 @@ int main(int argc, char **argv) {
     { "minfilesize", 1, 0, 'b' },
     { "maxfilesize", 1, 0, 'B' },
     { "skipverify", 0, 0, 'e' },
+    { "xdevice", 0, 0, 'x' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1106,7 +1151,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpeo:b:B:"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpexo:b:B:"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1160,20 +1205,16 @@ int main(int argc, char **argv) {
     case 'e':
       SETFLAG(flags, F_SKIPBYTEVERIFY);
       break;
+    case 'x':
+      SETFLAG(flags, F_XDEVICE);
+      break;
     case 'b':
       SETFLAG(flags, F_MINFILESIZE);
       if (strlen(optarg) == 0) {
             fprintf(stderr,"fdupes -b: provide numeric argument >0 for minimum file size to consider\n");
             exit(1);
       }
-      char * endPtrb = NULL;
-      long arg_b = strtol(optarg,&endPtrb,10);
-
-      if ( endPtrb == NULL || arg_b == 0){
-             fprintf(stderr, "fdupes -b: provide numeric argument >0 for minimum file size to consider\n");
-             exit(1);
-      }
-      min_file_size  = arg_b;
+      min_file_size = parsesizeinput(optarg);
       break;
     case 'B':
       SETFLAG(flags, F_MAXFILESIZE);
@@ -1181,14 +1222,7 @@ int main(int argc, char **argv) {
             fprintf(stderr,"fdupes -B: provide numeric argument >0 for maximum file size to consider\n");
             exit(1);
       }
-      char * endPtrB = NULL;
-      long arg_B = strtol(optarg,&endPtrB,10);
-
-      if ( endPtrB == NULL || arg_B == 0){
-             fprintf(stderr, "fdupes -B: provide numeric argument >0 for minimum file size to consider\n");
-             exit(1);
-      }
-      max_file_size = arg_B;
+      max_file_size = parsesizeinput(optarg);
 
       if (ISFLAG(flags, F_MAXFILESIZE) && ISFLAG(flags, F_MINFILESIZE) && min_file_size > max_file_size){
              fprintf(stderr, "fdupes -B: min file size (-b) must be smaller then max file size(-B)\n");
@@ -1244,17 +1278,25 @@ int main(int argc, char **argv) {
 
     /* F_RECURSE is not set for directories before --recurse: */
     for (x = optind; x < firstrecurse; x++)
-      filecount += grokdir(argv[x], &files);
-
+	{
+		workingdevice = getdevice(argv[x]);
+		filecount += grokdir(argv[x], &files);
+	}
     /* Set F_RECURSE for directories after --recurse: */
     SETFLAG(flags, F_RECURSE);
 
     for (x = firstrecurse; x < argc; x++)
-      filecount += grokdir(argv[x], &files);
+	{
+		workingdevice = getdevice(argv[x]);
+	      filecount += grokdir(argv[x], &files);
+	}
   } else {
-    for (x = optind; x < argc; x++)
-      filecount += grokdir(argv[x], &files);
+    for (x = optind; x < argc; x++){
+      		workingdevice = getdevice(argv[x]);
+		filecount += grokdir(argv[x], &files);
+	}
   }
+
 
   if (!files) {
     if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
