@@ -1086,13 +1086,10 @@ unsigned long long int parsesizeinput(char* input){
 		default:
 			break;
 	}
-	printf("Size: %lld - %d\n", inputsize, *endptr);
-
 	if (*endptr != '\0'){
             fprintf(stderr,"fdupes: provide numeric argument >0 for file size to consider\n");
 		exit(1);
 	}
-	printf("Size: %lld\n", inputsize);
 	return inputsize;
 }
 
