@@ -20,6 +20,12 @@ Usage: fdupes [options] DIRECTORY...
  -f --omitfirst   	omit the first file in each set of matches
  -1 --sameline    	list each set of matches on a single line
  -S --size        	show size of duplicate files
+ -b --minfilesize	Consider only files larger than N KB
+ -B --maxfilesize	Consider only files smaller than N KB
+ -e --skipverify	Skip final byte to byte verification after 
+                        checksum match
+ -x --xdevice           Do not cross into another device from the given 
+                        arguments starting device
  -q --quiet       	hide progress indicator
  -d --delete      	prompt user for files to preserve and delete all
                   	others; important: under particular circumstances,
