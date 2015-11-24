@@ -1010,7 +1010,7 @@ void help_text()
   printf(" -p --permissions \tdon't consider files with different owner/group or\n");
   printf("                  \tpermission bits as duplicates\n");
   printf(" -o --order=BY    \tselect sort order for output, linking and deleting; by\n");
-  printf("                  \tmtime (BY='time'; default) or filename (BY='filename')\n");
+  printf("                  \tmtime (BY='time'; default) or filename (BY='name')\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
