@@ -25,13 +25,6 @@ FILEOFFSET_64BIT = -D_FILE_OFFSET_BITS=64
 #
 #OMIT_GETOPT_LONG = -DOMIT_GETOPT_LONG
 
-#
-# To use the md5sum program for calculating signatures (instead of the
-# built in MD5 message digest routines) uncomment the following
-# line (try this if you're having trouble with built in code).
-#
-#EXTERNAL_MD5 = -DEXTERNAL_MD5=\"md5sum\"
-
 #####################################################################
 # Developer Configuration Section                                   #
 #####################################################################
@@ -80,7 +73,7 @@ MKDIR   = mkdir -p
 CC ?= gcc
 COMPILER_OPTIONS = -Wall -O -g
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
+CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
 
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
