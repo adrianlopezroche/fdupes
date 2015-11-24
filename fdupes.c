@@ -54,6 +54,7 @@
 #define F_SUMMARIZEMATCHES  0x0800
 #define F_EXCLUDEHIDDEN     0x1000
 #define F_PERMISSIONS       0x2000
+#define F_REVERSE           0x4000
 
 typedef enum {
   ORDER_TIME = 0,
@@ -911,17 +912,17 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
 int sort_pairs_by_arrival(file_t *f1, file_t *f2)
 {
   if (f2->duplicates != 0)
-    return 1;
+    return !ISFLAG(flags, F_REVERSE) ? 1 : -1;
 
-  return -1;
+  return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
 }
 
 int sort_pairs_by_mtime(file_t *f1, file_t *f2)
 {
   if (f1->mtime < f2->mtime)
-    return -1;
+    return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
   else if (f1->mtime > f2->mtime)
-    return 1;
+    return !ISFLAG(flags, F_REVERSE) ? 1 : -1;
 
   return 0;
 }
@@ -1011,6 +1012,7 @@ void help_text()
   printf("                  \tpermission bits as duplicates\n");
   printf(" -o --order=BY    \tselect sort order for output, linking and deleting; by\n");
   printf("                  \tmtime (BY='time'; default) or filename (BY='name')\n");
+  printf(" -i --reverse     \treverse order while sorting\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -1057,6 +1059,7 @@ int main(int argc, char **argv) {
     { "summary", 0, 0, 'm' },
     { "permissions", 0, 0, 'p' },
     { "order", 1, 0, 'o' },
+    { "reverse", 0, 0, 'i' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1068,7 +1071,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlndvhNmpo:i"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1131,6 +1134,9 @@ int main(int argc, char **argv) {
         errormsg("invalid value for --order: '%s'\n", optarg);
         exit(1);
       }
+      break;
+    case 'i':
+      SETFLAG(flags, F_REVERSE);
       break;
 
     default:
