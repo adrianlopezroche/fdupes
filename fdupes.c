@@ -1195,7 +1195,12 @@ int main(int argc, char **argv) {
     }
     else
     {
-      freopen("/dev/tty", "r", stdin);
+      if (freopen("/dev/tty", "r", stdin) == 0)
+      {
+        errormsg("could not open terminal for input\n");
+        exit(1);
+      }
+
       deletefiles(files, 1, stdin);
     }
   }
