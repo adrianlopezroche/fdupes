@@ -33,7 +33,11 @@
 #include <errno.h>
 #include <libgen.h>
 
+#ifdef WITH_OPENSSL
+#include <openssl/md5.h>
+#else
 #include "md5/md5.h"
+#endif
 
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
@@ -349,16 +353,26 @@ char *getcrcsignatureuntil(char *filename, off_t max_read)
   int x;
   off_t fsize;
   off_t toread;
-  md5_state_t state;
-  md5_byte_t digest[16];  
-  static md5_byte_t chunk[CHUNK_SIZE];
-  static char signature[16*2 + 1]; 
   char *sigp;
   FILE *file;
-   
-  md5_init(&state);
 
- 
+#ifdef WITH_OPENSSL
+  static char chunk[CHUNK_SIZE];
+  static char signature[MD5_DIGEST_LENGTH*2 + 1];
+  unsigned char digest[MD5_DIGEST_LENGTH];
+  MD5_CTX c;
+
+  MD5_Init(&c);
+#else
+  static md5_byte_t chunk[CHUNK_SIZE];
+  static char signature[16*2 + 1];
+  md5_state_t state;
+  md5_byte_t digest[16];
+
+  md5_init(&state);
+#endif
+
+
   fsize = filesize(filename);
   
   if (max_read != 0 && fsize > max_read)
@@ -377,11 +391,19 @@ char *getcrcsignatureuntil(char *filename, off_t max_read)
       fclose(file);
       return NULL;
     }
+#ifdef WITH_OPENSSL
+    MD5_Update(&c, chunk, toread);
+#else
     md5_append(&state, chunk, toread);
+#endif
     fsize -= toread;
   }
 
+#ifdef WITH_OPENSSL
+  MD5_Final(digest, &c);
+#else
   md5_finish(&state, digest);
+#endif
 
   sigp = signature;
 
