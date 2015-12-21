@@ -25,6 +25,11 @@ FILEOFFSET_64BIT = -D_FILE_OFFSET_BITS=64
 #
 #OMIT_GETOPT_LONG = -DOMIT_GETOPT_LONG
 
+#
+# Whether we have btrfs/ioctl.h. Needed for --dedupe.
+#
+# HAVE_BTRFS_IOCTL_H = -DHAVE_BTRFS_IOCTL_H
+
 #####################################################################
 # Developer Configuration Section                                   #
 #####################################################################
@@ -73,7 +78,7 @@ MKDIR   = mkdir -p
 CC ?= gcc
 COMPILER_OPTIONS = -Wall -O -g
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
+CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT) $(HAVE_BTRFS_IOCTL_H)
 
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
