@@ -69,6 +69,8 @@ unsigned long flags = 0;
 
 #define PARTIAL_MD5_SIZE 4096
 
+#define MD5_DIGEST_LENGTH 16
+
 /* 
 
 TODO: Partial sums (for working with very large files).
@@ -90,8 +92,8 @@ typedef struct _signatures
 typedef struct _file {
   char *d_name;
   off_t size;
-  char *crcpartial;
-  char *crcsignature;
+  md5_byte_t *crcpartial;
+  md5_byte_t *crcsignature;
   dev_t device;
   ino_t inode;
   time_t mtime;
@@ -344,16 +346,13 @@ int grokdir(char *dir, file_t **filelistp)
   return filecount;
 }
 
-char *getcrcsignatureuntil(char *filename, off_t max_read)
+md5_byte_t *getcrcsignatureuntil(char *filename, off_t max_read)
 {
-  int x;
   off_t fsize;
   off_t toread;
   md5_state_t state;
-  md5_byte_t digest[16];  
+  static md5_byte_t digest[MD5_DIGEST_LENGTH];  
   static md5_byte_t chunk[CHUNK_SIZE];
-  static char signature[16*2 + 1]; 
-  char *sigp;
   FILE *file;
    
   md5_init(&state);
@@ -383,26 +382,42 @@ char *getcrcsignatureuntil(char *filename, off_t max_read)
 
   md5_finish(&state, digest);
 
-  sigp = signature;
-
-  for (x = 0; x < 16; x++) {
-    sprintf(sigp, "%02x", digest[x]);
-    sigp = strchr(sigp, '\0');
-  }
-
   fclose(file);
 
-  return signature;
+  return digest;
 }
 
-char *getcrcsignature(char *filename)
+md5_byte_t *getcrcsignature(char *filename)
 {
   return getcrcsignatureuntil(filename, 0);
 }
 
-char *getcrcpartialsignature(char *filename)
+md5_byte_t *getcrcpartialsignature(char *filename)
 {
   return getcrcsignatureuntil(filename, PARTIAL_MD5_SIZE);
+}
+
+int md5cmp(const md5_byte_t *a, const md5_byte_t *b)
+{
+  int x;
+
+  for (x = 0; x < MD5_DIGEST_LENGTH; ++x)
+  {
+    if (a[x] < b[x])
+      return -1;
+    else if (a[x] > b[x])
+      return 1;
+  }
+
+  return 0;
+}
+
+void md5copy(md5_byte_t *to, const md5_byte_t *from)
+{
+  int x;
+
+  for (x = 0; x < MD5_DIGEST_LENGTH; ++x)
+    to[x] = from[x];
 }
 
 void purgetree(filetree_t *checktree)
@@ -455,7 +470,7 @@ int same_permissions(char* name1, char* name2)
 file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 {
   int cmpresult;
-  char *crcsignature;
+  md5_byte_t *crcsignature;
   off_t fsize;
 
   /* If device and inode fields are equal one of the files is a 
@@ -486,12 +501,12 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
         return NULL;
       }
 
-      checktree->file->crcpartial = (char*) malloc(strlen(crcsignature)+1);
+      checktree->file->crcpartial = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
       if (checktree->file->crcpartial == NULL) {
 	errormsg("out of memory\n");
 	exit(1);
       }
-      strcpy(checktree->file->crcpartial, crcsignature);
+      md5copy(checktree->file->crcpartial, crcsignature);
     }
 
     if (file->crcpartial == NULL) {
@@ -501,15 +516,15 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
         return NULL;
       }
 
-      file->crcpartial = (char*) malloc(strlen(crcsignature)+1);
+      file->crcpartial = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
       if (file->crcpartial == NULL) {
 	errormsg("out of memory\n");
 	exit(1);
       }
-      strcpy(file->crcpartial, crcsignature);
+      md5copy(file->crcpartial, crcsignature);
     }
 
-    cmpresult = strcmp(file->crcpartial, checktree->file->crcpartial);
+    cmpresult = md5cmp(file->crcpartial, checktree->file->crcpartial);
     /*if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);*/
 
     if (cmpresult == 0) {
@@ -517,27 +532,27 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 	crcsignature = getcrcsignature(checktree->file->d_name);
 	if (crcsignature == NULL) return NULL;
 
-	checktree->file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
+	checktree->file->crcsignature = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
 	if (checktree->file->crcsignature == NULL) {
 	  errormsg("out of memory\n");
 	  exit(1);
 	}
-	strcpy(checktree->file->crcsignature, crcsignature);
+	md5copy(checktree->file->crcsignature, crcsignature);
       }
 
       if (file->crcsignature == NULL) {
 	crcsignature = getcrcsignature(file->d_name);
 	if (crcsignature == NULL) return NULL;
 
-	file->crcsignature = (char*) malloc(strlen(crcsignature)+1);
+	file->crcsignature = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
 	if (file->crcsignature == NULL) {
 	  errormsg("out of memory\n");
 	  exit(1);
 	}
-	strcpy(file->crcsignature, crcsignature);
+	md5copy(file->crcsignature, crcsignature);
       }
 
-      cmpresult = strcmp(file->crcsignature, checktree->file->crcsignature);
+      cmpresult = md5cmp(file->crcsignature, checktree->file->crcsignature);
       /*if (cmpresult != 0) errormsg("P   on %s vs %s\n", 
           file->d_name, checktree->file->d_name);
       else errormsg("P F on %s vs %s\n", file->d_name,
