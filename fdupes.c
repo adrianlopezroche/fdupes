@@ -466,6 +466,34 @@ int same_permissions(char* name1, char* name2)
             s1.st_gid == s2.st_gid);
 }
 
+int is_hardlink(filetree_t *checktree, file_t *file)
+{
+  file_t *dupe;
+  ino_t inode;
+  dev_t device;
+
+  inode = getinode(file->d_name);
+  device = getdevice(file->d_name);
+
+  if ((inode == checktree->file->inode) && 
+      (device == checktree->file->device))
+        return 1;
+
+  if (checktree->file->hasdupes)
+  {
+    dupe = checktree->file->duplicates;
+
+    do {
+      if ((inode == dupe->inode) &&
+          (device == dupe->device))
+            return 1;
+
+      dupe = dupe->next;
+    } while (dupe != NULL);
+  }
+
+  return 0;
+}
 
 file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 {
@@ -479,9 +507,8 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
      duplicates unless the user specifies otherwise.
   */    
 
-  if (!ISFLAG(flags, F_CONSIDERHARDLINKS) && (getinode(file->d_name) == 
-      checktree->file->inode) && (getdevice(file->d_name) ==
-      checktree->file->device)) return NULL; 
+  if (!ISFLAG(flags, F_CONSIDERHARDLINKS) && is_hardlink(checktree, file))
+    return NULL;
 
   fsize = filesize(file->d_name);
   
