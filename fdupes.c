@@ -488,7 +488,7 @@ int is_hardlink(filetree_t *checktree, file_t *file)
           (device == dupe->device))
             return 1;
 
-      dupe = dupe->next;
+      dupe = dupe->duplicates;
     } while (dupe != NULL);
   }
 
