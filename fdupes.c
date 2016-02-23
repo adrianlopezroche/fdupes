@@ -53,6 +53,7 @@
 #define F_EXCLUDEHIDDEN     0x1000
 #define F_PERMISSIONS       0x2000
 #define F_REVERSE           0x4000
+#define F_SORTBYSIZE        0x8000
 
 typedef enum {
   ORDER_TIME = 0,
@@ -925,6 +926,76 @@ int sort_pairs_by_filename(file_t *f1, file_t *f2)
   return strcmp(f1->d_name, f2->d_name);
 }
 
+// function prototype for sorting
+file_t* sorted_merge(file_t* a, file_t* b);
+void mergesortbysize(file_t** headRef)
+{
+  file_t* head = *headRef;
+  file_t* slow;
+  file_t* fast;
+  file_t* back_head;
+
+  // Nothing to sort if length is 0 or 1
+  if ((head == NULL) || (head->next == NULL))
+  {
+    return;
+  }
+ 
+  // Split in two sublists
+  slow = head;
+  fast = head->next;
+ 
+  while (fast != NULL)
+  {
+    fast = fast->next;
+    if (fast != NULL)
+    {
+      slow = slow->next;
+      fast = fast->next;
+    }
+  }
+  back_head = slow->next;
+  slow->next = NULL; 
+  
+  // Recursively sort the sublists
+  mergesortbysize(&head);
+  mergesortbysize(&back_head);
+ 
+  // merge the two sorted sublists
+  *headRef = sorted_merge(head, back_head);
+}
+
+file_t* sorted_merge(file_t* a, file_t* b)
+{
+  file_t* result = NULL;
+  file_t** tail = &result;
+ 
+  while (a != NULL && b != NULL) {
+    if (a->size > b->size)
+    {
+      *tail = a;
+      a = a->next;
+      (*tail)->next = NULL;
+      tail = &((*tail)->next);
+    }
+    else
+    {
+      *tail = b;
+      b = b->next;
+      (*tail)->next = NULL;
+      tail = &((*tail)->next);
+    }
+  }
+  
+  // append remaining nonempty list
+  if (a!= NULL)
+    *tail = a;
+  if (b!= NULL)
+    *tail = b;
+ 
+  return(result);
+}
+
 void registerpair(file_t **matchlist, file_t *newmatch, 
 		  int (*comparef)(file_t *f1, file_t *f2))
 {
@@ -989,6 +1060,7 @@ void help_text()
   printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
   printf(" -1 --sameline    \tlist each set of matches on a single line\n");
   printf(" -S --size        \tshow size of duplicate files\n");
+  printf(" -z --sortbysize  \tsort output by size of duplicate files (descending)\n");
   printf(" -m --summarize   \tsummarize dupe information\n");
   printf(" -q --quiet       \thide progress indicator\n");
   printf(" -d --delete      \tprompt user for files to preserve and delete all\n"); 
@@ -1039,6 +1111,7 @@ int main(int argc, char **argv) {
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
     { "size", 0, 0, 'S' },
+    { "sortbysize", 0, 0, 'z' },
     { "symlinks", 0, 0, 's' },
     { "hardlinks", 0, 0, 'H' },
     { "relink", 0, 0, 'l' },
@@ -1064,7 +1137,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNmpo:i"
+  while ((opt = GETOPT(argc, argv, "frRq1SszHlnAdvhNmpo:i"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1090,6 +1163,9 @@ int main(int argc, char **argv) {
       break;
     case 's':
       SETFLAG(flags, F_FOLLOWLINKS);
+      break;
+    case 'z':
+      SETFLAG(flags, F_SORTBYSIZE);
       break;
     case 'H':
       SETFLAG(flags, F_CONSIDERHARDLINKS);
@@ -1229,6 +1305,8 @@ int main(int argc, char **argv) {
 
   if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
 
+  if (ISFLAG(flags, F_SORTBYSIZE)) mergesortbysize(&files);
+  
   if (ISFLAG(flags, F_DELETEFILES))
   {
     if (ISFLAG(flags, F_NOPROMPT))
