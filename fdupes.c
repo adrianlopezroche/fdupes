@@ -53,6 +53,7 @@
 #define F_EXCLUDEHIDDEN     0x1000
 #define F_PERMISSIONS       0x2000
 #define F_REVERSE           0x4000
+#define F_BASENAME          0x8000
 
 typedef enum {
   ORDER_TIME = 0,
@@ -91,6 +92,7 @@ typedef struct _signatures
 
 typedef struct _file {
   char *d_name;
+  char *d_basename;
   off_t size;
   md5_byte_t *crcpartial;
   md5_byte_t *crcsignature;
@@ -249,7 +251,6 @@ int grokdir(char *dir, file_t **filelistp)
   struct stat linfo;
   static int progress = 0;
   static char indicator[] = "-\\|/";
-  char *fullname, *name;
 
   cd = opendir(dir);
 
@@ -291,19 +292,20 @@ int grokdir(char *dir, file_t **filelistp)
 
       strcpy(newfile->d_name, dir);
       lastchar = strlen(dir) - 1;
-      if (lastchar >= 0 && dir[lastchar] != '/')
-	strcat(newfile->d_name, "/");
-      strcat(newfile->d_name, dirinfo->d_name);
+      if (lastchar >= 0 && dir[lastchar] != '/') {
+        newfile->d_name[++lastchar] = '/';
+      }
+      newfile->d_basename = newfile->d_name + lastchar + 1;
+      strcpy(newfile->d_basename, dirinfo->d_name);
       
       if (ISFLAG(flags, F_EXCLUDEHIDDEN)) {
-	fullname = strdup(newfile->d_name);
-	name = basename(fullname);
-	if (name[0] == '.' && strcmp(name, ".") && strcmp(name, "..") ) {
+	if (newfile->d_basename[0] == '.'
+            && strcmp(newfile->d_basename, ".")
+            && strcmp(newfile->d_basename, "..") ) {
 	  free(newfile->d_name);
 	  free(newfile);
 	  continue;
 	}
-	free(fullname);
       }
 
       if (filesize(newfile->d_name) == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
@@ -516,6 +518,10 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     cmpresult = -1;
   else 
     if (fsize > checktree->file->size) cmpresult = 1;
+  else
+    if (ISFLAG(flags, F_BASENAME) &&
+        strcmp(file->d_basename, checktree->file->d_basename) != 0)
+        cmpresult = -1;
   else
     if (ISFLAG(flags, F_PERMISSIONS) &&
         !same_permissions(file->d_name, checktree->file->d_name))
@@ -1003,6 +1009,8 @@ void help_text()
   printf("                  \tprompting the user\n");
   printf(" -p --permissions \tdon't consider files with different owner/group or\n");
   printf("                  \tpermission bits as duplicates\n");
+  printf(" -b --basename    \tdon't consider files with different basenames (that's\n");
+  printf("                  \tthe base file name with directory path excluded) as duplicates\n");
   printf(" -o --order=BY    \tselect sort order for output, linking and deleting; by\n");
   printf("                  \tmtime (BY='time'; default) or filename (BY='name')\n");
   printf(" -i --reverse     \treverse order while sorting\n");
@@ -1051,6 +1059,7 @@ int main(int argc, char **argv) {
     { "summarize", 0, 0, 'm'},
     { "summary", 0, 0, 'm' },
     { "permissions", 0, 0, 'p' },
+    { "basename", 0, 0, 'b' },
     { "order", 1, 0, 'o' },
     { "reverse", 0, 0, 'i' },
     { 0, 0, 0, 0 }
@@ -1064,7 +1073,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNmpo:i"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNmpbo:i"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1117,6 +1126,9 @@ int main(int argc, char **argv) {
       break;
     case 'p':
       SETFLAG(flags, F_PERMISSIONS);
+      break;
+    case 'b':
+      SETFLAG(flags, F_BASENAME);
       break;
     case 'o':
       if (!strcasecmp("name", optarg)) {

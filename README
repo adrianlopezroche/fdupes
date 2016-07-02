@@ -35,6 +35,8 @@ Usage: fdupes [options] DIRECTORY...
                   	prompting the user
  -p --permissions 	don't consider files with different owner/group or
                   	permission bits as duplicates
+ -b --basename          don't consider files with different basenames (that's
+                        the base file name with directory path excluded) as duplicates
  -o --order=BY    	select sort order for output, linking and deleting; by
                   	mtime (BY='time'; default) or filename (BY='name')
  -i --reverse     	reverse order while sorting
