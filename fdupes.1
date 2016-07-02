@@ -66,6 +66,15 @@ set of duplicates and delete the others without prompting the user
 .B -p --permissions
 don't consider files with different owner/group or permission bits as duplicates
 .TP
+.B -b --basename
+don't consider files with different file basenames (that's the base file name with
+the directory path excluded) as duplicates
+.TP
+.B -P --strip=N
+strip the indicated number of leading directory components (at slashes),
+and consider files potential matches only if the remaining pathnames
+are the same
+.TP
 .B -o --order\fR=\fIWORD\fR
 order files according to WORD:
 time - sort by mtime, name - sort by filename
