@@ -37,6 +37,9 @@ Usage: fdupes [options] DIRECTORY...
                   	permission bits as duplicates
  -b --basename          don't consider files with different basenames (that's
                         the base file name with directory path excluded) as duplicates
+ -P --strip=N           strip the indicated number of leading directory
+                        components (at slashes), and consider files potential
+                        matches only if the remaining pathnames are the same
  -o --order=BY    	select sort order for output, linking and deleting; by
                   	mtime (BY='time'; default) or filename (BY='name')
  -i --reverse     	reverse order while sorting

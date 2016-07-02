@@ -64,6 +64,8 @@ char *program_name;
 
 unsigned long flags = 0;
 
+int stripdirs = 0;
+
 #define CHUNK_SIZE 8192
 
 #define INPUT_SIZE 256
@@ -93,6 +95,7 @@ typedef struct _signatures
 typedef struct _file {
   char *d_name;
   char *d_basename;
+  char *d_strippedname;
   off_t size;
   md5_byte_t *crcpartial;
   md5_byte_t *crcsignature;
@@ -297,6 +300,15 @@ int grokdir(char *dir, file_t **filelistp)
       }
       newfile->d_basename = newfile->d_name + lastchar + 1;
       strcpy(newfile->d_basename, dirinfo->d_name);
+
+      newfile->d_strippedname = newfile->d_name;
+      for (int i = 0 ; i < stripdirs ; ++i) {
+        newfile->d_strippedname = strchr(newfile->d_strippedname, '/');
+        if (! newfile->d_strippedname) {
+          break;
+        }
+        ++newfile->d_strippedname;
+      }
       
       if (ISFLAG(flags, F_EXCLUDEHIDDEN)) {
 	if (newfile->d_basename[0] == '.'
@@ -525,6 +537,12 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
   else
     if (ISFLAG(flags, F_PERMISSIONS) &&
         !same_permissions(file->d_name, checktree->file->d_name))
+        cmpresult = -1;
+  else
+    if (stripdirs > 0 &&
+        file->d_strippedname &&
+        checktree->file->d_strippedname &&
+        strcmp(file->d_strippedname, checktree->file->d_strippedname) != 0)
         cmpresult = -1;
   else {
     if (checktree->file->crcpartial == NULL) {
@@ -1011,6 +1029,9 @@ void help_text()
   printf("                  \tpermission bits as duplicates\n");
   printf(" -b --basename    \tdon't consider files with different basenames (that's\n");
   printf("                  \tthe base file name with directory path excluded) as duplicates\n");
+  printf(" -P --strip=N     \tstrip the indicated number of leading directory\n");
+  printf("                  \tcomponents (at slashes), and consider files potential\n");
+  printf("                  \tmatches only if the remaining pathnames are the same\n");
   printf(" -o --order=BY    \tselect sort order for output, linking and deleting; by\n");
   printf("                  \tmtime (BY='time'; default) or filename (BY='name')\n");
   printf(" -i --reverse     \treverse order while sorting\n");
@@ -1060,7 +1081,8 @@ int main(int argc, char **argv) {
     { "summary", 0, 0, 'm' },
     { "permissions", 0, 0, 'p' },
     { "basename", 0, 0, 'b' },
-    { "order", 1, 0, 'o' },
+    { "strip", required_argument, 0, 'P' },
+    { "order", required_argument, 0, 'o' },
     { "reverse", 0, 0, 'i' },
     { 0, 0, 0, 0 }
   };
@@ -1073,7 +1095,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNmpbo:i"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNmpbP:o:i"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1129,6 +1151,13 @@ int main(int argc, char **argv) {
       break;
     case 'b':
       SETFLAG(flags, F_BASENAME);
+      break;
+    case 'P':
+      stripdirs = atoi(optarg);
+      if (stripdirs == 0 && strcmp(optarg, "0") != 0) {
+        errormsg("invalid value for --strip: '%s'\n", optarg);
+        exit(1);
+      }
       break;
     case 'o':
       if (!strcasecmp("name", optarg)) {
