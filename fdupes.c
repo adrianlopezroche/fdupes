@@ -53,6 +53,7 @@
 #define F_EXCLUDEHIDDEN     0x1000
 #define F_PERMISSIONS       0x2000
 #define F_REVERSE           0x4000
+#define F_IMMEDIATE         0x8000
 
 typedef enum {
   ORDER_TIME = 0,
@@ -971,6 +972,38 @@ void registerpair(file_t **matchlist, file_t *newmatch,
   }
 }
 
+void deletesuccessor(file_t **existing, file_t *duplicate, 
+      int (*comparef)(file_t *f1, file_t *f2))
+{
+  file_t *to_keep;
+  file_t *to_delete;
+
+  if (comparef(duplicate, *existing) >= 0)
+  {
+    to_keep = *existing;
+    to_delete = duplicate;
+  }
+  else
+  {
+    to_keep = duplicate;
+    to_delete = *existing;
+
+    *existing = duplicate;
+  }
+
+  if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
+
+  printf("   [+] %s\n", to_keep->d_name);
+  if (remove(to_delete->d_name) == 0) {
+    printf("   [-] %s\n", to_delete->d_name);
+  } else {
+    printf("   [!] %s ", to_delete->d_name);
+    printf("-- unable to delete file!\n");
+  }
+
+  printf("\n");
+}
+
 void help_text()
 {
   printf("Usage: fdupes [options] DIRECTORY...\n\n");
@@ -1001,6 +1034,8 @@ void help_text()
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
   printf("                  \tprompting the user\n");
+  printf(" -I --immediate   \tsimilar to --noprompt, but delete duplicates as they\n");
+  printf("                  \tare encountered, without grouping into sets.\n");
   printf(" -p --permissions \tdon't consider files with different owner/group or\n");
   printf("                  \tpermission bits as duplicates\n");
   printf(" -o --order=BY    \tselect sort order for output, linking and deleting; by\n");
@@ -1048,6 +1083,7 @@ int main(int argc, char **argv) {
     { "version", 0, 0, 'v' },
     { "help", 0, 0, 'h' },
     { "noprompt", 0, 0, 'N' },
+    { "immediate", 0, 0, 'I'},
     { "summarize", 0, 0, 'm'},
     { "summary", 0, 0, 'm' },
     { "permissions", 0, 0, 'p' },
@@ -1112,6 +1148,9 @@ int main(int argc, char **argv) {
     case 'N':
       SETFLAG(flags, F_NOPROMPT);
       break;
+    case 'I':
+      SETFLAG(flags, F_IMMEDIATE);
+      break;
     case 'm':
       SETFLAG(flags, F_SUMMARIZEMATCHES);
       break;
@@ -1150,6 +1189,11 @@ int main(int argc, char **argv) {
 
   if (ISFLAG(flags, F_SUMMARIZEMATCHES) && ISFLAG(flags, F_DELETEFILES)) {
     errormsg("options --summarize and --delete are not compatible\n");
+    exit(1);
+  }
+
+  if (ISFLAG(flags, F_NOPROMPT) && ISFLAG(flags, F_IMMEDIATE)) {
+    errormsg("options --noprompt and --immediate are mutually exclusive\n");
     exit(1);
   }
 
@@ -1206,12 +1250,12 @@ int main(int argc, char **argv) {
       }
 
       if (confirmmatch(file1, file2)) {
-        registerpair(match, curfile,
-            (ordertype == ORDER_TIME) ? sort_pairs_by_mtime : sort_pairs_by_filename );
-	
-	/*match->hasdupes = 1;
-        curfile->duplicates = match->duplicates;
-        match->duplicates = curfile;*/
+        if (ISFLAG(flags, F_DELETEFILES) && ISFLAG(flags, F_IMMEDIATE))
+          deletesuccessor(match, curfile,
+              (ordertype == ORDER_TIME) ? sort_pairs_by_mtime : sort_pairs_by_filename );
+        else
+          registerpair(match, curfile,
+              (ordertype == ORDER_TIME) ? sort_pairs_by_mtime : sort_pairs_by_filename );
       }
       
       fclose(file1);
