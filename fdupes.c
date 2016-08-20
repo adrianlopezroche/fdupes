@@ -1034,8 +1034,8 @@ void help_text()
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
   printf("                  \tprompting the user\n");
-  printf(" -I --immediate   \tsimilar to --noprompt, but delete duplicates as they\n");
-  printf("                  \tare encountered, without grouping into sets.\n");
+  printf(" -I --immediate   \tdelete duplicates as they are encountered, without\n");
+  printf("                  \tgrouping into sets; implies --noprompt\n");
   printf(" -p --permissions \tdon't consider files with different owner/group or\n");
   printf("                  \tpermission bits as duplicates\n");
   printf(" -o --order=BY    \tselect sort order for output, linking and deleting; by\n");
@@ -1189,11 +1189,6 @@ int main(int argc, char **argv) {
 
   if (ISFLAG(flags, F_SUMMARIZEMATCHES) && ISFLAG(flags, F_DELETEFILES)) {
     errormsg("options --summarize and --delete are not compatible\n");
-    exit(1);
-  }
-
-  if (ISFLAG(flags, F_NOPROMPT) && ISFLAG(flags, F_IMMEDIATE)) {
-    errormsg("options --noprompt and --immediate are mutually exclusive\n");
     exit(1);
   }
 
