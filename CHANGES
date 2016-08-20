@@ -7,6 +7,22 @@ those who've otherwise worked on that item. For a list of
 contributors names and identifiers please see the CONTRIBUTORS file.
 
 
+Changes from 1.51 to 1.6.0:
+
+- Add --nohidden option. [MC]
+- Add --permissions option. [MV]
+- Add --order option. [SB]
+- Add --reverse option. [AL]
+- Add --immediate option. [AL]
+- Speed up file comparison. [SB, ST]
+- Fix bug where fdupes fails to consistently ignore hardlinks, depending on
+  file processing order, when F_CONSIDERHARDLINKS flag is not set. [AL]
+- Fix bug in is_hardlink(): Proper traversal of duplicates is done via 
+  dupe->duplicates, not via dupe->next. [AL]
+- Revise md5.c to compile under OSX. [TH]
+- Remove EXTERNAL_MD5 configuration option. [ID]
+- Various other changes (see git log).
+
 Changes from 1.50 to 1.51
 
 - Added support for 64-bit file offsets on 32-bit systems.
