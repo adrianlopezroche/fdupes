@@ -6,6 +6,9 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 1.6.0 to 1.6.1:
+
+- Fix 'invalid option' error for -I. [AL]
 
 Changes from 1.51 to 1.6.0:
 
