@@ -37,8 +37,9 @@ Usage: fdupes [options] DIRECTORY...
                   	grouping into sets; implies --noprompt
  -p --permissions 	don't consider files with different owner/group or
                   	permission bits as duplicates
- -o --order=BY    	select sort order for output, linking and deleting; by
-                  	mtime (BY='time'; default) or filename (BY='name')
+ -o --order=BY    	select sort order for output and deleting; by file
+                  	modification time (BY='time'; default), status
+                  	change time (BY='ctime'), or filename (BY='name')
  -i --reverse     	reverse order while sorting
  -v --version     	display fdupes version
  -h --help        	display this help message

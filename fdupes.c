@@ -56,13 +56,16 @@
 #define F_IMMEDIATE         0x8000
 
 typedef enum {
-  ORDER_TIME = 0,
+  ORDER_MTIME = 0,
+  ORDER_CTIME,
   ORDER_NAME
 } ordertype_t;
 
 char *program_name;
 
 unsigned long flags = 0;
+
+ordertype_t ordertype = ORDER_MTIME;
 
 #define CHUNK_SIZE 8192
 
@@ -97,7 +100,7 @@ typedef struct _file {
   md5_byte_t *crcsignature;
   dev_t device;
   ino_t inode;
-  time_t mtime;
+  time_t sorttime;
   int hasdupes; /* true only if file is first on duplicate chain */
   struct _file *duplicates;
   struct _file *next;
@@ -181,6 +184,14 @@ time_t getmtime(char *filename) {
   if (stat(filename, &s) != 0) return 0;
 
   return s.st_mtime;
+}
+
+time_t getctime(char *filename) {
+  struct stat s;
+
+  if (stat(filename, &s) != 0) return 0;
+
+  return s.st_ctime;
 }
 
 char **cloneargs(int argc, char **argv)
@@ -435,7 +446,17 @@ void getfilestats(file_t *file)
   file->size = filesize(file->d_name);
   file->inode = getinode(file->d_name);
   file->device = getdevice(file->d_name);
-  file->mtime = getmtime(file->d_name);
+
+  switch (ordertype)
+  {
+    case ORDER_CTIME:
+      file->sorttime = getctime(file->d_name);
+      break;
+    case ORDER_MTIME: 
+    default:
+      file->sorttime = getmtime(file->d_name);
+      break;
+  }
 }
 
 int registerfile(filetree_t **branch, file_t *file)
@@ -911,11 +932,11 @@ int sort_pairs_by_arrival(file_t *f1, file_t *f2)
   return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
 }
 
-int sort_pairs_by_mtime(file_t *f1, file_t *f2)
+int sort_pairs_by_time(file_t *f1, file_t *f2)
 {
-  if (f1->mtime < f2->mtime)
+  if (f1->sorttime < f2->sorttime)
     return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
-  else if (f1->mtime > f2->mtime)
+  else if (f1->sorttime > f2->sorttime)
     return !ISFLAG(flags, F_REVERSE) ? 1 : -1;
 
   return 0;
@@ -1038,8 +1059,9 @@ void help_text()
   printf("                  \tgrouping into sets; implies --noprompt\n");
   printf(" -p --permissions \tdon't consider files with different owner/group or\n");
   printf("                  \tpermission bits as duplicates\n");
-  printf(" -o --order=BY    \tselect sort order for output, linking and deleting; by\n");
-  printf("                  \tmtime (BY='time'; default) or filename (BY='name')\n");
+  printf(" -o --order=BY    \tselect sort order for output and deleting; by file\n");
+  printf("                  \tmodification time (BY='time'; default), status\n");
+  printf("                  \tchange time (BY='ctime'), or filename (BY='name')\n");
   printf(" -i --reverse     \treverse order while sorting\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
@@ -1061,7 +1083,6 @@ int main(int argc, char **argv) {
   int progress = 0;
   char **oldargv;
   int firstrecurse;
-  ordertype_t ordertype = ORDER_TIME;
   
 #ifndef OMIT_GETOPT_LONG
   static struct option long_options[] = 
@@ -1161,7 +1182,9 @@ int main(int argc, char **argv) {
       if (!strcasecmp("name", optarg)) {
         ordertype = ORDER_NAME;
       } else if (!strcasecmp("time", optarg)) {
-        ordertype = ORDER_TIME;
+        ordertype = ORDER_MTIME;
+      } else if (!strcasecmp("ctime", optarg)) {
+        ordertype = ORDER_CTIME;
       } else {
         errormsg("invalid value for --order: '%s'\n", optarg);
         exit(1);
@@ -1247,10 +1270,12 @@ int main(int argc, char **argv) {
       if (confirmmatch(file1, file2)) {
         if (ISFLAG(flags, F_DELETEFILES) && ISFLAG(flags, F_IMMEDIATE))
           deletesuccessor(match, curfile,
-              (ordertype == ORDER_TIME) ? sort_pairs_by_mtime : sort_pairs_by_filename );
+              (ordertype == ORDER_MTIME || 
+               ordertype == ORDER_CTIME) ? sort_pairs_by_time : sort_pairs_by_filename );
         else
           registerpair(match, curfile,
-              (ordertype == ORDER_TIME) ? sort_pairs_by_mtime : sort_pairs_by_filename );
+              (ordertype == ORDER_MTIME ||
+               ordertype == ORDER_CTIME) ? sort_pairs_by_time : sort_pairs_by_filename );
       }
       
       fclose(file1);
