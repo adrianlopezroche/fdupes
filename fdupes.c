@@ -94,7 +94,6 @@ typedef struct _file {
   ino_t inode;
   time_t mtime;
   int hasdupes; /* true only if file is first on duplicate chain */
-  int action;
   struct _file *duplicates;
   struct _file *next;
 } file_t;
@@ -275,7 +274,6 @@ int grokdir(char *dir, file_t **filelistp)
       newfile->crcpartial = NULL;
       newfile->duplicates = NULL;
       newfile->hasdupes = 0;
-      newfile->action = 0;
 
       newfile->d_name = (char*)malloc(strlen(dir)+strlen(dirinfo->d_name)+2);
 
@@ -967,13 +965,115 @@ void putline(WINDOW *window, const char *str, const int line, const int columns,
   free(dest);
 }
 
-struct line
+struct groupfile
 {
-  int id;
-  int fileno;
-  int group;
   file_t *file;
+  int action;
 };
+
+struct filegroup
+{
+  struct groupfile *files;
+  size_t filecount;
+  int startline;
+  int endline;
+};
+
+enum linestyle
+{
+  linestyle_groupheader = 0,
+  linestyle_groupheaderspacing,
+  linestyle_filename,
+  linestyle_groupfooterspacing
+};
+
+enum linestyle getlinestyle(struct filegroup *group, int line)
+{
+  if (line <= group->startline)
+    return linestyle_groupheader;
+  else if (line == group->startline + 1)
+    return linestyle_groupheaderspacing;
+  else if (line >= group->endline)
+    return linestyle_groupfooterspacing;
+  else
+    return linestyle_filename;
+}
+
+int filerowcount(file_t *file, const int columns, const int first_line_indent)
+{
+  int lines = 1;
+  int line_remaining;
+  int x = 0;
+  size_t read;
+  size_t filename_bytes;
+  wchar_t ch;
+  mbstate_t mbstate;
+
+  memset(&mbstate, 0, sizeof(mbstate));
+
+  filename_bytes = strlen(file->d_name);
+
+  line_remaining = columns - first_line_indent;
+
+  while (x < filename_bytes)
+  {
+    read = mbrtowc(&ch, file->d_name + x, filename_bytes - x, &mbstate);
+    if (read < 0)
+      return lines;
+
+    x += read;
+
+    if (wcwidth(ch) <= line_remaining)
+    {
+      line_remaining -= wcwidth(ch);
+    }
+    else
+    {
+      line_remaining = columns - wcwidth(ch);
+      ++lines;
+    }
+  }
+
+  return lines;
+}
+
+int getgroupindex(struct filegroup *groups, int group_count, int group_hint, int line)
+{
+  int group = group_hint;
+
+  while (group > 0 && line < groups[group].startline)
+    --group;
+
+  while (group < group_count && line > groups[group].endline)
+    ++group;
+
+  return group;
+}
+
+int getgroupfileindex(int *row, struct filegroup *group, int line, int columns, int first_line_indent)
+{
+  int l;
+  int f = 0;
+  int rowcount;
+
+  l = group->startline + 2;
+
+  while (f < group->filecount)
+  {
+    rowcount = filerowcount(group->files[f].file, columns, first_line_indent);
+
+    if (line <= l + rowcount - 1)
+    {
+      *row = line - l;
+      return f;
+    }
+
+    l += rowcount;
+    ++f;
+  }
+
+  return -1;
+}
 
 #define FILENAME_INDENT 4
 
@@ -989,23 +1089,28 @@ void deletefiles_ncurses(file_t *files)
   WINDOW *statuswin;
   file_t *curfile;
   file_t *dupefile;
-  struct line *lines;
-  struct line *realloclines;
+  struct filegroup *groups;
+  struct filegroup *reallocgroups;
+  size_t groupfilecount;
   int topline = 0;
-  int cursorline = 0;
-  int groupfirstline;
+  int cursorgroup = 0;
+  int cursorfile = 0;
+  int groupfirstline = 0;
   int totallines = 0;
-  int allocatedlines = 0;
-  int needlines;
+  int allocatedgroups = 0;
   int totalgroups = 0;
-  size_t filenamelength;
+  size_t groupindex = 0;
+  enum linestyle linestyle;
   int preservecount;
-  int fileno;
+  int deletecount;
+  int unresolvedcount;
   int mode = MODE_ARROWSELECT;
+  int row;
   int x;
   int g;
   int ch;
   int cy;
+  int f;
 
   setlocale(LC_CTYPE, "");
   initscr();
@@ -1015,13 +1120,15 @@ void deletefiles_ncurses(file_t *files)
   filewin = newwin(LINES - 1, COLS, 0, 0);	
   statuswin = newwin(1, COLS, LINES - 1, 0);
 
+  scrollok(filewin, FALSE);
+
   wattron(statuswin, A_REVERSE);
 
   keypad(statuswin, 1);
 
-  allocatedlines = 8192; 
-  lines = malloc(sizeof(struct line) * allocatedlines);
-  if (lines == 0)
+  allocatedgroups = 1024;
+  groups = malloc(sizeof(struct filegroup) * allocatedgroups);
+  if (groups == 0)
   {
     errormsg("out of memory\n");
     exit(1);
@@ -1030,124 +1137,127 @@ void deletefiles_ncurses(file_t *files)
   curfile = files;
   while (curfile)
   {
-    if (curfile->hasdupes)
+    if (!curfile->hasdupes)
     {
-      ++totalgroups;
-
-      groupfirstline = totallines;
-
-      fileno = 1;
-      dupefile = curfile;
-      do
-      {
-        filenamelength = strlen(curfile->d_name);
-            
-        needlines = (filenamelength + FILENAME_INDENT) / COLS;
-        if ((filenamelength + FILENAME_INDENT) % COLS != 0)
-          ++needlines;
-
-        if (totallines + needlines + 3 > allocatedlines)
-        {
-          do
-            allocatedlines *= 2;
-          while (totallines + needlines + 3 > allocatedlines);
-          
-          realloclines = realloc(lines, sizeof(struct line) * allocatedlines);
-          if (realloclines == 0)
-          {
-            free(lines);
-            errormsg("out of memory\n");
-            exit(1);
-          }
-          
-          lines = realloclines;
-        }
-
-        for (x = 0; x < needlines; ++x)
-        {
-          lines[totallines + 2].id = x;
-          lines[totallines + 2].group = totalgroups;
-          lines[totallines + 2].file = dupefile;
-          lines[totallines + 2].fileno = fileno;
-          ++totallines;
-        }
-      	
-        ++fileno;
-        dupefile = dupefile->duplicates;
-      } while (dupefile);
-
-      lines[groupfirstline].id = GROUP_HEADER;
-      lines[groupfirstline].group = totalgroups;
-      lines[groupfirstline].file = 0;
-      lines[groupfirstline].fileno = 0;
-
-      lines[groupfirstline + 1].id = GROUP_PADDING;
-      lines[groupfirstline + 1].group = totalgroups;
-      lines[groupfirstline + 1].file = 0;
-      lines[groupfirstline + 1].fileno = 0;
-
-      lines[totallines + 2].id = GROUP_PADDING;
-      lines[totallines + 2].group = totalgroups;
-      lines[totallines + 2].file = 0;
-      lines[totallines + 2].fileno = 0;
-
-      totallines += 3;
+      curfile = curfile->next;
+      continue;
     }
+
+    if (totalgroups + 1 > allocatedgroups)
+    {
+      allocatedgroups *= 2;
+
+      reallocgroups = realloc(groups, sizeof(struct filegroup) * allocatedgroups);
+      if (reallocgroups == 0)
+      {
+        free(groups);
+        errormsg("out of memory\n");
+        exit(1);
+      }
+
+      groups = reallocgroups;
+    }
+
+    groups[totalgroups].startline = groupfirstline;
+    groups[totalgroups].endline = groupfirstline + 2;
+
+    groupfilecount = 0;
+
+    dupefile = curfile;
+    do
+    {
+      groups[totalgroups].endline += filerowcount(dupefile, COLS, FILENAME_INDENT);
+
+      ++groupfilecount;
+
+      dupefile = dupefile->duplicates;
+    } while (dupefile);
+
+    groups[totalgroups].files = malloc(sizeof(struct groupfile) * groupfilecount);
+    if (groups[totalgroups].files == 0)
+    {
+      free(groups);
+      errormsg("out of memory\n");
+      exit(1);
+    }
+
+    groupfilecount = 0;
+
+    dupefile = curfile;
+    do
+    {
+      groups[totalgroups].files[groupfilecount].file = dupefile;
+      groups[totalgroups].files[groupfilecount].action = 0;
+      ++groupfilecount;
+
+      dupefile = dupefile->duplicates;
+    } while (dupefile);
+
+    groups[totalgroups].filecount = groupfilecount;
+
+    groupfirstline = groups[totalgroups].endline + 1;
+
+    ++totalgroups;
 
     curfile = curfile->next;
   }
 
-  cursorline = 2;
   do
   {
     wmove(filewin, 0, 0);
     erase();
-      
-    for (x = topline; x < topline + LINES - 1 && x < totallines; ++x)
+
+    totallines = groups[totalgroups-1].endline;
+
+    for (x = topline; x < topline + LINES - 1; ++x)
     {
-      switch (lines[x].id)
+      if (x >= totallines)
       {
-        case GROUP_HEADER:
-          wattron(filewin, A_BOLD);
-          wprintw(filewin, "Set %d of %d:\n", lines[x].group, totalgroups);
-          wattroff(filewin, A_BOLD);
-          break;
+        wclrtoeol(filewin);
+        continue;
+      }
 
-        case GROUP_PADDING:
-          wprintw(filewin, "\n");
-          break;
+      groupindex = getgroupindex(groups, totalgroups, groupindex, x);
 
-        case 0:
-          if (mode == MODE_ARROWSELECT || lines[cursorline].group != lines[x].group)
-          {
-            if (x == cursorline)
-              wprintw(filewin, "> ");
-            else
-              wprintw(filewin, "  ");
+      linestyle = getlinestyle(groups + groupindex, x);
+      
+      if (linestyle == linestyle_groupheader)
+      {
+        wattron(filewin, A_BOLD);
+        wprintw(filewin, "Set %d of %d:\n", groupindex + 1, totalgroups);
+        wattroff(filewin, A_BOLD);
+      }
+      else if (linestyle == linestyle_groupheaderspacing)
+      {
+        wprintw(filewin, "\n");
+      }
+      else if (linestyle == linestyle_filename)
+      {
+        f = getgroupfileindex(&row, groups + groupindex, x, COLS, FILENAME_INDENT);
 
-            wprintw(filewin, "%c ", lines[x].file->action > 0 ? '+' : lines[x].file->action < 0 ? '-' : ' ');
+        if (mode == MODE_ARROWSELECT || cursorgroup != groupindex)
+        {
+          if (cursorgroup == groupindex && cursorfile == f && row == 0)
+            wprintw(filewin, "> ");
 
-            cy = getcury(filewin);
-            putline(filewin, lines[x].file->d_name, 0, COLS, FILENAME_INDENT);
-            wclrtoeol(filewin);
-            wmove(filewin, cy+1, 0);
-          }
-          else
-          {
-            wprintw(filewin, "[%d] %s\n", lines[x].fileno, lines[x].file->d_name);
-          }
-          break;
+          if (row == 0)
+            wprintw(filewin, "%c ", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
 
-        default:
           cy = getcury(filewin);
-          putline(filewin, lines[x].file->d_name, lines[x].id, COLS, FILENAME_INDENT);
+          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, FILENAME_INDENT);
           wclrtoeol(filewin);
           wmove(filewin, cy+1, 0);
-          break;
+        }
+        else
+        {
+          wprintw(filewin, "[%d] %s\n", f + 1,  groups[groupindex].files[f].file->d_name);
+        }
+      }
+      else if (linestyle == linestyle_groupfooterspacing)
+      {
+        wprintw(filewin, "\n");
       }
     }
-    
-    //box(filewin, 0, 0);
 
     wrefresh(filewin);
 
@@ -1160,32 +1270,37 @@ void deletefiles_ncurses(file_t *files)
     switch (ch)
     {
     case KEY_DOWN:
-      if (cursorline + 1 < totallines)
-        do
-          ++cursorline;
-        while (cursorline + 1 < totallines && (lines[cursorline].file == 0 || lines[cursorline].id != 0));
-
-        if (cursorline - topline >= (LINES - 1))
-          topline += (cursorline - topline) - LINES + 2; 
-        
-        break;
+      if (cursorfile < groups[cursorgroup].filecount - 1)
+      {
+        ++cursorfile;
+      }
+      else
+      {
+        if (cursorgroup < totalgroups - 1)
+        {
+          ++cursorgroup;
+          cursorfile = 0;
+        }
+      }
+      break;
     
     case KEY_UP:
-      if (cursorline > 2)
-        do
-          --cursorline;
-        while (cursorline > 0 && (lines[cursorline].file == 0 || lines[cursorline].id != 0));
-
-        if (cursorline - topline < 2)
-          topline += cursorline - topline - 2;
-
-        if (topline < 0)
-          topline = 0;
-
-        break;
+      if (cursorfile > 0)
+      {
+        --cursorfile;
+      }
+      else
+      {
+        if (cursorgroup > 0)
+        {
+          --cursorgroup;
+          cursorfile = groups[cursorgroup].filecount - 1;
+        }
+      }
+      break;
 
     case ']':
-      topline++;
+      ++topline;
       break;
 
     case '[':
@@ -1194,104 +1309,108 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case KEY_RIGHT:
-      lines[cursorline].file->action = 1;        
+      groups[cursorgroup].files[cursorfile].action = 1;
+
+      if (cursorfile < groups[cursorgroup].filecount - 1)
+      {
+        ++cursorfile;
+      }
+      else
+      {
+        if (cursorgroup < totalgroups - 1)
+        {
+          ++cursorgroup;
+          cursorfile = 0;
+        }
+      }
+
       break;
 
     case 'a':
-      g = lines[cursorline].group;
-      x = cursorline;
-      while (x > 0 && lines[x-1].group == g)
-        --x;
-      while (x < totallines && lines[x].group == g)
-      {
-        if (lines[x].file != 0 && lines[x].file->action == 0)
-          lines[x].file->action = 1;
+      deletecount = 0;
 
-        ++x;
+      for (x = 0; x < groups[cursorgroup].filecount; ++x)
+      {
+        if (groups[cursorgroup].files[x].action == 0)
+          groups[cursorgroup].files[x].action = 1;
+        else if (groups[cursorgroup].files[x].action == -1)
+          ++deletecount;
       }
 
-      while (x < totallines && lines[x].file == 0)
-        ++x;
-      if (x < totallines)
-        cursorline = x;
-      
+      if (cursorgroup < totalgroups - 1 && deletecount < groups[cursorgroup].filecount)
+      {
+        ++cursorgroup;
+        cursorfile = 0;
+      }
+
       break;
 
     case KEY_LEFT:
-      lines[cursorline].file->action = -1;
+      deletecount = 0;
+
+      groups[cursorgroup].files[cursorfile].action = -1;
+
+      for (x = 0; x < groups[cursorgroup].filecount; ++x)
+        if (groups[cursorgroup].files[x].action == -1)
+          ++deletecount;
+ 
+      if (deletecount < groups[cursorgroup].filecount)
+      {
+        if (cursorfile < groups[cursorgroup].filecount - 1)
+        {
+          ++cursorfile;
+        }
+        else
+        {
+          if (cursorgroup < totalgroups - 1)
+          {
+            ++cursorgroup;
+            cursorfile = 0;
+          }
+        }
+      }
+
       break;
 
     case 'd':
-      preservecount = 0;
-      g = lines[cursorline].group;
-      x = cursorline;
-      while (x > 0 && lines[x-1].group == g)
-        --x;
-      while (x < totallines && lines[x].group == g)
-      {
-        if (lines[x].file != 0)
-          if (lines[x].file->action == 1)
-            ++preservecount;
+      deletecount = 0;
 
-        ++x;
+      for (x = 0; x < groups[cursorgroup].filecount; ++x)
+      {
+        if (groups[cursorgroup].files[x].action == 0)
+          groups[cursorgroup].files[x].action = -1;
+
+        if (groups[cursorgroup].files[x].action == -1)
+          ++deletecount;
       }
 
-      if (preservecount > 0)
+      if (cursorgroup < totalgroups - 1 && deletecount < groups[cursorgroup].filecount)
       {
-        x = cursorline;
-        while (x > 0 && lines[x-1].group == g)
-          --x;
-        while (x < totallines && lines[x].group == g)
-        {
-          if (lines[x].file != 0)
-            if (lines[x].file->action == 0)
-              lines[x].file->action = -1;
-          ++x;
-        }
-
-        while (x < totallines && lines[x].file == 0)
-          ++x;
-        if (x < totallines)
-          cursorline = x;
+        ++cursorgroup;
+        cursorfile = 0;
       }
+
       break;
 
     case '\n':
-      g = lines[cursorline].group;
-      x = cursorline + 1;
-      while (x < totallines && lines[x].group == g)
-        ++x;
-      while (x < totallines && lines[x].file == 0)
-        ++x;
-      if (x < totallines)
-        cursorline = x;
+      if (cursorgroup < totalgroups - 1)
+      {
+        ++cursorgroup;
+        cursorfile = 0;
+      }
       break;
 
     case KEY_BACKSPACE:
-      g = lines[cursorline].group;
-      if (g > 1)
+      if (cursorgroup > 0)
       {
-        while (cursorline > 1 && lines[cursorline].group == g)
-          --cursorline;
-        while (cursorline > 1 && lines[cursorline].fileno != 1)
-          --cursorline;
+        --cursorgroup;
+        cursorfile = 0;
       }
       break;
 
     case 'c':
-    case 'C':
-      g = lines[cursorline].group;
-      x = cursorline;
-      while (x > 0 && lines[x-1].group == g)
-        --x;
-      while (x < totallines && lines[x].group == g)
-      {
-        if (lines[x].file != 0)
-          lines[x].file->action = 0;
-        ++x;
-      }
-      if (lines[cursorline].file != 0)
-        lines[cursorline].file->action = 0;
+      for (x = 0; x < groups[cursorgroup].filecount; ++x)
+        groups[cursorgroup].files[x].action = 0;
       break;
 
     case KEY_IC:
@@ -1310,8 +1429,11 @@ void deletefiles_ncurses(file_t *files)
   } while (ch != 'q');
 
   endwin();
-  
-  free(lines);
+
+  for (x = 0; x < totalgroups; ++x)
+    free(groups[x].files);
+
+  free(groups);
 }
 
 void registerpair(file_t **matchlist, file_t *newmatch, 
