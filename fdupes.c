@@ -1237,11 +1237,15 @@ void deletefiles_ncurses(file_t *files)
 
         if (mode == MODE_ARROWSELECT || cursorgroup != groupindex)
         {
-          if (cursorgroup == groupindex && cursorfile == f && row == 0)
-            wprintw(filewin, "> ");
-
           if (row == 0)
+          {
+            if (cursorgroup == groupindex && cursorfile == f)
+              wprintw(filewin, "> ");
+            else
+              wprintw(filewin, "  ");
+
             wprintw(filewin, "%c ", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
+          }
 
           cy = getcury(filewin);
           putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, FILENAME_INDENT);
