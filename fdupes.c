@@ -1328,6 +1328,7 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case 'a':
+    case 'A':
       deletecount = 0;
 
       for (x = 0; x < groups[cursorgroup].filecount; ++x)
@@ -1374,6 +1375,7 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case 'd':
+    case 'D':
       deletecount = 0;
 
       for (x = 0; x < groups[cursorgroup].filecount; ++x)
@@ -1410,6 +1412,7 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case 'c':
+    case 'C':
       for (x = 0; x < groups[cursorgroup].filecount; ++x)
         groups[cursorgroup].files[x].action = 0;
       break;
@@ -1427,7 +1430,7 @@ void deletefiles_ncurses(file_t *files)
       }
       break;
     }
-  } while (ch != 'q');
+  } while (ch != 'q' && ch != 'Q');
 
   endwin();
 
