@@ -1077,9 +1077,6 @@ int getgroupfileindex(int *row, struct filegroup *group, int line, int columns, 
 
 #define FILENAME_INDENT 4
 
-#define GROUP_HEADER -1
-#define GROUP_PADDING -2
-
 #define MODE_ARROWSELECT 1
 #define MODE_NUMBERSELECT 2
 
