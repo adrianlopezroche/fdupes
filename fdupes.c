@@ -910,55 +910,54 @@ void putline(WINDOW *window, const char *str, const int line, const int columns,
     exit(1);
   }
 
+  mbstowcs(dest, str, inputlength);
+  dest[inputlength] = L'\0';
+
   first_line_columns = columns - compensate_indent;
 
   linestart = 0;
 
   if (line > 0)
   {
-    linewidth = wcwidth(str[linestart]);
+    linewidth = wcwidth(dest[linestart]);
 
-    while (linestart + 1 < inputlength && linewidth + wcwidth(str[linestart + 1]) <= first_line_columns)
-      linewidth += wcwidth(str[++linestart]);
+    while (linestart + 1 < inputlength && linewidth + wcwidth(dest[linestart + 1]) <= first_line_columns)
+      linewidth += wcwidth(dest[++linestart]);
 
     if (++linestart == inputlength)
       return;
 
     for (l = 1; l < line; ++l)
     {
-      linewidth = wcwidth(str[linestart]);
+      linewidth = wcwidth(dest[linestart]);
 
-      while (linestart + 1 < inputlength && linewidth + wcwidth(str[linestart + 1]) <= columns)
-        linewidth += wcwidth(str[++linestart]);
+      while (linestart + 1 < inputlength && linewidth + wcwidth(dest[linestart + 1]) <= columns)
+        linewidth += wcwidth(dest[++linestart]);
 
       if (++linestart == inputlength)
         return;
     }
   }
 
-  linewidth = wcwidth(str[linestart]);
+  linewidth = wcwidth(dest[linestart]);
   linelength = 1;
 
   if (line == 0)
   {
-    while (linestart + linelength < inputlength && linewidth + wcwidth(str[linestart + linelength]) <= first_line_columns)
+    while (linestart + linelength < inputlength && linewidth + wcwidth(dest[linestart + linelength]) <= first_line_columns)
     {
-      linewidth += wcwidth(str[linestart + linelength]);
+      linewidth += wcwidth(dest[linestart + linelength]);
       ++linelength;
     }
   }
   else
   {
-    while (linestart + linelength < inputlength && linewidth + wcwidth(str[linestart + linelength]) <= columns)
+    while (linestart + linelength < inputlength && linewidth + wcwidth(dest[linestart + linelength]) <= columns)
     {
-      linewidth += wcwidth(str[linestart + linelength]);
+      linewidth += wcwidth(dest[linestart + linelength]);
       ++linelength;
     }    
   }
-
-  mbstowcs(dest, str, inputlength);
-
-  dest[inputlength] = L'\0';
 
   waddnwstr(window, dest + linestart, linelength);
 
