@@ -906,6 +906,7 @@ void putline(WINDOW *window, const char *str, const int line, const int columns,
   dest = (wchar_t *) malloc((inputlength + 1) * sizeof(wchar_t));
   if (dest == NULL)
   {
+    endwin();
     errormsg("out of memory\n");
     exit(1);
   }
@@ -1127,6 +1128,7 @@ void deletefiles_ncurses(file_t *files)
   groups = malloc(sizeof(struct filegroup) * allocatedgroups);
   if (groups == 0)
   {
+    endwin();
     errormsg("out of memory\n");
     exit(1);
   }
@@ -1148,6 +1150,8 @@ void deletefiles_ncurses(file_t *files)
       if (reallocgroups == 0)
       {
         free(groups);
+
+        endwin();
         errormsg("out of memory\n");
         exit(1);
       }
@@ -1174,6 +1178,8 @@ void deletefiles_ncurses(file_t *files)
     if (groups[totalgroups].files == 0)
     {
       free(groups);
+
+      endwin();
       errormsg("out of memory\n");
       exit(1);
     }
