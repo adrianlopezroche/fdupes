@@ -1202,7 +1202,7 @@ void deletefiles_ncurses(file_t *files)
   do
   {
     wmove(filewin, 0, 0);
-    erase();
+    werase(filewin);
 
     totallines = groups[totalgroups-1].endline;
 
@@ -1260,11 +1260,13 @@ void deletefiles_ncurses(file_t *files)
       }
     }
 
-    wrefresh(filewin);
+    wnoutrefresh(filewin);
 
-    wclear(statuswin);
+    werase(statuswin);
     wprintw(statuswin, "h for help");
-    wrefresh(statuswin);
+    wnoutrefresh(statuswin);
+
+    doupdate();
 
     ch = wgetch(statuswin);
 
@@ -1520,8 +1522,6 @@ void deletefiles_ncurses(file_t *files)
 
         groupfirstline = groups[g].endline + 1;
       }
-
-      wclear(filewin);
 
       break;
 
