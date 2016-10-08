@@ -1418,8 +1418,8 @@ void deletefiles_ncurses(file_t *files)
       }
       break;
 
-    case 'c':
-    case 'C':
+    case 'x':
+    case 'X':
       for (x = 0; x < groups[cursorgroup].filecount; ++x)
         groups[cursorgroup].files[x].action = 0;
       break;
