@@ -1542,6 +1542,29 @@ void deletefiles_ncurses(file_t *files)
           break;
       }
       break;
+
+    case KEY_RESIZE:
+      /* resize windows */
+      wresize(filewin, LINES - 1, COLS);
+
+      wresize(statuswin, 1, COLS);
+      mvwin(statuswin, LINES - 1, 0);
+
+      /* recalculate line boundaries */
+      groupfirstline = 0;
+
+      for (g = 0; g < totalgroups; ++g)
+      {
+        groups[g].startline = groupfirstline;
+        groups[g].endline = groupfirstline + 2;
+
+        for (f = 0; f < groups[g].filecount; ++f)
+          groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+
+        groupfirstline = groups[g].endline + 1;
+      }
+
+      break;
     }
   } while (ch != 'q' && ch != 'Q');
 
