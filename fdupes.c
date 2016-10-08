@@ -1110,7 +1110,6 @@ void deletefiles_ncurses(file_t *files)
   int f;
   int to;
 
-  setlocale(LC_CTYPE, "");
   initscr();
   noecho();
   cbreak();
@@ -1678,6 +1677,8 @@ int main(int argc, char **argv) {
 #endif
 
   program_name = argv[0];
+
+  setlocale(LC_CTYPE, "");
 
   oldargv = cloneargs(argc, argv);
 
