@@ -178,6 +178,26 @@ time_t getmtime(char *filename) {
   return s.st_mtime;
 }
 
+char *strrstr(char *haystack, char *needle)
+{
+  char *found = 0;
+  char *next = 0;
+
+  found = strstr(haystack, needle);
+  if (found)
+  {
+    do {
+      next = strstr(found + 1, needle);
+      if (next == 0)
+        return found;
+
+      found = next;
+    } while (found);
+  }
+
+  return 0;
+}
+
 char **cloneargs(int argc, char **argv)
 {
   int x;
@@ -969,6 +989,7 @@ struct groupfile
 {
   file_t *file;
   int action;
+  int selected;
 };
 
 struct filegroup
@@ -977,6 +998,7 @@ struct filegroup
   size_t filecount;
   int startline;
   int endline;
+  int selected;
 };
 
 enum linestyle
@@ -1075,6 +1097,319 @@ int getgroupfileindex(int *row, struct filegroup *group, int line, int columns, 
   return -1;
 }
 
+#define COMMAND_NAME_MAX 32
+
+/* get command and arguments from user input */
+int getcommand(char *command, int command_name_max, char **arguments, char *input)
+{
+  int x;
+
+  for (x = 0; x < command_name_max; ++x)
+  {
+    if (input[x] == ' ' || input[x] == '\0')
+    {
+      command[x] = '\0';
+      break;
+    }
+    else
+    {
+      command[x] = input[x];
+    }
+  }
+
+  if (input[x] == ' ')
+    *arguments = input + x + 1;
+  else if (input[x] == '\0')
+    *arguments = input + x;
+  else
+    return 0;
+
+  return 1;
+}
+
+/* select files containing string */
+int cmd_select_containing(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  if (strcmp(commandarguments, "") != 0)
+  {
+    for (g = 0; g < groupcount; ++g)
+    {
+      for (f = 0; f < groups[g].filecount; ++f)
+      {
+        if (strstr(groups[g].files[f].file->d_name, commandarguments) != 0)
+        {
+          groups[g].selected = 1;
+          groups[g].files[f].selected = 1;
+        }
+      }
+    }
+  }
+
+  return 1;
+}
+
+/* select files beginning with string */
+int cmd_select_beginning(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  if (strcmp(commandarguments, "") != 0)
+  {
+    for (g = 0; g < groupcount; ++g)
+    {
+      for (f = 0; f < groups[g].filecount; ++f)
+      {
+        if (strncmp(groups[g].files[f].file->d_name, commandarguments, strlen(commandarguments)) == 0)
+        {
+          groups[g].selected = 1;
+          groups[g].files[f].selected = 1;
+        }
+      }
+    }
+  }
+
+  return 1;
+}
+
+/* select files ending with string */
+int cmd_select_ending(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  if (strcmp(commandarguments, "") != 0)
+  {
+    for (g = 0; g < groupcount; ++g)
+    {
+      for (f = 0; f < groups[g].filecount; ++f)
+      {
+        if (strrstr(groups[g].files[f].file->d_name, commandarguments) != 0 &&
+            strcmp(strrstr(groups[g].files[f].file->d_name, commandarguments), commandarguments) == 0)
+        {
+          groups[g].selected = 1;
+          groups[g].files[f].selected = 1;
+        }
+      }
+    }
+  }
+
+  return 1;
+}
+
+/* select files matching string */
+int cmd_select_matching(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  if (strcmp(commandarguments, "") != 0)
+  {
+    for (g = 0; g < groupcount; ++g)
+    {
+      for (f = 0; f < groups[g].filecount; ++f)
+      {
+        if (strcmp(groups[g].files[f].file->d_name, commandarguments) == 0)
+        {
+          groups[f].selected = 1;
+          groups[g].files[f].selected = 1;
+        }
+      }
+    }
+  }
+
+  return 1;
+}
+
+/* clear selections containing string */
+int cmd_clear_selections_containing(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  if (strcmp(commandarguments, "") != 0)
+  {
+    for (g = 0; g < groupcount; ++g)
+    {
+      for (f = 0; f < groups[g].filecount; ++f)
+        if (strstr(groups[g].files[f].file->d_name, commandarguments) != 0)
+          groups[g].files[f].selected = 0;
+    }
+  }
+
+  return 1;
+}
+
+/* clear selections beginning with string */
+int cmd_clear_selections_beginning(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  if (strcmp(commandarguments, "") != 0)
+  {
+    for (g = 0; g < groupcount; ++g)
+    {
+      for (f = 0; f < groups[g].filecount; ++f)
+        if (strncmp(groups[g].files[f].file->d_name, commandarguments, strlen(commandarguments)) == 0)
+          groups[g].files[f].selected = 0;
+    }
+  }
+
+  return 1;
+}
+
+/* clear selections ending with string */
+int cmd_clear_selections_ending(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  if (strcmp(commandarguments, "") != 0)
+  {
+    for (g = 0; g < groupcount; ++g)
+    {
+      for (f = 0; f < groups[g].filecount; ++f)
+      {
+        if (strrstr(groups[g].files[f].file->d_name, commandarguments) != 0 &&
+            strcmp(strrstr(groups[g].files[f].file->d_name, commandarguments), commandarguments) == 0)
+          groups[g].files[f].selected = 0;
+      }
+    }
+  }
+
+  return 1;
+}
+
+/* clear selections matching string */
+int cmd_clear_selections_matching(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  if (strcmp(commandarguments, "") != 0)
+  {
+    for (g = 0; g < groupcount; ++g)
+    {
+      for (f = 0; f < groups[g].filecount; ++f)
+        if (strcmp(groups[g].files[f].file->d_name, commandarguments) == 0)
+          groups[g].files[f].selected = 0;
+    }
+  }
+
+  return 1;
+}
+
+/* clear all selections and selected groups */
+int cmd_clear_all_selections(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  for (g = 0; g < groupcount; ++g)
+  {
+    for (f = 0; f < groups[g].filecount; ++f)
+      groups[g].files[f].selected = 0;
+
+    groups[g].selected = 0;
+  }
+
+  return 1;
+}
+
+/* invert selections within selected groups */
+int cmd_invert_group_selections(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  for (g = 0; g < groupcount; ++g)
+    if (groups[g].selected)
+      for (f = 0; f < groups[g].filecount; ++f)
+        groups[g].files[f].selected = !groups[g].files[f].selected;
+
+  return 1;
+}
+
+/* mark selected files for preservation */
+int cmd_keep_selected(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  for (g = 0; g < groupcount; ++g)
+    for (f = 0; f < groups[g].filecount; ++f)
+      if (groups[g].files[f].selected)
+        groups[g].files[f].action = 1;
+
+  return 1;
+}
+
+/* mark selected files for deletion */
+int cmd_delete_selected(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  for (g = 0; g < groupcount; ++g)
+    for (f = 0; f < groups[g].filecount; ++f)
+      if (groups[g].files[f].selected)
+        groups[g].files[f].action = -1;
+
+  return 1;
+}
+
+/* mark selected files as unresolved */
+int cmd_reset_selected(struct filegroup *groups, int groupcount, char *commandarguments)
+{
+  int g;
+  int f;
+
+  for (g = 0; g < groupcount; ++g)
+    for (f = 0; f < groups[g].filecount; ++f)
+      if (groups[g].files[f].selected)
+        groups[g].files[f].action = 0;
+
+  return 1;
+}
+
+struct command_map {
+  char *command_name;
+  int (*command)(struct filegroup *groups, int groupcount, char *commandarguments);
+} command_list[] = {
+  {"s*", cmd_select_containing},
+  {"s[", cmd_select_beginning},
+  {"s]", cmd_select_ending},
+  {"s[]", cmd_select_matching},
+  {"cs*", cmd_clear_selections_containing},
+  {"cs[", cmd_clear_selections_beginning},
+  {"cs]", cmd_clear_selections_ending},
+  {"cs[]", cmd_clear_selections_matching},
+  {"ca", cmd_clear_all_selections},
+  {"ig", cmd_invert_group_selections},
+  {"+", cmd_keep_selected},
+  {"-", cmd_delete_selected},
+  {"x", cmd_reset_selected},
+  {0, 0}
+};
+
+int dispatchcommand(char *commandname, char *commandarguments, struct filegroup *groups, int groupcount)
+{
+  int c = 0;
+
+  while (command_list[c].command != 0)
+  {
+    if (strcmp(commandname, command_list[c].command_name) == 0)
+      return command_list[c].command(groups, groupcount, commandarguments);
+    ++c;
+  }
+
+  return 0;
+}
+
 #define FILENAME_INDENT 4
 
 #define MODE_ARROWSELECT 1
@@ -1105,10 +1440,21 @@ void deletefiles_ncurses(file_t *files)
   int row;
   int x;
   int g;
-  int ch;
+  wint_t wch;
+  int keyresult;
   int cy;
   int f;
   int to;
+  char *commandbuffer;
+  char *realloccommandbuffer;
+  size_t commandbuffersize;
+  char command[COMMAND_NAME_MAX];
+  char *commandarguments;
+  int docommandinput;
+  int doprune;
+  size_t length;
+  char mb[MB_CUR_MAX];
+  int mbi;
 
   initscr();
   noecho();
@@ -1122,6 +1468,15 @@ void deletefiles_ncurses(file_t *files)
   wattron(statuswin, A_REVERSE);
 
   keypad(statuswin, 1);
+
+  commandbuffersize = 80;
+  commandbuffer = malloc(commandbuffersize);
+  if (commandbuffer == 0)
+  {
+    endwin();
+    errormsg("out of memory\n");
+    exit(1);
+  }
 
   allocatedgroups = 1024;
   groups = malloc(sizeof(struct filegroup) * allocatedgroups);
@@ -1160,6 +1515,7 @@ void deletefiles_ncurses(file_t *files)
 
     groups[totalgroups].startline = groupfirstline;
     groups[totalgroups].endline = groupfirstline + 2;
+    groups[totalgroups].selected = 0;
 
     groupfilecount = 0;
 
@@ -1190,6 +1546,7 @@ void deletefiles_ncurses(file_t *files)
     {
       groups[totalgroups].files[groupfilecount].file = dupefile;
       groups[totalgroups].files[groupfilecount].action = 0;
+      groups[totalgroups].files[groupfilecount].selected = 0;
       ++groupfilecount;
 
       dupefile = dupefile->duplicates;
@@ -1204,6 +1561,7 @@ void deletefiles_ncurses(file_t *files)
     curfile = curfile->next;
   }
 
+  doprune = 1;
   do
   {
     wmove(filewin, 0, 0);
@@ -1226,7 +1584,11 @@ void deletefiles_ncurses(file_t *files)
       if (linestyle == linestyle_groupheader)
       {
         wattron(filewin, A_BOLD);
+        if (groups[groupindex].selected)
+          wattron(filewin, A_REVERSE);
         wprintw(filewin, "Set %d of %d:\n", groupindex + 1, totalgroups);
+        if (groups[groupindex].selected)
+          wattroff(filewin, A_REVERSE);
         wattroff(filewin, A_BOLD);
       }
       else if (linestyle == linestyle_groupheaderspacing)
@@ -1250,7 +1612,13 @@ void deletefiles_ncurses(file_t *files)
           }
 
           cy = getcury(filewin);
+
+          if (groups[groupindex].files[f].selected)
+            wattron(filewin, A_REVERSE);
           putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, FILENAME_INDENT);
+          if (groups[groupindex].files[f].selected)
+            wattroff(filewin, A_REVERSE);
+
           wclrtoeol(filewin);
           wmove(filewin, cy+1, 0);
         }
@@ -1273,11 +1641,147 @@ void deletefiles_ncurses(file_t *files)
 
     doupdate();
 
-    ch = wgetch(statuswin);
+    /* wait for user input */
+    keyresult = wget_wch(statuswin, &wch);
 
-    switch (ch)
+    if (keyresult == OK && wch == ':') /* enter command input mode */
+    {
+      commandbuffer[0] = '\0';
+
+      docommandinput = 1;
+      do
+      {
+        /* draw command buffer to status window */
+        wattroff(statuswin, A_REVERSE);
+
+        werase(statuswin);
+        wprintw(statuswin, ":%s", commandbuffer);
+        wnoutrefresh(statuswin);
+
+        doupdate();
+
+        /* get next character */
+        keyresult = wget_wch(statuswin, &wch);
+
+        if (keyresult == OK)
+        {
+          if (wch != '\n') /* add character to buffer */
+          {
+            /* convert character to multibyte string */
+            x = wctomb(mb, wch);
+
+            /* increase command buffer, if necessary */
+            length = strlen(commandbuffer);
+
+            if (length + x >= commandbuffersize)
+            {
+              commandbuffersize *= 2;
+
+              realloccommandbuffer = realloc(commandbuffer, commandbuffersize);
+              if (realloccommandbuffer == 0)
+              {
+                free(commandbuffer);
+                free(groups);
+
+                endwin();
+                errormsg("out of memory\n");
+                exit(1);
+              }
+
+              commandbuffer = realloccommandbuffer;
+            }
+
+            /* append multibyte sequence to command buffer */
+            for (mbi = 0; mbi < x; ++mbi)
+              commandbuffer[length++] = mb[mbi];
+
+            commandbuffer[length] = '\0';
+          }
+          else /* process command */
+          {
+            if (getcommand(command, COMMAND_NAME_MAX, &commandarguments, commandbuffer))
+            {
+              if (!dispatchcommand(command, commandarguments, groups, totalgroups))
+              {
+                if (strcmp(command, "q") == 0 || strcmp(command, "quit") == 0 || strcmp(command, "exit") == 0)
+                {
+                  /* exit program */
+                  docommandinput = 0;
+                  doprune = 0;
+                  continue;
+                }
+              }
+            }
+
+            /* exit command mode */
+            wattron(statuswin, A_REVERSE);
+            docommandinput = 0;
+
+            continue;
+          }
+        }
+        else if (keyresult == KEY_CODE_YES)
+        {
+          switch (wch)
+          {
+          case KEY_BACKSPACE:
+            /* erase last character */
+            length = strlen(commandbuffer);
+
+            if (length == 0)
+            {
+              wattron(statuswin, A_REVERSE);
+              docommandinput = 0;
+              continue;
+            }
+
+            commandbuffer[length-1] = '\0';
+
+            break;
+
+          case KEY_RESIZE:
+              /* resize windows */
+              wresize(filewin, LINES - 1, COLS);
+
+              wresize(statuswin, 1, COLS);
+              mvwin(statuswin, LINES - 1, 0);
+
+              /* recalculate line boundaries */
+              groupfirstline = 0;
+
+              for (g = 0; g < totalgroups; ++g)
+              {
+                groups[g].startline = groupfirstline;
+                groups[g].endline = groupfirstline + 2;
+
+                for (f = 0; f < groups[g].filecount; ++f)
+                  groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+
+                groupfirstline = groups[g].endline + 1;
+              }
+
+              /* exit command mode */
+              wattron(statuswin, A_REVERSE);
+              docommandinput = 0;
+
+              continue;
+
+              break;
+          }
+        }
+      } while (docommandinput);
+
+      /* redraw file list and wait for input */
+      continue;
+    }
+
+    /* handle keypress */
+    switch (wch)
     {
     case KEY_DOWN:
+      if (keyresult != KEY_CODE_YES)
+        break;
+
       if (cursorfile < groups[cursorgroup].filecount - 1)
       {
         ++cursorfile;
@@ -1293,6 +1797,9 @@ void deletefiles_ncurses(file_t *files)
       break;
     
     case KEY_UP:
+      if (keyresult != KEY_CODE_YES)
+        break;
+
       if (cursorfile > 0)
       {
         --cursorfile;
@@ -1317,6 +1824,9 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case KEY_RIGHT:
+      if (keyresult != KEY_CODE_YES)
+        break;
+
       groups[cursorgroup].files[cursorfile].action = 1;
 
       if (cursorfile < groups[cursorgroup].filecount - 1)
@@ -1355,6 +1865,9 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case KEY_LEFT:
+      if (keyresult != KEY_CODE_YES)
+        break;
+
       deletecount = 0;
 
       groups[cursorgroup].files[cursorfile].action = -1;
@@ -1411,6 +1924,9 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case KEY_BACKSPACE:
+      if (keyresult != KEY_CODE_YES)
+        break;
+
       if (cursorgroup > 0)
       {
         --cursorgroup;
@@ -1425,6 +1941,9 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case KEY_DC:
+      if (keyresult != KEY_CODE_YES)
+        break;
+
       for (g = 0; g < totalgroups; ++g)
       {
         preservecount = 0;
@@ -1531,6 +2050,9 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case KEY_IC:
+      if (keyresult != KEY_CODE_YES)
+        break;
+
       switch (mode)
       {
         case MODE_ARROWSELECT:
@@ -1544,6 +2066,9 @@ void deletefiles_ncurses(file_t *files)
       break;
 
     case KEY_RESIZE:
+      if (keyresult != KEY_CODE_YES)
+        break;
+
       /* resize windows */
       wresize(filewin, LINES - 1, COLS);
 
@@ -1566,7 +2091,7 @@ void deletefiles_ncurses(file_t *files)
 
       break;
     }
-  } while (ch != 'q' && ch != 'Q');
+  } while (doprune);
 
   endwin();
 
