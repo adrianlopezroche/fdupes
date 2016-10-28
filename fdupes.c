@@ -886,7 +886,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
 	token = strtok(preservestr, " ,\n");
 	
 	while (token != NULL) {
-	  if (strcasecmp(token, "all") == 0)
+	  if (strcasecmp(token, "all") == 0 || strcasecmp(token, "a") == 0)
 	    for (x = 0; x <= counter; x++) preserve[x] = 1;
 	  
 	  number = 0;
