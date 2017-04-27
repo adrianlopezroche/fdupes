@@ -26,6 +26,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdint.h>
 #ifndef OMIT_GETOPT_LONG
 #include <getopt.h>
 #endif
@@ -66,6 +67,8 @@ char *program_name;
 unsigned long flags = 0;
 
 ordertype_t ordertype = ORDER_MTIME;
+size_t min_size = 0;
+size_t max_size = SIZE_MAX;
 
 #define CHUNK_SIZE 8192
 
@@ -262,6 +265,7 @@ int grokdir(char *dir, file_t **filelistp)
   static int progress = 0;
   static char indicator[] = "-\\|/";
   char *fullname, *name;
+  off_t fsize;
 
   cd = opendir(dir);
 
@@ -318,7 +322,9 @@ int grokdir(char *dir, file_t **filelistp)
         free(fullname);
       }
 
-      if (filesize(newfile->d_name) == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
+      fsize = filesize(newfile->d_name);
+
+      if (fsize == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
         free(newfile->d_name);
         free(newfile);
         continue;
@@ -331,6 +337,13 @@ int grokdir(char *dir, file_t **filelistp)
       }
 
       if (lstat(newfile->d_name, &linfo) == -1) {
+        free(newfile->d_name);
+        free(newfile);
+        continue;
+      }
+
+      if (S_ISREG(linfo.st_mode) &&
+          ((fsize < min_size ) || (fsize > max_size ))) {
         free(newfile->d_name);
         free(newfile);
         continue;
@@ -1063,6 +1076,8 @@ void help_text()
   printf("                  \tmodification time (BY='time'; default), status\n");
   printf("                  \tchange time (BY='ctime'), or filename (BY='name')\n");
   printf(" -i --reverse     \treverse order while sorting\n");
+  printf(" -G --minsize     \tconsider only files greater then or equal to SIZE\n");
+  printf(" -L --maxsize     \tconsider only files of size less or equal to SIZE\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -1110,6 +1125,8 @@ int main(int argc, char **argv) {
     { "permissions", 0, 0, 'p' },
     { "order", 1, 0, 'o' },
     { "reverse", 0, 0, 'i' },
+    { "minsize", 1, 0, 'G' },
+    { "maxsize", 1, 0, 'L' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1121,7 +1138,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNImpo:i"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNImpo:iG:L:"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1192,6 +1209,12 @@ int main(int argc, char **argv) {
       break;
     case 'i':
       SETFLAG(flags, F_REVERSE);
+      break;
+    case 'G':
+      min_size = atol(optarg);
+      break;
+    case 'L':
+      max_size = atol(optarg);
       break;
 
     default:
