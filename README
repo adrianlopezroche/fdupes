@@ -41,6 +41,8 @@ Usage: fdupes [options] DIRECTORY...
                   	modification time (BY='time'; default), status
                   	change time (BY='ctime'), or filename (BY='name')
  -i --reverse     	reverse order while sorting
+ -G --minsize=SIZE	consider only files greater then or equal to SIZE
+ -L --maxsize=SIZE	consider only files of size less or equal to SIZE
  -v --version     	display fdupes version
  -h --help        	display this help message
 
