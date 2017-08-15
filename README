@@ -20,6 +20,7 @@ Usage: fdupes [options] DIRECTORY...
  -n --noempty     	exclude zero-length files from consideration
  -A --nohidden    	exclude hidden files from consideration
  -f --omitfirst   	omit the first file in each set of matches
+ -x --xdev        	skip directories on different filesystems
  -1 --sameline    	list each set of matches on a single line
  -S --size        	show size of duplicate files
  -m --summarize   	summarize dupe information

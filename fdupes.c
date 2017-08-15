@@ -54,6 +54,7 @@
 #define F_PERMISSIONS       0x2000
 #define F_REVERSE           0x4000
 #define F_IMMEDIATE         0x8000
+#define F_XDEV              0x10000
 
 typedef enum {
   ORDER_MTIME = 0,
@@ -250,7 +251,15 @@ int nonoptafter(char *option, int argc, char **oldargv,
   return x;
 }
 
-int grokdir(char *dir, file_t **filelistp)
+int samedev(dev_t dev, dev_t *rootdevs)
+{
+  while (*rootdevs)
+    if (dev == *rootdevs++)
+      return 1;
+  return 0;
+}
+
+int grokdir(char *dir, file_t **filelistp, dev_t *rootdevs)
 {
   DIR *cd;
   file_t *newfile;
@@ -337,8 +346,8 @@ int grokdir(char *dir, file_t **filelistp)
       }
 
       if (S_ISDIR(info.st_mode)) {
-	if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)))
-	  filecount += grokdir(newfile->d_name, filelistp);
+	if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)) && (!ISFLAG(flags, F_XDEV) || samedev(info.st_dev, rootdevs)))
+	  filecount += grokdir(newfile->d_name, filelistp, rootdevs);
 	free(newfile->d_name);
 	free(newfile);
       } else {
@@ -1041,6 +1050,7 @@ void help_text()
   printf(" -n --noempty     \texclude zero-length files from consideration\n");
   printf(" -A --nohidden    \texclude hidden files from consideration\n");
   printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
+  printf(" -x --xdev        \tskip directories on different filesystems\n");
   printf(" -1 --sameline    \tlist each set of matches on a single line\n");
   printf(" -S --size        \tshow size of duplicate files\n");
   printf(" -m --summarize   \tsummarize dupe information\n");
@@ -1071,7 +1081,7 @@ void help_text()
 }
 
 int main(int argc, char **argv) {
-  int x;
+  int x, r;
   int opt;
   FILE *file1;
   FILE *file2;
@@ -1083,6 +1093,7 @@ int main(int argc, char **argv) {
   int progress = 0;
   char **oldargv;
   int firstrecurse;
+  dev_t *rootdevs = NULL;
   
 #ifndef OMIT_GETOPT_LONG
   static struct option long_options[] = 
@@ -1110,6 +1121,7 @@ int main(int argc, char **argv) {
     { "permissions", 0, 0, 'p' },
     { "order", 1, 0, 'o' },
     { "reverse", 0, 0, 'i' },
+    { "xdev", 0, 0, 'x' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1121,7 +1133,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNImpo:i"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNImpo:ix"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1193,6 +1205,9 @@ int main(int argc, char **argv) {
     case 'i':
       SETFLAG(flags, F_REVERSE);
       break;
+    case 'x':
+      SETFLAG(flags, F_XDEV);
+      break;
 
     default:
       fprintf(stderr, "Try `fdupes --help' for more information.\n");
@@ -1215,6 +1230,10 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+  if (ISFLAG(flags, F_XDEV)) {
+      rootdevs = calloc(argc - optind + 1, sizeof(dev_t));
+      r = 0;
+  }
   if (ISFLAG(flags, F_RECURSEAFTER)) {
     firstrecurse = nonoptafter("--recurse:", argc, oldargv, argv, optind);
     
@@ -1227,18 +1246,38 @@ int main(int argc, char **argv) {
     }
 
     /* F_RECURSE is not set for directories before --recurse: */
-    for (x = optind; x < firstrecurse; x++)
-      filecount += grokdir(argv[x], &files);
+    for (x = optind; x < firstrecurse; x++) {
+      if (ISFLAG(flags, F_XDEV)) {
+        dev_t this_dev = getdevice(argv[x]);
+        if (!samedev(this_dev, rootdevs))
+          rootdevs[r++] = this_dev;
+      }
+      filecount += grokdir(argv[x], &files, rootdevs);
+    }
 
     /* Set F_RECURSE for directories after --recurse: */
     SETFLAG(flags, F_RECURSE);
 
-    for (x = firstrecurse; x < argc; x++)
-      filecount += grokdir(argv[x], &files);
+    for (x = firstrecurse; x < argc; x++) {
+      if (ISFLAG(flags, F_XDEV)) {
+        dev_t this_dev = getdevice(argv[x]);
+        if (!samedev(this_dev, rootdevs))
+          rootdevs[r++] = this_dev;
+      }
+      filecount += grokdir(argv[x], &files, rootdevs);
+    }
   } else {
-    for (x = optind; x < argc; x++)
-      filecount += grokdir(argv[x], &files);
+    for (x = optind; x < argc; x++) {
+      if (ISFLAG(flags, F_XDEV)) {
+        dev_t this_dev = getdevice(argv[x]);
+        if (!samedev(this_dev, rootdevs))
+          rootdevs[r++] = this_dev;
+      }
+      filecount += grokdir(argv[x], &files, rootdevs);
+    }
   }
+  if (ISFLAG(flags, F_XDEV))
+    free(rootdevs);
 
   if (!files) {
     if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
