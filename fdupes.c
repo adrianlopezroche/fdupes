@@ -32,6 +32,7 @@
 #include <string.h>
 #include <errno.h>
 #include <libgen.h>
+#include <regex.h> //NOTE: _POSIX_C_SOURCE defined in /usr/include/features.h included in /usr/include/stdio.h, so we use Posix.2 regex
 
 #include "md5/md5.h"
 
@@ -54,6 +55,9 @@
 #define F_PERMISSIONS       0x2000
 #define F_REVERSE           0x4000
 #define F_IMMEDIATE         0x8000
+#define F_REGEXPATH     0x00010000L
+#define F_REGEXNAME     0x00020000L
+#define F_REGEXICASE    0x00040000L
 
 typedef enum {
   ORDER_MTIME = 0,
@@ -64,6 +68,8 @@ typedef enum {
 char *program_name;
 
 unsigned long flags = 0;
+
+regex_t regexcompiled;
 
 ordertype_t ordertype = ORDER_MTIME;
 
@@ -343,6 +349,41 @@ int grokdir(char *dir, file_t **filelistp)
 	free(newfile);
       } else {
 	if (S_ISREG(linfo.st_mode) || (S_ISLNK(linfo.st_mode) && ISFLAG(flags, F_FOLLOWLINKS))) {
+	  if (ISFLAG(flags, F_REGEXPATH)) {
+	    int retval = regexec(&regexcompiled, newfile->d_name, 0, NULL, 0);
+	    if (retval) { //no match or error
+	      free(newfile->d_name);
+	      free(newfile);
+	      if (retval != REG_NOMATCH) {
+	        char *errmsg;
+	        int len = regerror(retval, &regexcompiled, NULL, 0);
+	        errmsg = (char*)malloc(len);
+	        regerror(retval, &regexcompiled, errmsg, len);
+	        errormsg("Regex match failed: %s\n", errmsg);
+	        exit(1);
+	      }
+	      continue;
+	    }
+	  }
+	  else if (ISFLAG(flags, F_REGEXNAME)) {
+	    fullname = strdup(newfile->d_name);
+	    name = basename(fullname);
+	    int retval = regexec(&regexcompiled, name, 0, NULL, 0);
+	    free(fullname);
+	    if (retval) { //no match or error
+	      free(newfile->d_name);
+	      free(newfile);
+	      if (retval != REG_NOMATCH) {
+	        char *errmsg;
+	        int len = regerror(retval, &regexcompiled, NULL, 0);
+	        errmsg = (char*)malloc(len);
+	        regerror(retval, &regexcompiled, errmsg, len);
+	        errormsg("Regex match failed: %s\n", errmsg);
+	        exit(1);
+	      }
+	      continue;
+	    }
+	  }
 	  *filelistp = newfile;
 	  filecount++;
 	} else {
@@ -1040,6 +1081,14 @@ void help_text()
   printf("                  \toption will change this behavior\n");
   printf(" -n --noempty     \texclude zero-length files from consideration\n");
   printf(" -A --nohidden    \texclude hidden files from consideration\n");
+  printf(" -g --regex=pattern \tinclude only files matching a Posix.2 extended\n");
+  printf("                  \tregular expressions pattern. The pattern is matched\n");
+  printf("                  \tagainst the full file path when reaching that file,\n");
+  printf("                  \tnot against the directories recursed through to reach\n");
+  printf("                  \tit. As a custom extension, start a pattern with '//'\n");
+  printf("                  \tto match the remainder of that pattern against the\n");
+  printf("                  \tfilename only (last part of path)\n");
+  printf(" -G --reGex=pattern \tcase-insensitive regex, further as above\n");
   printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
   printf(" -1 --sameline    \tlist each set of matches on a single line\n");
   printf(" -S --size        \tshow size of duplicate files\n");
@@ -1083,6 +1132,7 @@ int main(int argc, char **argv) {
   int progress = 0;
   char **oldargv;
   int firstrecurse;
+  char *regex=NULL;
   
 #ifndef OMIT_GETOPT_LONG
   static struct option long_options[] = 
@@ -1100,6 +1150,8 @@ int main(int argc, char **argv) {
     { "relink", 0, 0, 'l' },
     { "noempty", 0, 0, 'n' },
     { "nohidden", 0, 0, 'A' },
+    { "regex",    required_argument, NULL, 'g' },
+    { "reGex",    required_argument, NULL, 'G' },
     { "delete", 0, 0, 'd' },
     { "version", 0, 0, 'v' },
     { "help", 0, 0, 'h' },
@@ -1121,7 +1173,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNImpo:i"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAg:G:dvhNImpo:i"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1156,6 +1208,18 @@ int main(int argc, char **argv) {
       break;
     case 'A':
       SETFLAG(flags, F_EXCLUDEHIDDEN);
+      break;
+    case 'G':
+      SETFLAG(flags, F_REGEXICASE);
+	  //NO break;
+    case 'g':
+	  if (strlen(optarg) >= 2 && optarg[0] == '/' && optarg[1] == '/') {
+	    regex = optarg + 2;
+	    SETFLAG(flags, F_REGEXNAME);
+	  } else {
+	    regex = optarg;
+	    SETFLAG(flags, F_REGEXPATH);
+	  }
       break;
     case 'd':
       SETFLAG(flags, F_DELETEFILES);
@@ -1205,6 +1269,27 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+  if (ISFLAG(flags, F_REGEXNAME) || ISFLAG(flags, F_REGEXPATH)) {
+    if (regex == NULL) {
+      errormsg("No regular expression parsed\n");
+      exit(1);
+    }
+    if (strlen(regex) == 0) {
+      errormsg("Empty regular expression parsed\n");
+      exit(1);
+    }
+    x = regcomp(&regexcompiled, regex, REG_EXTENDED | REG_NOSUB | (ISFLAG(flags, F_REGEXICASE) ? REG_ICASE : 0));
+    if (x) {
+      char *errmsg;
+      int len = regerror(x, &regexcompiled, NULL, 0);
+      errmsg = (char*)malloc(len);
+      regerror(x, &regexcompiled, errmsg, len);
+      errormsg("Could not compile regex %s : %s\n", regex, errmsg);
+      free(errmsg);
+      exit(1);
+    }
+  }
+
   if (ISFLAG(flags, F_RECURSE) && ISFLAG(flags, F_RECURSEAFTER)) {
     errormsg("options --recurse and --recurse: are not compatible\n");
     exit(1);
@@ -1243,6 +1328,10 @@ int main(int argc, char **argv) {
   if (!files) {
     if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
     exit(0);
+  }
+
+  if (ISFLAG(flags, F_REGEXNAME) || ISFLAG(flags, F_REGEXPATH)) {
+    regfree(&regexcompiled);
   }
   
   curfile = files;
