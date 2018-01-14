@@ -42,6 +42,16 @@ omit the first file in each set of matches
 .B -A --nohidden
 exclude hidden files from consideration
 .TP
+.B -g --regex=pattern
+test only files matching a Posix.2 extended regular expressions pattern.
+The pattern is matched against the full file path when reaching that file,
+not against the directories while recursing through them. As a custom extension,
+start a pattern with '//' to match the remainder of that pattern against the
+filename only (last part of path).
+.TP
+.B -G --reGex=pattern
+case-insensitive regex, further as above
+.TP
 .B -1 --sameline
 list each set of matches on a single line
 .TP
