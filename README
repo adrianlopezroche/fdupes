@@ -19,6 +19,14 @@ Usage: fdupes [options] DIRECTORY...
                   	option will change this behavior
  -n --noempty     	exclude zero-length files from consideration
  -A --nohidden    	exclude hidden files from consideration
+ -g --regex=pattern 	include only files matching a Posix.2 extended
+                  	regular expressions pattern. The pattern is matched
+                  	against the full file path when reaching that file,
+                  	not against the directories recursed through to reach
+                  	it. As a custom extension, start a pattern with '//'
+                  	to match the remainder of that pattern against the
+                  	filename only (last part of path)
+ -G --reGex=pattern 	case-insensitive regex, further as above
  -f --omitfirst   	omit the first file in each set of matches
  -1 --sameline    	list each set of matches on a single line
  -S --size        	show size of duplicate files
