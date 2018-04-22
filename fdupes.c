@@ -313,6 +313,7 @@ int grokdir(char *dir, file_t **filelistp)
 	if (name[0] == '.' && strcmp(name, ".") && strcmp(name, "..") ) {
 	  free(newfile->d_name);
 	  free(newfile);
+	  free(fullname);
 	  continue;
 	}
 	free(fullname);
