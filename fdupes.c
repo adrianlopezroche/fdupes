@@ -178,24 +178,121 @@ time_t getmtime(char *filename) {
   return s.st_mtime;
 }
 
-char *strrstr(char *haystack, char *needle)
+wchar_t *wcsrstr(wchar_t *haystack, wchar_t *needle)
 {
-  char *found = 0;
-  char *next = 0;
+  wchar_t *found = 0;
+  wchar_t *next = 0;
 
-  found = strstr(haystack, needle);
+  found = wcsstr(haystack, needle);
   if (found)
   {
     do {
-      next = strstr(found + 1, needle);
-      if (next == 0)
-        return found;
+      next = wcsstr(found + 1, needle);
+      if (next != 0)
+        found = next;
+    } while (next);
 
-      found = next;
-    } while (found);
+    return found;
   }
 
   return 0;
+}
+
+/* compare wide and multibyte strings */
+int wcsmbcscmp(wchar_t *s1, char *s2)
+{
+  wchar_t *s2w;
+  size_t size;
+  int result;
+
+  size = mbstowcs(0, s2, 0) + 1;
+
+  s2w = (wchar_t*) malloc(size * sizeof(wchar_t));
+  if (s2w == 0)
+    return -1;
+
+  mbstowcs(s2w, s2, size);
+
+  result = wcscmp(s1, s2w);
+
+  free(s2w);
+
+  return result;
+}
+
+/* wide character needle is contained in multibyte haystack */
+int wcsinmbcs(char *haystack, wchar_t *needle)
+{
+  wchar_t *haystackw;
+  size_t size;
+  int result;
+
+  size = mbstowcs(0, haystack, 0) + 1;
+
+  haystackw = (wchar_t*) malloc(size * sizeof(wchar_t));
+  if (haystackw == 0)
+    return -1;
+
+  mbstowcs(haystackw, haystack, size);
+
+  if (wcsstr(haystackw, needle) == 0)
+    result = 0;
+  else
+    result = 1;
+
+  free(haystackw);
+
+  return result;
+}
+
+/* wide character needle at beginning of multibyte haystack */
+int wcsbeginmbcs(char *haystack, wchar_t *needle)
+{
+  wchar_t *haystackw;
+  size_t size;
+  int result;
+
+  size = mbstowcs(0, haystack, 0) + 1;
+
+  haystackw = (wchar_t*) malloc(size * sizeof(wchar_t));
+  if (haystackw == 0)
+    return -1;
+
+  mbstowcs(haystackw, haystack, size);
+
+  if (wcsncmp(haystackw, needle, wcslen(needle)) == 0)
+    result = 1;
+  else
+    result = 0;
+
+  free(haystackw);
+
+  return result;
+}
+
+/* wide character needle at end of multibyte haystack */
+int wcsendsmbcs(char *haystack, wchar_t *needle)
+{
+  wchar_t *haystackw;
+  size_t size;
+  int result;
+
+  size = mbstowcs(0, haystack, 0) + 1;
+
+  haystackw = (wchar_t*) malloc(size * sizeof(wchar_t));
+  if (haystackw == 0)
+    return -1;
+
+  mbstowcs(haystackw, haystack, size);
+
+  if (wcsrstr(haystackw, needle) != 0 && wcscmp(wcsrstr(haystackw, needle), needle) == 0)
+    result = 1;
+  else
+    result = 0;
+
+  free(haystackw);
+
+  return result;
 }
 
 char **cloneargs(int argc, char **argv)
@@ -1100,15 +1197,15 @@ int getgroupfileindex(int *row, struct filegroup *group, int line, int columns, 
 #define COMMAND_NAME_MAX 32
 
 /* get command and arguments from user input */
-int getcommand(char *command, int command_name_max, char **arguments, char *input)
+int getcommand(wchar_t *command, int command_name_max, wchar_t **arguments, wchar_t *input)
 {
   int x;
 
   for (x = 0; x < command_name_max; ++x)
   {
-    if (input[x] == ' ' || input[x] == '\0')
+    if (input[x] == L' ' || input[x] == L'\0')
     {
-      command[x] = '\0';
+      command[x] = L'\0';
       break;
     }
     else
@@ -1117,9 +1214,9 @@ int getcommand(char *command, int command_name_max, char **arguments, char *inpu
     }
   }
 
-  if (input[x] == ' ')
+  if (input[x] == L' ')
     *arguments = input + x + 1;
-  else if (input[x] == '\0')
+  else if (input[x] == L'\0')
     *arguments = input + x;
   else
     return 0;
@@ -1128,18 +1225,18 @@ int getcommand(char *command, int command_name_max, char **arguments, char *inpu
 }
 
 /* select files containing string */
-int cmd_select_containing(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_select_containing(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
 
-  if (strcmp(commandarguments, "") != 0)
+  if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
       for (f = 0; f < groups[g].filecount; ++f)
       {
-        if (strstr(groups[g].files[f].file->d_name, commandarguments) != 0)
+        if (wcsinmbcs(groups[g].files[f].file->d_name, commandarguments))
         {
           groups[g].selected = 1;
           groups[g].files[f].selected = 1;
@@ -1152,18 +1249,18 @@ int cmd_select_containing(struct filegroup *groups, int groupcount, char *comman
 }
 
 /* select files beginning with string */
-int cmd_select_beginning(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_select_beginning(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
 
-  if (strcmp(commandarguments, "") != 0)
+  if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
       for (f = 0; f < groups[g].filecount; ++f)
       {
-        if (strncmp(groups[g].files[f].file->d_name, commandarguments, strlen(commandarguments)) == 0)
+        if (wcsbeginmbcs(groups[g].files[f].file->d_name, commandarguments))
         {
           groups[g].selected = 1;
           groups[g].files[f].selected = 1;
@@ -1176,19 +1273,18 @@ int cmd_select_beginning(struct filegroup *groups, int groupcount, char *command
 }
 
 /* select files ending with string */
-int cmd_select_ending(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_select_ending(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
 
-  if (strcmp(commandarguments, "") != 0)
+  if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
       for (f = 0; f < groups[g].filecount; ++f)
       {
-        if (strrstr(groups[g].files[f].file->d_name, commandarguments) != 0 &&
-            strcmp(strrstr(groups[g].files[f].file->d_name, commandarguments), commandarguments) == 0)
+        if (wcsendsmbcs(groups[g].files[f].file->d_name, commandarguments))
         {
           groups[g].selected = 1;
           groups[g].files[f].selected = 1;
@@ -1201,18 +1297,18 @@ int cmd_select_ending(struct filegroup *groups, int groupcount, char *commandarg
 }
 
 /* select files matching string */
-int cmd_select_matching(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_select_matching(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
 
-  if (strcmp(commandarguments, "") != 0)
+  if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
       for (f = 0; f < groups[g].filecount; ++f)
       {
-        if (strcmp(groups[g].files[f].file->d_name, commandarguments) == 0)
+        if (wcsmbcscmp(commandarguments, groups[g].files[f].file->d_name) == 0)
         {
           groups[f].selected = 1;
           groups[g].files[f].selected = 1;
@@ -1225,17 +1321,17 @@ int cmd_select_matching(struct filegroup *groups, int groupcount, char *commanda
 }
 
 /* clear selections containing string */
-int cmd_clear_selections_containing(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_clear_selections_containing(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
 
-  if (strcmp(commandarguments, "") != 0)
+  if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
       for (f = 0; f < groups[g].filecount; ++f)
-        if (strstr(groups[g].files[f].file->d_name, commandarguments) != 0)
+        if (wcsinmbcs(groups[g].files[f].file->d_name, commandarguments))
           groups[g].files[f].selected = 0;
     }
   }
@@ -1244,17 +1340,17 @@ int cmd_clear_selections_containing(struct filegroup *groups, int groupcount, ch
 }
 
 /* clear selections beginning with string */
-int cmd_clear_selections_beginning(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_clear_selections_beginning(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
 
-  if (strcmp(commandarguments, "") != 0)
+  if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
       for (f = 0; f < groups[g].filecount; ++f)
-        if (strncmp(groups[g].files[f].file->d_name, commandarguments, strlen(commandarguments)) == 0)
+        if (wcsbeginmbcs(groups[g].files[f].file->d_name, commandarguments))
           groups[g].files[f].selected = 0;
     }
   }
@@ -1263,19 +1359,18 @@ int cmd_clear_selections_beginning(struct filegroup *groups, int groupcount, cha
 }
 
 /* clear selections ending with string */
-int cmd_clear_selections_ending(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_clear_selections_ending(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
 
-  if (strcmp(commandarguments, "") != 0)
+  if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
       for (f = 0; f < groups[g].filecount; ++f)
       {
-        if (strrstr(groups[g].files[f].file->d_name, commandarguments) != 0 &&
-            strcmp(strrstr(groups[g].files[f].file->d_name, commandarguments), commandarguments) == 0)
+        if (wcsendsmbcs(groups[g].files[f].file->d_name, commandarguments))
           groups[g].files[f].selected = 0;
       }
     }
@@ -1285,17 +1380,17 @@ int cmd_clear_selections_ending(struct filegroup *groups, int groupcount, char *
 }
 
 /* clear selections matching string */
-int cmd_clear_selections_matching(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_clear_selections_matching(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
 
-  if (strcmp(commandarguments, "") != 0)
+  if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
       for (f = 0; f < groups[g].filecount; ++f)
-        if (strcmp(groups[g].files[f].file->d_name, commandarguments) == 0)
+        if (wcsmbcscmp(commandarguments, groups[g].files[f].file->d_name) == 0)
           groups[g].files[f].selected = 0;
     }
   }
@@ -1304,7 +1399,7 @@ int cmd_clear_selections_matching(struct filegroup *groups, int groupcount, char
 }
 
 /* clear all selections and selected groups */
-int cmd_clear_all_selections(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_clear_all_selections(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
@@ -1321,7 +1416,7 @@ int cmd_clear_all_selections(struct filegroup *groups, int groupcount, char *com
 }
 
 /* invert selections within selected groups */
-int cmd_invert_group_selections(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_invert_group_selections(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
@@ -1335,7 +1430,7 @@ int cmd_invert_group_selections(struct filegroup *groups, int groupcount, char *
 }
 
 /* mark selected files for preservation */
-int cmd_keep_selected(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
@@ -1349,7 +1444,7 @@ int cmd_keep_selected(struct filegroup *groups, int groupcount, char *commandarg
 }
 
 /* mark selected files for deletion */
-int cmd_delete_selected(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
@@ -1363,7 +1458,7 @@ int cmd_delete_selected(struct filegroup *groups, int groupcount, char *commanda
 }
 
 /* mark selected files as unresolved */
-int cmd_reset_selected(struct filegroup *groups, int groupcount, char *commandarguments)
+int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
 {
   int g;
   int f;
@@ -1377,32 +1472,32 @@ int cmd_reset_selected(struct filegroup *groups, int groupcount, char *commandar
 }
 
 struct command_map {
-  char *command_name;
-  int (*command)(struct filegroup *groups, int groupcount, char *commandarguments);
+  wchar_t *command_name;
+  int (*command)(struct filegroup *groups, int groupcount, wchar_t *commandarguments);
 } command_list[] = {
-  {"s*", cmd_select_containing},
-  {"s[", cmd_select_beginning},
-  {"s]", cmd_select_ending},
-  {"s[]", cmd_select_matching},
-  {"cs*", cmd_clear_selections_containing},
-  {"cs[", cmd_clear_selections_beginning},
-  {"cs]", cmd_clear_selections_ending},
-  {"cs[]", cmd_clear_selections_matching},
-  {"ca", cmd_clear_all_selections},
-  {"ig", cmd_invert_group_selections},
-  {"+", cmd_keep_selected},
-  {"-", cmd_delete_selected},
-  {"x", cmd_reset_selected},
+  {L"s*", cmd_select_containing},
+  {L"s[", cmd_select_beginning},
+  {L"s]", cmd_select_ending},
+  {L"s[]", cmd_select_matching},
+  {L"cs*", cmd_clear_selections_containing},
+  {L"cs[", cmd_clear_selections_beginning},
+  {L"cs]", cmd_clear_selections_ending},
+  {L"cs[]", cmd_clear_selections_matching},
+  {L"ca", cmd_clear_all_selections},
+  {L"ig", cmd_invert_group_selections},
+  {L"+", cmd_keep_selected},
+  {L"-", cmd_delete_selected},
+  {L"x", cmd_reset_selected},
   {0, 0}
 };
 
-int dispatchcommand(char *commandname, char *commandarguments, struct filegroup *groups, int groupcount)
+int dispatchcommand(wchar_t *commandname, wchar_t *commandarguments, struct filegroup *groups, int groupcount)
 {
   int c = 0;
 
   while (command_list[c].command != 0)
   {
-    if (strcmp(commandname, command_list[c].command_name) == 0)
+    if (wcscmp(commandname, command_list[c].command_name) == 0)
       return command_list[c].command(groups, groupcount, commandarguments);
     ++c;
   }
@@ -1445,16 +1540,14 @@ void deletefiles_ncurses(file_t *files)
   int cy;
   int f;
   int to;
-  char *commandbuffer;
-  char *realloccommandbuffer;
+  wchar_t *commandbuffer;
+  wchar_t *realloccommandbuffer;
   size_t commandbuffersize;
-  char command[COMMAND_NAME_MAX];
-  char *commandarguments;
+  wchar_t command[COMMAND_NAME_MAX];
+  wchar_t *commandarguments;
   int docommandinput;
   int doprune;
   size_t length;
-  char mb[MB_CUR_MAX];
-  int mbi;
 
   initscr();
   noecho();
@@ -1470,7 +1563,7 @@ void deletefiles_ncurses(file_t *files)
   keypad(statuswin, 1);
 
   commandbuffersize = 80;
-  commandbuffer = malloc(commandbuffersize);
+  commandbuffer = malloc(commandbuffersize * sizeof(wchar_t));
   if (commandbuffer == 0)
   {
     endwin();
@@ -1646,7 +1739,7 @@ void deletefiles_ncurses(file_t *files)
 
     if (keyresult == OK && wch == ':') /* enter command input mode */
     {
-      commandbuffer[0] = '\0';
+      commandbuffer[0] = L'\0';
 
       docommandinput = 1;
       do
@@ -1655,7 +1748,7 @@ void deletefiles_ncurses(file_t *files)
         wattroff(statuswin, A_REVERSE);
 
         werase(statuswin);
-        wprintw(statuswin, ":%s", commandbuffer);
+        wprintw(statuswin, ":%ls", commandbuffer);
         wnoutrefresh(statuswin);
 
         doupdate();
@@ -1667,17 +1760,14 @@ void deletefiles_ncurses(file_t *files)
         {
           if (wch != '\n') /* add character to buffer */
           {
-            /* convert character to multibyte string */
-            x = wctomb(mb, wch);
-
             /* increase command buffer, if necessary */
-            length = strlen(commandbuffer);
+            length = wcslen(commandbuffer);
 
-            if (length + x >= commandbuffersize)
+            if (length + 1 >= commandbuffersize)
             {
               commandbuffersize *= 2;
 
-              realloccommandbuffer = realloc(commandbuffer, commandbuffersize);
+              realloccommandbuffer = (wchar_t*) realloc(commandbuffer, commandbuffersize * sizeof(wchar_t));
               if (realloccommandbuffer == 0)
               {
                 free(commandbuffer);
@@ -1691,11 +1781,9 @@ void deletefiles_ncurses(file_t *files)
               commandbuffer = realloccommandbuffer;
             }
 
-            /* append multibyte sequence to command buffer */
-            for (mbi = 0; mbi < x; ++mbi)
-              commandbuffer[length++] = mb[mbi];
-
-            commandbuffer[length] = '\0';
+            /* append character to command buffer */
+            commandbuffer[length] = wch;
+            commandbuffer[length+1] = L'\0';
           }
           else /* process command */
           {
@@ -1703,7 +1791,7 @@ void deletefiles_ncurses(file_t *files)
             {
               if (!dispatchcommand(command, commandarguments, groups, totalgroups))
               {
-                if (strcmp(command, "q") == 0 || strcmp(command, "quit") == 0 || strcmp(command, "exit") == 0)
+                if (wcscmp(command, L"q") == 0 || wcscmp(command, L"quit") == 0 || wcscmp(command, L"exit") == 0)
                 {
                   /* exit program */
                   docommandinput = 0;
@@ -1726,11 +1814,12 @@ void deletefiles_ncurses(file_t *files)
           {
           case KEY_BACKSPACE:
             /* erase last character */
-            length = strlen(commandbuffer);
+            length = wcslen(commandbuffer);
 
-            if (length == 0)
+            if (length == 1)
             {
               wattron(statuswin, A_REVERSE);
+              commandbuffer[0] = '\0';
               docommandinput = 0;
               continue;
             }
