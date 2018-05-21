@@ -37,6 +37,8 @@
 #define _XOPEN_SOURCE_EXTENDED
 #include <ncursesw/ncurses.h>
 
+#define KEY_ESCAPE 27
+
 #ifndef EXTERNAL_MD5
 #include "md5/md5.h"
 #endif
@@ -1764,7 +1766,13 @@ void deletefiles_ncurses(file_t *files)
 
         if (keyresult == OK)
         {
-          if (wch != '\n') /* add character to buffer */
+          if (wch == KEY_ESCAPE)
+          {
+            commandbuffer[0] = '\0';
+            docommandinput = 0;
+            continue;
+          }
+          else if (wch != '\n') /* add character to buffer */
           {
             /* increase command buffer, if necessary */
             length = wcslen(commandbuffer);
