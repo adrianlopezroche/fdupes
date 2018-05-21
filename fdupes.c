@@ -1196,6 +1196,24 @@ int getgroupfileindex(int *row, struct filegroup *group, int line, int columns, 
   return -1;
 }
 
+int getgroupfileline(struct filegroup *group, int fileindex, int columns, int first_line_indent)
+{
+  int l;
+  int f = 0;
+  int rowcount;
+
+  l = group->startline + 2;
+
+  while (f < fileindex && f < group->filecount)
+  {
+    rowcount = filerowcount(group->files[f].file, columns, first_line_indent);
+    l += rowcount;
+    ++f;
+  }
+
+  return l;
+}
+
 #define COMMAND_NAME_MAX 32
 
 /* get command and arguments from user input */
@@ -1507,10 +1525,63 @@ int dispatchcommand(wchar_t *commandname, wchar_t *commandarguments, struct file
   return 0;
 }
 
-#define FILENAME_INDENT 4
+#define FILENAME_INDENT 8
 
-#define MODE_ARROWSELECT 1
-#define MODE_NUMBERSELECT 2
+void scroll_to_next_group(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
+{
+  *cursorgroup += 1;
+
+  *cursorfile = 0;
+
+  if (groups[*cursorgroup].endline >= *topline + getmaxy(filewin))
+  {
+    if (groups[*cursorgroup].endline - groups[*cursorgroup].startline < getmaxy(filewin))
+      *topline += groups[*cursorgroup].endline - *topline - getmaxy(filewin) + 1;
+    else
+      *topline += groups[*cursorgroup].startline - *topline;
+  }
+}
+
+void scroll_to_next_file(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
+{
+  *cursorfile += 1;
+
+  if (getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) >= *topline + getmaxy(filewin))
+  {
+      if (groups[*cursorgroup].endline - getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) < getmaxy(filewin))
+        *topline += groups[*cursorgroup].endline - *topline - getmaxy(filewin) + 1;
+      else
+        *topline += getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) - *topline;
+  }
+}
+
+void scroll_to_previous_group(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
+{
+  *cursorgroup -= 1;
+
+  *cursorfile = groups[*cursorgroup].filecount - 1;
+
+  if (groups[*cursorgroup].startline < *topline)
+  {
+    if (groups[*cursorgroup].endline - groups[*cursorgroup].startline < getmaxy(filewin))
+      *topline -= *topline - groups[*cursorgroup].startline;
+    else
+      *topline -= *topline + getmaxy(filewin) - groups[*cursorgroup].endline;
+  }
+}
+
+void scroll_to_previous_file(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
+{
+  *cursorfile -= 1;
+
+  if (getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) < *topline)
+  {
+      if (getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) - groups[*cursorgroup].startline < getmaxy(filewin))
+        *topline -= getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) - groups[*cursorgroup].startline + 1;
+      else
+        *topline -= getmaxy(filewin);
+  }
+}
 
 void deletefiles_ncurses(file_t *files)
 {
@@ -1533,7 +1604,6 @@ void deletefiles_ncurses(file_t *files)
   int preservecount;
   int deletecount;
   int unresolvedcount;
-  int mode = MODE_ARROWSELECT;
   int row;
   int x;
   int g;
@@ -1550,6 +1620,10 @@ void deletefiles_ncurses(file_t *files)
   int docommandinput;
   int doprune;
   size_t length;
+  wchar_t *token;
+  wchar_t *wcsptr;
+  wchar_t *wcstolcheck;
+  long int number;
 
   initscr();
   noecho();
@@ -1700,17 +1774,10 @@ void deletefiles_ncurses(file_t *files)
       {
         f = getgroupfileindex(&row, groups + groupindex, x, COLS, FILENAME_INDENT);
 
-        if (mode == MODE_ARROWSELECT || cursorgroup != groupindex)
+        if (cursorgroup != groupindex)
         {
           if (row == 0)
-          {
-            if (cursorgroup == groupindex && cursorfile == f)
-              wprintw(filewin, "> ");
-            else
-              wprintw(filewin, "  ");
-
-            wprintw(filewin, "%c ", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
-          }
+            wprintw(filewin, "    [%c] ", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
 
           cy = getcury(filewin);
 
@@ -1725,7 +1792,28 @@ void deletefiles_ncurses(file_t *files)
         }
         else
         {
-          wprintw(filewin, "[%d] %s\n", f + 1,  groups[groupindex].files[f].file->d_name);
+          if (row == 0)
+          {
+            wprintw(filewin, "%3d ", f+1);
+
+            if (cursorgroup == groupindex && cursorfile == f)
+              wattron(filewin, A_REVERSE);
+            wprintw(filewin, "[%c]", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
+            if (cursorgroup == groupindex && cursorfile == f)
+              wattroff(filewin, A_REVERSE);
+            wprintw(filewin, " ");
+          }
+
+          cy = getcury(filewin);
+
+          if (groups[groupindex].files[f].selected)
+            wattron(filewin, A_REVERSE);
+          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, FILENAME_INDENT);
+          if (groups[groupindex].files[f].selected)
+            wattroff(filewin, A_REVERSE);
+
+          wclrtoeol(filewin);
+          wmove(filewin, cy+1, 0);
         }
       }
       else if (linestyle == linestyle_groupfooterspacing)
@@ -1737,7 +1825,7 @@ void deletefiles_ncurses(file_t *files)
     wnoutrefresh(filewin);
 
     werase(statuswin);
-    wprintw(statuswin, "h for help");
+    wprintw(statuswin, "Set %d of %d, preserve files [1 - %d | all | help]:", cursorgroup+1, totalgroups, groups[cursorgroup].filecount);
     wnoutrefresh(statuswin);
 
     doupdate();
@@ -1745,25 +1833,13 @@ void deletefiles_ncurses(file_t *files)
     /* wait for user input */
     keyresult = wget_wch(statuswin, &wch);
 
-    if (keyresult == OK && wch == ':') /* enter command input mode */
+    if (keyresult == OK && ((wch != '\t' && wch != '\n' && wch != '.' && wch != '?') || commandbuffer[0] != 0)) /* enter command input mode */
     {
       commandbuffer[0] = L'\0';
 
       docommandinput = 1;
       do
       {
-        /* draw command buffer to status window */
-        wattroff(statuswin, A_REVERSE);
-
-        werase(statuswin);
-        wprintw(statuswin, ":%ls", commandbuffer);
-        wnoutrefresh(statuswin);
-
-        doupdate();
-
-        /* get next character */
-        keyresult = wget_wch(statuswin, &wch);
-
         if (keyresult == OK)
         {
           if (wch == KEY_ESCAPE)
@@ -1815,6 +1891,64 @@ void deletefiles_ncurses(file_t *files)
                   docommandinput = 0;
                   doprune = 0;
                   continue;
+                }
+                else if (wcscmp(command, L"rg") == 0)
+                {
+                  for (x = 0; x < groups[cursorgroup].filecount; ++x)
+                    groups[cursorgroup].files[x].action = 0;
+                }
+                else
+                {
+                  if (wcscmp(command, L"all") == 0 || wcscmp(command, L"a") == 0)
+                  {
+                    /* mark all files for preservation */
+                    preservecount = 0;
+
+                    for (x = 0; x < groups[cursorgroup].filecount; ++x)
+                    {
+                      groups[cursorgroup].files[x].action = 1;
+                      ++preservecount;
+                    }
+                  }
+                  else
+                  {
+                    /* parse list of files to preserve and mark for preservation */
+                    token = wcstok(commandbuffer, L" ,", &wcsptr);
+
+                    while (token != NULL)
+                    {
+                      number = wcstol(token, &wcstolcheck, 10);
+                      if (wcstolcheck != token && *wcstolcheck == '\0')
+                      {
+                        if (number > 0 && number <= groups[cursorgroup].filecount)
+                          groups[cursorgroup].files[number - 1].action = 1;
+                      }
+
+                      token = wcstok(NULL, L" ,", &wcsptr);
+                    }
+
+                    /* mark remaining files for deletion */
+                    preservecount = 0;
+
+                    for (x = 0; x < groups[cursorgroup].filecount; ++x)
+                    {
+                      if (groups[cursorgroup].files[x].action == 1)
+                        ++preservecount;
+                    }
+
+                    if (preservecount > 0)
+                    {
+                      for (x = 0; x < groups[cursorgroup].filecount; ++x)
+                      {
+                        if (groups[cursorgroup].files[x].action == 0)
+                          groups[cursorgroup].files[x].action = -1;
+                      }
+                    }
+                  }
+
+                  /* move to next group */
+                  if (cursorgroup < totalgroups - 1 && preservecount > 0)
+                    scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
                 }
               }
             }
@@ -1875,10 +2009,21 @@ void deletefiles_ncurses(file_t *files)
               docommandinput = 0;
 
               continue;
-
-              break;
           }
         }
+
+        /* draw command buffer to status window */
+        werase(statuswin);
+        wprintw(statuswin, "Set %d of %d, preserve files [1 - %d | all | help]: ", cursorgroup+1, totalgroups, groups[cursorgroup].filecount);
+        wattroff(statuswin, A_REVERSE);
+        wprintw(statuswin, " %ls", commandbuffer);
+        wattron(statuswin, A_REVERSE);
+        wnoutrefresh(statuswin);
+
+        doupdate();
+
+        /* get next character */
+        keyresult = wget_wch(statuswin, &wch);
       } while (docommandinput);
 
       /* redraw file list and wait for input */
@@ -1893,17 +2038,10 @@ void deletefiles_ncurses(file_t *files)
         break;
 
       if (cursorfile < groups[cursorgroup].filecount - 1)
-      {
-        ++cursorfile;
-      }
-      else
-      {
-        if (cursorgroup < totalgroups - 1)
-        {
-          ++cursorgroup;
-          cursorfile = 0;
-        }
-      }
+        scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+      else if (cursorgroup < totalgroups - 1)
+        scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
       break;
     
     case KEY_UP:
@@ -1911,26 +2049,31 @@ void deletefiles_ncurses(file_t *files)
         break;
 
       if (cursorfile > 0)
-      {
-        --cursorfile;
-      }
-      else
-      {
-        if (cursorgroup > 0)
-        {
-          --cursorgroup;
-          cursorfile = groups[cursorgroup].filecount - 1;
-        }
-      }
+        scroll_to_previous_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+      else if (cursorgroup > 0)
+        scroll_to_previous_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
       break;
 
-    case ']':
+    case KEY_SF:
       ++topline;
       break;
 
-    case '[':
+    case KEY_SR:
       if (topline > 0)
         --topline;
+      break;
+
+    case KEY_NPAGE:
+      topline += getmaxy(filewin);
+      break;
+
+    case KEY_PPAGE:
+      topline -= getmaxy(filewin);
+
+      if (topline < 0)
+        topline = 0;
+
       break;
 
     case KEY_RIGHT:
@@ -1940,37 +2083,9 @@ void deletefiles_ncurses(file_t *files)
       groups[cursorgroup].files[cursorfile].action = 1;
 
       if (cursorfile < groups[cursorgroup].filecount - 1)
-      {
-        ++cursorfile;
-      }
-      else
-      {
-        if (cursorgroup < totalgroups - 1)
-        {
-          ++cursorgroup;
-          cursorfile = 0;
-        }
-      }
-
-      break;
-
-    case 'a':
-    case 'A':
-      deletecount = 0;
-
-      for (x = 0; x < groups[cursorgroup].filecount; ++x)
-      {
-        if (groups[cursorgroup].files[x].action == 0)
-          groups[cursorgroup].files[x].action = 1;
-        else if (groups[cursorgroup].files[x].action == -1)
-          ++deletecount;
-      }
-
-      if (cursorgroup < totalgroups - 1 && deletecount < groups[cursorgroup].filecount)
-      {
-        ++cursorgroup;
-        cursorfile = 0;
-      }
+        scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+      else if (cursorgroup < totalgroups - 1)
+        scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
       break;
 
@@ -1989,24 +2104,38 @@ void deletefiles_ncurses(file_t *files)
       if (deletecount < groups[cursorgroup].filecount)
       {
         if (cursorfile < groups[cursorgroup].filecount - 1)
-        {
-          ++cursorfile;
-        }
-        else
-        {
-          if (cursorgroup < totalgroups - 1)
-          {
-            ++cursorgroup;
-            cursorfile = 0;
-          }
-        }
+          scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+        else if (cursorgroup < totalgroups - 1)
+          scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
       }
 
       break;
 
-    case 'd':
-    case 'D':
+    case '?':
+      if (groups[cursorgroup].files[cursorfile].action == 0)
+        break;
+
+      groups[cursorgroup].files[cursorfile].action = 0;
+
+      if (cursorfile < groups[cursorgroup].filecount - 1)
+        scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+      else if (cursorgroup < totalgroups - 1)
+        scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
+      break;
+
+    case '\n':
       deletecount = 0;
+      preservecount = 0;
+
+      for (x = 0; x < groups[cursorgroup].filecount; ++x)
+      {
+        if (groups[cursorgroup].files[x].action == 1)
+          ++preservecount;
+      }
+
+      if (preservecount == 0)
+        break;
 
       for (x = 0; x < groups[cursorgroup].filecount; ++x)
       {
@@ -2018,19 +2147,14 @@ void deletefiles_ncurses(file_t *files)
       }
 
       if (cursorgroup < totalgroups - 1 && deletecount < groups[cursorgroup].filecount)
-      {
-        ++cursorgroup;
-        cursorfile = 0;
-      }
+        scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
       break;
 
-    case '\n':
+    case '\t':
       if (cursorgroup < totalgroups - 1)
-      {
-        ++cursorgroup;
-        cursorfile = 0;
-      }
+        scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
       break;
 
     case KEY_BACKSPACE:
@@ -2040,14 +2164,12 @@ void deletefiles_ncurses(file_t *files)
       if (cursorgroup > 0)
       {
         --cursorgroup;
-        cursorfile = 0;
-      }
-      break;
 
-    case 'x':
-    case 'X':
-      for (x = 0; x < groups[cursorgroup].filecount; ++x)
-        groups[cursorgroup].files[x].action = 0;
+        cursorfile = 0;
+
+        if (groups[cursorgroup].startline < topline)
+          topline -= topline - groups[cursorgroup].startline;
+      }
       break;
 
     case KEY_DC:
@@ -2157,22 +2279,6 @@ void deletefiles_ncurses(file_t *files)
         groupfirstline = groups[g].endline + 1;
       }
 
-      break;
-
-    case KEY_IC:
-      if (keyresult != KEY_CODE_YES)
-        break;
-
-      switch (mode)
-      {
-        case MODE_ARROWSELECT:
-          mode = MODE_NUMBERSELECT;
-          break;
-
-        case MODE_NUMBERSELECT:
-          mode = MODE_ARROWSELECT;
-          break;
-      }
       break;
 
     case KEY_RESIZE:
