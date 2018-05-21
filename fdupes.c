@@ -1821,6 +1821,7 @@ void deletefiles_ncurses(file_t *files)
 
             /* exit command mode */
             wattron(statuswin, A_REVERSE);
+            commandbuffer[0] = '\0';
             docommandinput = 0;
 
             continue;
@@ -1869,6 +1870,8 @@ void deletefiles_ncurses(file_t *files)
 
               /* exit command mode */
               wattron(statuswin, A_REVERSE);
+
+              commandbuffer[0] = '\0';
               docommandinput = 0;
 
               continue;
