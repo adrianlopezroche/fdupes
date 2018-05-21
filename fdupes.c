@@ -1670,7 +1670,7 @@ void deletefiles_ncurses(file_t *files)
 
     totallines = groups[totalgroups-1].endline;
 
-    for (x = topline; x < topline + LINES - 1; ++x)
+    for (x = topline; x < topline + getmaxy(filewin); ++x)
     {
       if (x >= totallines)
       {
