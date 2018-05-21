@@ -1596,6 +1596,9 @@ void deletefiles_ncurses(file_t *files)
       reallocgroups = realloc(groups, sizeof(struct filegroup) * allocatedgroups);
       if (reallocgroups == 0)
       {
+        for (g = 0; g < totalgroups; ++g)
+          free(groups[g].files);
+
         free(groups);
 
         endwin();
@@ -1625,6 +1628,9 @@ void deletefiles_ncurses(file_t *files)
     groups[totalgroups].files = malloc(sizeof(struct groupfile) * groupfilecount);
     if (groups[totalgroups].files == 0)
     {
+      for (g = 0; g < totalgroups; ++g)
+        free(groups[g].files);
+
       free(groups);
 
       endwin();
@@ -1771,6 +1777,10 @@ void deletefiles_ncurses(file_t *files)
               if (realloccommandbuffer == 0)
               {
                 free(commandbuffer);
+
+                for (g = 0; g < totalgroups; ++g)
+                  free(groups[g].files);
+
                 free(groups);
 
                 endwin();
@@ -2184,8 +2194,8 @@ void deletefiles_ncurses(file_t *files)
 
   endwin();
 
-  for (x = 0; x < totalgroups; ++x)
-    free(groups[x].files);
+  for (g = 0; g < totalgroups; ++g)
+    free(groups[g].files);
 
   free(groups);
 }
