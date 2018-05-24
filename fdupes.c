@@ -1214,34 +1214,22 @@ int getgroupfileline(struct filegroup *group, int fileindex, int columns, int fi
   return l;
 }
 
-#define COMMAND_NAME_MAX 32
-
 /* get command and arguments from user input */
-int getcommand(wchar_t *command, int command_name_max, wchar_t **arguments, wchar_t *input)
+void get_command_arguments(wchar_t **arguments, wchar_t *input)
 {
-  int x;
+  size_t l;
+  size_t x;
 
-  for (x = 0; x < command_name_max; ++x)
-  {
-    if (input[x] == L' ' || input[x] == L'\0')
-    {
-      command[x] = L'\0';
+  l = wcslen(input);
+
+  for (x = 0; x < l; ++x)
+    if (input[x] == L' ')
       break;
-    }
-    else
-    {
-      command[x] = input[x];
-    }
-  }
 
   if (input[x] == L' ')
     *arguments = input + x + 1;
-  else if (input[x] == L'\0')
-    *arguments = input + x;
   else
-    return 0;
-
-  return 1;
+    *arguments = input + x;
 }
 
 /* select files containing string */
@@ -1491,38 +1479,241 @@ int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *comman
   return 1;
 }
 
+/* command IDs */
+#define COMMAND_RECOGNIZER_OUT_OF_MEMORY -2
+#define COMMAND_AMBIGUOUS -1
+#define COMMAND_UNDEFINED 0
+#define COMMAND_SELECT_CONTAINING 1
+#define COMMAND_SELECT_BEGINNING 2
+#define COMMAND_SELECT_ENDING 3
+#define COMMAND_SELECT_MATCHING 4
+#define COMMAND_CLEAR_SELECTIONS_CONTAINING 5
+#define COMMAND_CLEAR_SELECTIONS_BEGINNING 6
+#define COMMAND_CLEAR_SELECTIONS_ENDING 7
+#define COMMAND_CLEAR_SELECTIONS_MATCHING 8
+#define COMMAND_CLEAR_ALL_SELECTIONS 9
+#define COMMAND_INVERT_GROUP_SELECTIONS 10
+#define COMMAND_KEEP_SELECTED 11
+#define COMMAND_DELETE_SELECTED 12
+#define COMMAND_RESET_SELECTED 13
+#define COMMAND_RESET_GROUP 14
+#define COMMAND_PRESERVE_ALL 15
+#define COMMAND_EXIT 16
+#define COMMAND_HELP 17
+
+/* command name to command ID mappings */
 struct command_map {
   wchar_t *command_name;
-  int (*command)(struct filegroup *groups, int groupcount, wchar_t *commandarguments);
+  int command;
 } command_list[] = {
-  {L"s*", cmd_select_containing},
-  {L"s[", cmd_select_beginning},
-  {L"s]", cmd_select_ending},
-  {L"s[]", cmd_select_matching},
-  {L"cs*", cmd_clear_selections_containing},
-  {L"cs[", cmd_clear_selections_beginning},
-  {L"cs]", cmd_clear_selections_ending},
-  {L"cs[]", cmd_clear_selections_matching},
-  {L"ca", cmd_clear_all_selections},
-  {L"ig", cmd_invert_group_selections},
-  {L"+", cmd_keep_selected},
-  {L"-", cmd_delete_selected},
-  {L"x", cmd_reset_selected},
-  {0, 0}
+  {L"s*", COMMAND_SELECT_CONTAINING},
+  {L"s[", COMMAND_SELECT_BEGINNING},
+  {L"s]", COMMAND_SELECT_ENDING},
+  {L"s[]", COMMAND_SELECT_MATCHING},
+  {L"cs*", COMMAND_CLEAR_SELECTIONS_CONTAINING},
+  {L"cs[", COMMAND_CLEAR_SELECTIONS_BEGINNING},
+  {L"cs]", COMMAND_CLEAR_SELECTIONS_ENDING},
+  {L"cs[]", COMMAND_CLEAR_SELECTIONS_MATCHING},
+  {L"ca", COMMAND_CLEAR_ALL_SELECTIONS},
+  {L"ig", COMMAND_INVERT_GROUP_SELECTIONS},
+  {L"+", COMMAND_KEEP_SELECTED},
+  {L"-", COMMAND_DELETE_SELECTED},
+  {L"x", COMMAND_RESET_SELECTED},
+  {L"rg", COMMAND_RESET_GROUP},
+  {L"all", COMMAND_PRESERVE_ALL},
+  {L"exit", COMMAND_EXIT},
+  {L"quit", COMMAND_EXIT},
+  {0, COMMAND_UNDEFINED}
 };
 
-int dispatchcommand(wchar_t *commandname, wchar_t *commandarguments, struct filegroup *groups, int groupcount)
+/* command identifier node structure */
+struct command_identifier_node
 {
-  int c = 0;
+  int command;
+  wchar_t character;
+  struct command_identifier_node **children;
+  size_t num_children;
+};
 
-  while (command_list[c].command != 0)
+/* insert new node into command identifier tree */
+int insert_command_identifier_command(struct command_identifier_node *tree, struct command_map *command, size_t ch)
+{
+  struct command_identifier_node *child;
+  struct command_identifier_node **alloc_children;
+  int returned_command;
+  int c;
+
+  /* find node for current character in command name */
+  child = 0;
+  for (c = 0; c < tree->num_children; ++c)
   {
-    if (wcscmp(commandname, command_list[c].command_name) == 0)
-      return command_list[c].command(groups, groupcount, commandarguments);
+    if (tree->children[c]->character == command->command_name[ch])
+    {
+      child = tree->children[c];
+      break;
+    }
+  }
+
+  /* if sought node does not exist, create it */
+  if (child == 0)
+  {
+    child = (struct command_identifier_node*) malloc(sizeof(struct command_identifier_node));
+    if (child == 0)
+      return COMMAND_RECOGNIZER_OUT_OF_MEMORY;
+
+    child->command = COMMAND_UNDEFINED;
+    child->character = command->command_name[ch];
+    child->children = 0;
+    child->num_children = 0;
+
+    alloc_children = realloc(tree->children, sizeof(struct command_identifier_node*) * tree->num_children + 1);
+    if (alloc_children == 0)
+      return COMMAND_RECOGNIZER_OUT_OF_MEMORY;
+
+    tree->children = alloc_children;
+
+    tree->children[tree->num_children++] = child;
+  }
+
+  /* if last character in command name, make child a leaf node */
+  if (command->command_name[ch] == L'\0')
+  {
+    child->command = command->command;
+    return child->command;
+  }
+  else /* grow the tree */
+  {
+    returned_command = insert_command_identifier_command(child, command, ch + 1);
+
+    /* record whether the tree at this point leads to a single command (abbreviation) or many (ambiguous) */
+    if (tree->command == COMMAND_UNDEFINED)
+      tree->command = returned_command;
+    else
+      tree->command = COMMAND_AMBIGUOUS;
+  }
+
+  return tree->command;
+}
+
+/* compare two command identifier nodes by the characters they match */
+int compare_command_identifier_nodes(const void *a, const void *b)
+{
+  const struct command_identifier_node *aa;
+  const struct command_identifier_node *bb;
+
+  aa = *(struct command_identifier_node**)a;
+  bb = *(struct command_identifier_node**)b;
+
+  if (aa->character > bb->character)
+    return 1;
+  else if (aa->character < bb->character)
+    return -1;
+  else
+    return 0;
+}
+
+/* sort command identifier nodes in alphabetical order */
+void sort_command_identifier_nodes(struct command_identifier_node *root)
+{
+  int c;
+
+  if (root->num_children > 1)
+    qsort(root->children, root->num_children, sizeof(struct command_identifier_node *), compare_command_identifier_nodes);
+
+  for (c = 0; c < root->num_children; ++c)
+    sort_command_identifier_nodes(root->children[c]);
+}
+
+/* build tree to identify command names through state transitions */
+struct command_identifier_node *build_command_identifier_tree(struct command_map *commands)
+{
+  struct command_identifier_node *root;
+  int c;
+
+  root = (struct command_identifier_node*) malloc(sizeof(struct command_identifier_node));
+  if (root == 0)
+    return 0;
+
+  root->command = COMMAND_UNDEFINED;
+  root->character = L'\0';
+  root->children = 0;
+  root->num_children = 0;
+
+  c = 0;
+  while (commands[c].command_name != 0)
+  {
+    insert_command_identifier_command(root, commands + c, 0);
     ++c;
   }
 
+  sort_command_identifier_nodes(root);
+
+  return root;
+}
+
+/* free memory used by command identifier tree structure */
+void free_command_identifier_tree(struct command_identifier_node *tree)
+{
+  int c;
+
+  for (c = 0; c < tree->num_children; ++c)
+    free_command_identifier_tree(tree->children[c]);
+
+  free(tree);
+}
+
+/* find command identifier node matching given character */
+struct command_identifier_node *find_command_identifier_node(struct command_identifier_node *root, wchar_t character)
+{
+  long min;
+  long max;
+  long mid;
+
+  if (root->num_children == 0)
+    return 0;
+
+  min = 0;
+  max = root->num_children - 1;
+
+  do
+  {
+    mid = (min + max) / 2;
+
+    if (character > root->children[mid]->character)
+      min = mid + 1;
+    else if (character < root->children[mid]->character)
+      max = mid - 1;
+    else
+      return root->children[mid];
+  } while (min <= max);
+
   return 0;
+}
+
+/* determine ID for given command string (possibly abbreviated), if found */
+int identify_command(struct command_identifier_node *tree, wchar_t *command_buffer, size_t ch)
+{
+  struct command_identifier_node *found;
+
+  if (command_buffer[ch] != L' ')
+    found = find_command_identifier_node(tree, command_buffer[ch]);
+  else
+    found = find_command_identifier_node(tree, L'\0');
+
+  if (found)
+  {
+    if (command_buffer[ch] == L'\0' || command_buffer[ch] == L' ')
+      return found->command;
+    else
+      return identify_command(found, command_buffer, ch + 1);
+  }
+  else
+  {
+    if (command_buffer[ch] == L'\0' || command_buffer[ch] == L' ')
+      return tree->command;
+    else
+      return COMMAND_UNDEFINED;
+  }
 }
 
 #define FILENAME_INDENT 8
@@ -1615,8 +1806,8 @@ void deletefiles_ncurses(file_t *files)
   wchar_t *commandbuffer;
   wchar_t *realloccommandbuffer;
   size_t commandbuffersize;
-  wchar_t command[COMMAND_NAME_MAX];
   wchar_t *commandarguments;
+  struct command_identifier_node *commandidentifier;
   int docommandinput;
   int doprune;
   size_t length;
@@ -1650,6 +1841,14 @@ void deletefiles_ncurses(file_t *files)
   allocatedgroups = 1024;
   groups = malloc(sizeof(struct filegroup) * allocatedgroups);
   if (groups == 0)
+  {
+    endwin();
+    errormsg("out of memory\n");
+    exit(1);
+  }
+
+  commandidentifier = build_command_identifier_tree(command_list);
+  if (commandidentifier == 0)
   {
     endwin();
     errormsg("out of memory\n");
@@ -1881,76 +2080,120 @@ void deletefiles_ncurses(file_t *files)
           }
           else /* process command */
           {
-            if (getcommand(command, COMMAND_NAME_MAX, &commandarguments, commandbuffer))
+            get_command_arguments(&commandarguments, commandbuffer);
+
+            switch (identify_command(commandidentifier, commandbuffer, 0))
             {
-              if (!dispatchcommand(command, commandarguments, groups, totalgroups))
-              {
-                if (wcscmp(command, L"q") == 0 || wcscmp(command, L"quit") == 0 || wcscmp(command, L"exit") == 0)
+              case COMMAND_SELECT_CONTAINING:
+                cmd_select_containing(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_SELECT_BEGINNING:
+                cmd_select_beginning(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_SELECT_ENDING:
+                cmd_select_ending(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_SELECT_MATCHING:
+                cmd_select_matching(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_CLEAR_SELECTIONS_CONTAINING:
+                cmd_clear_selections_containing(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_CLEAR_SELECTIONS_BEGINNING:
+                cmd_clear_selections_beginning(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_CLEAR_SELECTIONS_ENDING:
+                cmd_clear_selections_ending(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_CLEAR_SELECTIONS_MATCHING:
+                cmd_clear_selections_matching(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_CLEAR_ALL_SELECTIONS:
+                cmd_clear_all_selections(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_INVERT_GROUP_SELECTIONS:
+                cmd_invert_group_selections(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_KEEP_SELECTED:
+                cmd_keep_selected(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_DELETE_SELECTED:
+                cmd_delete_selected(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_RESET_SELECTED:
+                cmd_reset_selected(groups, totalgroups, commandarguments);
+                break;
+
+              case COMMAND_RESET_GROUP:
+                for (x = 0; x < groups[cursorgroup].filecount; ++x)
+                  groups[cursorgroup].files[x].action = 0;
+
+                break;
+
+              case COMMAND_PRESERVE_ALL:
+                /* mark all files for preservation */
+                for (x = 0; x < groups[cursorgroup].filecount; ++x)
+                  groups[cursorgroup].files[x].action = 1;
+
+                if (cursorgroup < totalgroups - 1)
+                  scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
+                break;
+
+              case COMMAND_EXIT: /* exit program */
+                docommandinput = 0;
+                doprune = 0;
+                continue;
+
+              default: /* parse list of files to preserve and mark for preservation */
+                token = wcstok(commandbuffer, L" ,", &wcsptr);
+
+                while (token != NULL)
                 {
-                  /* exit program */
-                  docommandinput = 0;
-                  doprune = 0;
-                  continue;
+                  number = wcstol(token, &wcstolcheck, 10);
+                  if (wcstolcheck != token && *wcstolcheck == '\0')
+                  {
+                    if (number > 0 && number <= groups[cursorgroup].filecount)
+                      groups[cursorgroup].files[number - 1].action = 1;
+                  }
+
+                  token = wcstok(NULL, L" ,", &wcsptr);
                 }
-                else if (wcscmp(command, L"rg") == 0)
+
+                /* mark remaining files for deletion */
+                preservecount = 0;
+
+                for (x = 0; x < groups[cursorgroup].filecount; ++x)
+                {
+                  if (groups[cursorgroup].files[x].action == 1)
+                    ++preservecount;
+                }
+
+                if (preservecount > 0)
                 {
                   for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                    groups[cursorgroup].files[x].action = 0;
-                }
-                else
-                {
-                  if (wcscmp(command, L"all") == 0 || wcscmp(command, L"a") == 0)
                   {
-                    /* mark all files for preservation */
-                    preservecount = 0;
-
-                    for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                    {
-                      groups[cursorgroup].files[x].action = 1;
-                      ++preservecount;
-                    }
+                    if (groups[cursorgroup].files[x].action == 0)
+                      groups[cursorgroup].files[x].action = -1;
                   }
-                  else
-                  {
-                    /* parse list of files to preserve and mark for preservation */
-                    token = wcstok(commandbuffer, L" ,", &wcsptr);
-
-                    while (token != NULL)
-                    {
-                      number = wcstol(token, &wcstolcheck, 10);
-                      if (wcstolcheck != token && *wcstolcheck == '\0')
-                      {
-                        if (number > 0 && number <= groups[cursorgroup].filecount)
-                          groups[cursorgroup].files[number - 1].action = 1;
-                      }
-
-                      token = wcstok(NULL, L" ,", &wcsptr);
-                    }
-
-                    /* mark remaining files for deletion */
-                    preservecount = 0;
-
-                    for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                    {
-                      if (groups[cursorgroup].files[x].action == 1)
-                        ++preservecount;
-                    }
-
-                    if (preservecount > 0)
-                    {
-                      for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                      {
-                        if (groups[cursorgroup].files[x].action == 0)
-                          groups[cursorgroup].files[x].action = -1;
-                      }
-                    }
-                  }
-
-                  /* move to next group */
-                  if (cursorgroup < totalgroups - 1 && preservecount > 0)
-                    scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
                 }
-              }
+
+                if (cursorgroup < totalgroups - 1 && preservecount > 0)
+                  scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
+                break;
             }
 
             /* exit command mode */
@@ -2310,6 +2553,8 @@ void deletefiles_ncurses(file_t *files)
   } while (doprune);
 
   endwin();
+
+  free_command_identifier_tree(commandidentifier);
 
   for (g = 0; g < totalgroups; ++g)
     free(groups[g].files);
