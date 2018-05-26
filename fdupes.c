@@ -1084,6 +1084,140 @@ void putline(WINDOW *window, const char *str, const int line, const int columns,
   free(dest);
 }
 
+struct status_text
+{
+  wchar_t *left;
+  wchar_t *right;
+  size_t width;
+};
+
+struct status_text *status_text_alloc(struct status_text *status, size_t width)
+{
+  struct status_text *result;
+  wchar_t *newleft;
+  wchar_t *newright;
+
+  if (status == 0)
+  {
+    result = (struct status_text*) malloc(sizeof(struct status_text));
+    if (result == 0)
+      return 0;
+
+    result->left = (wchar_t*) malloc((width+1) * sizeof(wchar_t));
+    if (result->left == 0)
+    {
+      free(result);
+      return 0;
+    }
+
+    result->right = (wchar_t*) malloc((width+1) * sizeof(wchar_t));
+    if (result->right == 0)
+    {
+      free(result->left);
+      free(result);
+      return 0;
+    }
+
+    result->left[0] = '\0';
+    result->right[0] = '\0';
+
+    result->width = width;
+  }
+  else
+  {
+    if (status->width >= width)
+      return status;
+
+    newleft = (wchar_t*) realloc(status->left, (width+1) * sizeof(wchar_t));
+    if (newleft == 0)
+      return 0;
+
+    newright = (wchar_t*) realloc(status->right, (width+1) * sizeof(wchar_t));
+    if (newright == 0)
+    {
+      free(newleft);
+      return 0;
+    }
+
+    result = status;
+    result->left = newleft;
+    result->right = newright;
+    result->width = width;
+  }
+
+  return result;
+}
+
+void format_status_left(struct status_text *status, wchar_t *format, ...)
+{
+  va_list ap;
+
+  va_start(ap, format);
+  vswprintf(status->left, status->width + 1, format, ap);
+  va_end(ap);
+}
+
+void format_status_right(struct status_text *status, wchar_t *format, ...)
+{
+  va_list ap;
+
+  va_start(ap, format);
+  vswprintf(status->right, status->width + 1, format, ap);
+  va_end(ap);
+}
+
+void print_status(WINDOW *statuswin, struct status_text *status)
+{
+  wchar_t *text;
+  size_t cols;
+  size_t x;
+  size_t l;
+
+  cols = getmaxx(statuswin);
+
+  text = (wchar_t*)malloc((cols + 1) * sizeof(wchar_t));
+
+  l = wcslen(status->left);
+  for (x = 0; x < l && x < cols; ++x)
+    text[x] = status->left[x];
+  for (x = l; x < cols; ++x)
+    text[x] = L' ';
+
+  l = wcslen(status->right);
+  for (x = cols; x >= 1 && l >= 1; --x, --l)
+    text[x - 1] = status->right[l - 1];
+
+  text[cols] = L'\0';
+
+  wattron(statuswin, A_REVERSE);
+  mvwaddnwstr(statuswin, 1, 0, text, wcslen(text));
+
+  free(text);
+}
+
+void print_prompt(WINDOW *statuswin, wchar_t *prompt, ...)
+{
+  wchar_t *text;
+  va_list ap;
+  size_t cols;
+
+  cols = getmaxx(statuswin);
+
+  text = (wchar_t*)malloc((cols + 1) * sizeof(wchar_t));
+
+  va_start(ap, prompt);
+  vswprintf(text, cols, prompt, ap);
+  va_end(ap);
+
+  wattroff(statuswin, A_REVERSE);
+  wmove(statuswin, 0, 0);
+  wclrtoeol(statuswin);
+
+  mvwaddnwstr(statuswin, 0, 0, text, wcslen(text));
+
+  free(text);
+}
+
 struct groupfile
 {
   file_t *file;
@@ -1233,181 +1367,299 @@ void get_command_arguments(wchar_t **arguments, wchar_t *input)
 }
 
 /* select files containing string */
-int cmd_select_containing(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_select_containing(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int selectedgroupcount = 0;
+  int selectedfilecount = 0;
+  int groupselected;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
+      groupselected = 0;
+
       for (f = 0; f < groups[g].filecount; ++f)
       {
         if (wcsinmbcs(groups[g].files[f].file->d_name, commandarguments))
         {
           groups[g].selected = 1;
           groups[g].files[f].selected = 1;
+
+          groupselected = 1;
+          ++selectedfilecount;
         }
       }
+
+      if (groupselected)
+        ++selectedgroupcount;
     }
   }
+
+  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
 
   return 1;
 }
 
 /* select files beginning with string */
-int cmd_select_beginning(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_select_beginning(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int selectedgroupcount = 0;
+  int selectedfilecount = 0;
+  int groupselected;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
+      groupselected = 0;
+
       for (f = 0; f < groups[g].filecount; ++f)
       {
         if (wcsbeginmbcs(groups[g].files[f].file->d_name, commandarguments))
         {
           groups[g].selected = 1;
           groups[g].files[f].selected = 1;
+
+          groupselected = 1;
+          ++selectedfilecount;
         }
       }
+
+      if (groupselected)
+        ++selectedgroupcount;
     }
   }
+
+  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
 
   return 1;
 }
 
 /* select files ending with string */
-int cmd_select_ending(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_select_ending(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int selectedgroupcount = 0;
+  int selectedfilecount = 0;
+  int groupselected;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
+      groupselected = 0;
+
       for (f = 0; f < groups[g].filecount; ++f)
       {
         if (wcsendsmbcs(groups[g].files[f].file->d_name, commandarguments))
         {
           groups[g].selected = 1;
           groups[g].files[f].selected = 1;
+
+          groupselected = 1;
+          ++selectedfilecount;
         }
       }
+
+      if (groupselected)
+        ++selectedgroupcount;
     }
   }
+
+  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
 
   return 1;
 }
 
 /* select files matching string */
-int cmd_select_matching(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_select_matching(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int selectedgroupcount = 0;
+  int selectedfilecount = 0;
+  int groupselected;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
+      groupselected = 0;
+
       for (f = 0; f < groups[g].filecount; ++f)
       {
         if (wcsmbcscmp(commandarguments, groups[g].files[f].file->d_name) == 0)
         {
           groups[f].selected = 1;
           groups[g].files[f].selected = 1;
+
+          groupselected = 1;
+          ++selectedfilecount;
         }
       }
+
+      if (groupselected)
+        ++selectedgroupcount;
     }
   }
+
+  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
 
   return 1;
 }
 
 /* clear selections containing string */
-int cmd_clear_selections_containing(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_clear_selections_containing(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int selectedgroupcount = 0;
+  int selectedfilecount = 0;
+  int groupselected;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
+      groupselected = 0;
+
       for (f = 0; f < groups[g].filecount; ++f)
+      {
         if (wcsinmbcs(groups[g].files[f].file->d_name, commandarguments))
+        {
           groups[g].files[f].selected = 0;
+
+          groupselected = 1;
+          ++selectedfilecount;
+        }
+      }
+
+      if (groupselected)
+        ++selectedgroupcount;
     }
   }
+
+  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
 
   return 1;
 }
 
 /* clear selections beginning with string */
-int cmd_clear_selections_beginning(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_clear_selections_beginning(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int selectedgroupcount = 0;
+  int selectedfilecount = 0;
+  int groupselected;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
+      groupselected = 0;
+
       for (f = 0; f < groups[g].filecount; ++f)
+      {
         if (wcsbeginmbcs(groups[g].files[f].file->d_name, commandarguments))
+        {
           groups[g].files[f].selected = 0;
+
+          groupselected = 1;
+          ++selectedfilecount;
+        }
+      }
+
+      if (groupselected)
+        ++selectedgroupcount;
     }
   }
+
+  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
 
   return 1;
 }
 
 /* clear selections ending with string */
-int cmd_clear_selections_ending(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_clear_selections_ending(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int selectedgroupcount = 0;
+  int selectedfilecount = 0;
+  int groupselected;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
+      groupselected = 0;
+
       for (f = 0; f < groups[g].filecount; ++f)
       {
         if (wcsendsmbcs(groups[g].files[f].file->d_name, commandarguments))
+        {
           groups[g].files[f].selected = 0;
+
+          groupselected = 1;
+          ++selectedfilecount;
+        }
       }
+
+      if (groupselected)
+        ++selectedgroupcount;
     }
   }
+
+  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
 
   return 1;
 }
 
 /* clear selections matching string */
-int cmd_clear_selections_matching(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_clear_selections_matching(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int selectedgroupcount = 0;
+  int selectedfilecount = 0;
+  int groupselected;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
+      groupselected = 0;
+
       for (f = 0; f < groups[g].filecount; ++f)
+      {
         if (wcsmbcscmp(commandarguments, groups[g].files[f].file->d_name) == 0)
+        {
           groups[g].files[f].selected = 0;
+
+          groupselected = 1;
+          ++selectedfilecount;
+        }
+      }
+
+      if (groupselected)
+        ++selectedgroupcount;
     }
   }
+
+  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
 
   return 1;
 }
 
 /* clear all selections and selected groups */
-int cmd_clear_all_selections(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_clear_all_selections(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
@@ -1420,63 +1672,161 @@ int cmd_clear_all_selections(struct filegroup *groups, int groupcount, wchar_t *
     groups[g].selected = 0;
   }
 
+  format_status_left(status, L"Cleared all selections.");
+
   return 1;
 }
 
 /* invert selections within selected groups */
-int cmd_invert_group_selections(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_invert_group_selections(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int selectedcount = 0;
+  int deselectedcount = 0;
 
   for (g = 0; g < groupcount; ++g)
+  {
     if (groups[g].selected)
+    {
       for (f = 0; f < groups[g].filecount; ++f)
+      {
         groups[g].files[f].selected = !groups[g].files[f].selected;
+
+        if (groups[g].files[f].selected)
+          ++selectedcount;
+        else
+          ++deselectedcount;
+      }
+    }
+  }
+
+  format_status_left(status, L"Selected %d files. Deselected %d files.", selectedcount, deselectedcount);
 
   return 1;
 }
 
 /* mark selected files for preservation */
-int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int keepfilecount = 0;
 
   for (g = 0; g < groupcount; ++g)
+  {
     for (f = 0; f < groups[g].filecount; ++f)
+    {
       if (groups[g].files[f].selected)
+      {
         groups[g].files[f].action = 1;
+        ++keepfilecount;
+      }
+    }
+  }
+
+  format_status_left(status, L"Marked %d files for preservation.", keepfilecount);
 
   return 1;
 }
 
 /* mark selected files for deletion */
-int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int deletefilecount = 0;
 
   for (g = 0; g < groupcount; ++g)
+  {
     for (f = 0; f < groups[g].filecount; ++f)
+    {
       if (groups[g].files[f].selected)
+      {
         groups[g].files[f].action = -1;
+        ++deletefilecount;
+      }
+    }
+  }
+
+  format_status_left(status, L"Marked %d files for deletion.", deletefilecount);
 
   return 1;
 }
 
 /* mark selected files as unresolved */
-int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments)
+int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   int g;
   int f;
+  int resetfilecount = 0;
 
   for (g = 0; g < groupcount; ++g)
+  {
     for (f = 0; f < groups[g].filecount; ++f)
+    {
       if (groups[g].files[f].selected)
+      {
         groups[g].files[f].action = 0;
+        ++resetfilecount;
+      }
+    }
+  }
+
+  format_status_left(status, L"Unmarked %d files.", resetfilecount);
 
   return 1;
+}
+
+#define FILE_LIST_OK 1
+#define FILE_LIST_ERROR_INDEX_OUT_OF_RANGE -1
+#define FILE_LIST_ERROR_LIST_CONTAINS_INVALID_INDEX -2
+#define FILE_LIST_ERROR_UNKNOWN_COMMAND -3
+#define FILE_LIST_ERROR_OUT_OF_MEMORY -4
+
+int validate_file_list(struct filegroup *currentgroup, wchar_t *commandbuffer_in)
+{
+  wchar_t *commandbuffer;
+  wchar_t *token;
+  wchar_t *wcsptr;
+  wchar_t *wcstolcheck;
+  long int number;
+  int parts = 0;
+  int parse_error = 0;
+  int out_of_bounds_error = 0;
+
+  commandbuffer = malloc(sizeof(wchar_t) * (wcslen(commandbuffer_in)+1));
+  if (commandbuffer == 0)
+    return FILE_LIST_ERROR_OUT_OF_MEMORY;
+
+  wcscpy(commandbuffer, commandbuffer_in);
+
+  token = wcstok(commandbuffer, L",", &wcsptr);
+
+  while (token != NULL)
+  {
+    ++parts;
+
+    number = wcstol(token, &wcstolcheck, 10);
+    if (wcstolcheck == token || *wcstolcheck != '\0')
+      parse_error = 1;
+
+    if (number > currentgroup->filecount || number < 1)
+      out_of_bounds_error = 1;
+
+    token = wcstok(NULL, L",", &wcsptr);
+  }
+
+  free(commandbuffer);
+
+  if (parts == 1 && parse_error)
+    return FILE_LIST_ERROR_UNKNOWN_COMMAND;
+  else if (parse_error)
+    return FILE_LIST_ERROR_LIST_CONTAINS_INVALID_INDEX;
+  else if (out_of_bounds_error)
+    return FILE_LIST_ERROR_INDEX_OUT_OF_RANGE;
+
+  return FILE_LIST_OK;
 }
 
 /* command IDs */
@@ -1795,6 +2145,8 @@ void deletefiles_ncurses(file_t *files)
   int preservecount;
   int deletecount;
   int unresolvedcount;
+  int totaldeleted;
+  double deletedbytes;
   int row;
   int x;
   int g;
@@ -1815,13 +2167,16 @@ void deletefiles_ncurses(file_t *files)
   wchar_t *wcsptr;
   wchar_t *wcstolcheck;
   long int number;
+  struct status_text *status;
+  int dupesfound;
+  int intresult;
 
   initscr();
   noecho();
   cbreak();
 
-  filewin = newwin(LINES - 1, COLS, 0, 0);	
-  statuswin = newwin(1, COLS, LINES - 1, 0);
+  filewin = newwin(LINES - 2, COLS, 0, 0);
+  statuswin = newwin(2, COLS, LINES - 2, 0);
 
   scrollok(filewin, FALSE);
 
@@ -1935,6 +2290,12 @@ void deletefiles_ncurses(file_t *files)
     curfile = curfile->next;
   }
 
+  if (totalgroups > 0)
+    dupesfound = 1;
+
+  status = status_text_alloc(0, COLS);
+  format_status_left(status, L"Ready");
+
   doprune = 1;
   do
   {
@@ -2023,10 +2384,23 @@ void deletefiles_ncurses(file_t *files)
 
     wnoutrefresh(filewin);
 
-    werase(statuswin);
-    wprintw(statuswin, "Set %d of %d, preserve files [1 - %d | all | help]:", cursorgroup+1, totalgroups, groups[cursorgroup].filecount);
-    wnoutrefresh(statuswin);
+    if (totalgroups > 0)
+      format_status_right(status, L"Set %d of %d", cursorgroup+1, totalgroups);
+    else
+      format_status_right(status, L"Finished");
 
+    print_status(statuswin, status);
+
+    if (totalgroups > 0)
+      print_prompt(statuswin, L"[ Preserve files (1 - %d, all, help) ]:", groups[cursorgroup].filecount);
+    else if (dupesfound)
+      print_prompt(statuswin, L"[ No duplicates remaining (type 'exit' to exit program) ]:", groups[cursorgroup].filecount);
+    else
+      print_prompt(statuswin, L"[ No duplicates found (type 'exit' to exit program) ]:", groups[cursorgroup].filecount);
+
+    wprintw(statuswin, " ");
+
+    wnoutrefresh(statuswin);
     doupdate();
 
     /* wait for user input */
@@ -2085,60 +2459,62 @@ void deletefiles_ncurses(file_t *files)
             switch (identify_command(commandidentifier, commandbuffer, 0))
             {
               case COMMAND_SELECT_CONTAINING:
-                cmd_select_containing(groups, totalgroups, commandarguments);
+                cmd_select_containing(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_SELECT_BEGINNING:
-                cmd_select_beginning(groups, totalgroups, commandarguments);
+                cmd_select_beginning(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_SELECT_ENDING:
-                cmd_select_ending(groups, totalgroups, commandarguments);
+                cmd_select_ending(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_SELECT_MATCHING:
-                cmd_select_matching(groups, totalgroups, commandarguments);
+                cmd_select_matching(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_CLEAR_SELECTIONS_CONTAINING:
-                cmd_clear_selections_containing(groups, totalgroups, commandarguments);
+                cmd_clear_selections_containing(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_CLEAR_SELECTIONS_BEGINNING:
-                cmd_clear_selections_beginning(groups, totalgroups, commandarguments);
+                cmd_clear_selections_beginning(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_CLEAR_SELECTIONS_ENDING:
-                cmd_clear_selections_ending(groups, totalgroups, commandarguments);
+                cmd_clear_selections_ending(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_CLEAR_SELECTIONS_MATCHING:
-                cmd_clear_selections_matching(groups, totalgroups, commandarguments);
+                cmd_clear_selections_matching(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_CLEAR_ALL_SELECTIONS:
-                cmd_clear_all_selections(groups, totalgroups, commandarguments);
+                cmd_clear_all_selections(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_INVERT_GROUP_SELECTIONS:
-                cmd_invert_group_selections(groups, totalgroups, commandarguments);
+                cmd_invert_group_selections(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_KEEP_SELECTED:
-                cmd_keep_selected(groups, totalgroups, commandarguments);
+                cmd_keep_selected(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_DELETE_SELECTED:
-                cmd_delete_selected(groups, totalgroups, commandarguments);
+                cmd_delete_selected(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_RESET_SELECTED:
-                cmd_reset_selected(groups, totalgroups, commandarguments);
+                cmd_reset_selected(groups, totalgroups, commandarguments, status);
                 break;
 
               case COMMAND_RESET_GROUP:
                 for (x = 0; x < groups[cursorgroup].filecount; ++x)
                   groups[cursorgroup].files[x].action = 0;
+
+                format_status_left(status, L"Reset all files in current group.");
 
                 break;
 
@@ -2146,6 +2522,8 @@ void deletefiles_ncurses(file_t *files)
                 /* mark all files for preservation */
                 for (x = 0; x < groups[cursorgroup].filecount; ++x)
                   groups[cursorgroup].files[x].action = 1;
+
+                format_status_left(status, L"%d files marked for preservation", groups[cursorgroup].filecount);
 
                 if (cursorgroup < totalgroups - 1)
                   scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
@@ -2158,7 +2536,47 @@ void deletefiles_ncurses(file_t *files)
                 continue;
 
               default: /* parse list of files to preserve and mark for preservation */
-                token = wcstok(commandbuffer, L" ,", &wcsptr);
+                intresult = validate_file_list(groups + cursorgroup, commandbuffer);
+                if (intresult != FILE_LIST_OK)
+                {
+                  if (intresult == FILE_LIST_ERROR_UNKNOWN_COMMAND)
+                  {
+                    format_status_left(status, L"Unrecognized command");
+                    break;
+                  }
+                  else if (intresult == FILE_LIST_ERROR_INDEX_OUT_OF_RANGE)
+                  {
+                    format_status_left(status, L"Index out of range (1 - %d).", groups[cursorgroup].filecount);
+                    break;
+                  }
+                  else if (intresult == FILE_LIST_ERROR_LIST_CONTAINS_INVALID_INDEX)
+                  {
+                    format_status_left(status, L"Invalid index");
+                    break;
+                  }
+                  else if (intresult == FILE_LIST_ERROR_OUT_OF_MEMORY)
+                  {
+                    free(commandbuffer);
+
+                    free_command_identifier_tree(commandidentifier);
+
+                    for (g = 0; g < totalgroups; ++g)
+                      free(groups[g].files);
+
+                    free(groups);
+
+                    endwin();
+                    errormsg("out of memory\n");
+                    exit(1);
+                  }
+                  else
+                  {
+                    format_status_left(status, L"Could not interpret command");
+                    break;
+                  }
+                }
+
+                token = wcstok(commandbuffer, L",", &wcsptr);
 
                 while (token != NULL)
                 {
@@ -2169,16 +2587,19 @@ void deletefiles_ncurses(file_t *files)
                       groups[cursorgroup].files[number - 1].action = 1;
                   }
 
-                  token = wcstok(NULL, L" ,", &wcsptr);
+                  token = wcstok(NULL, L",", &wcsptr);
                 }
 
                 /* mark remaining files for deletion */
                 preservecount = 0;
+                deletecount = 0;
 
                 for (x = 0; x < groups[cursorgroup].filecount; ++x)
                 {
                   if (groups[cursorgroup].files[x].action == 1)
                     ++preservecount;
+                  if (groups[cursorgroup].files[x].action == -1)
+                    ++deletecount;
                 }
 
                 if (preservecount > 0)
@@ -2186,9 +2607,14 @@ void deletefiles_ncurses(file_t *files)
                   for (x = 0; x < groups[cursorgroup].filecount; ++x)
                   {
                     if (groups[cursorgroup].files[x].action == 0)
+                    {
                       groups[cursorgroup].files[x].action = -1;
+                      ++deletecount;
+                    }
                   }
                 }
+
+                format_status_left(status, L"%d files marked for preservation, %d for deletion", preservecount, deletecount);
 
                 if (cursorgroup < totalgroups - 1 && preservecount > 0)
                   scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
@@ -2226,10 +2652,12 @@ void deletefiles_ncurses(file_t *files)
 
           case KEY_RESIZE:
               /* resize windows */
-              wresize(filewin, LINES - 1, COLS);
+              wresize(filewin, LINES - 2, COLS);
 
-              wresize(statuswin, 1, COLS);
-              mvwin(statuswin, LINES - 1, 0);
+              wresize(statuswin, 2, COLS);
+              mvwin(statuswin, LINES - 2, 0);
+
+              status_text_alloc(status, COLS);
 
               /* recalculate line boundaries */
               groupfirstline = 0;
@@ -2255,14 +2683,18 @@ void deletefiles_ncurses(file_t *files)
           }
         }
 
-        /* draw command buffer to status window */
-        werase(statuswin);
-        wprintw(statuswin, "Set %d of %d, preserve files [1 - %d | all | help]: ", cursorgroup+1, totalgroups, groups[cursorgroup].filecount);
-        wattroff(statuswin, A_REVERSE);
-        wprintw(statuswin, " %ls", commandbuffer);
-        wattron(statuswin, A_REVERSE);
-        wnoutrefresh(statuswin);
+        print_status(statuswin, status);
 
+        if (totalgroups > 0)
+          print_prompt(statuswin, L"[ Preserve files (1 - %d, all, help) ]:", groups[cursorgroup].filecount);
+        else if (dupesfound)
+          print_prompt(statuswin, L"[ No duplicates remaining (type 'exit' to exit program) ]:", groups[cursorgroup].filecount);
+        else
+          print_prompt(statuswin, L"[ No duplicates found (type 'exit' to exit program) ]:", groups[cursorgroup].filecount);
+
+        wprintw(statuswin, " %ls", commandbuffer);
+
+        wnoutrefresh(statuswin);
         doupdate();
 
         /* get next character */
@@ -2325,6 +2757,8 @@ void deletefiles_ncurses(file_t *files)
 
       groups[cursorgroup].files[cursorfile].action = 1;
 
+      format_status_left(status, L"1 file marked for preservation.");
+
       if (cursorfile < groups[cursorgroup].filecount - 1)
         scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
       else if (cursorgroup < totalgroups - 1)
@@ -2339,6 +2773,8 @@ void deletefiles_ncurses(file_t *files)
       deletecount = 0;
 
       groups[cursorgroup].files[cursorfile].action = -1;
+
+      format_status_left(status, L"1 file marked for deletion.");
 
       for (x = 0; x < groups[cursorgroup].filecount; ++x)
         if (groups[cursorgroup].files[x].action == -1)
@@ -2419,6 +2855,9 @@ void deletefiles_ncurses(file_t *files)
       if (keyresult != KEY_CODE_YES)
         break;
 
+      totaldeleted = 0;
+      deletedbytes = 0;
+
       for (g = 0; g < totalgroups; ++g)
       {
         preservecount = 0;
@@ -2449,7 +2888,12 @@ void deletefiles_ncurses(file_t *files)
             if (groups[g].files[f].action == -1)
             {
               if (remove(groups[g].files[f].file->d_name) == 0)
+              {
                 groups[g].files[f].action = -2;
+
+                deletedbytes += groups[g].files[f].file->size;
+                ++totaldeleted;
+              }
             }
           }
 
@@ -2485,6 +2929,15 @@ void deletefiles_ncurses(file_t *files)
         if (cursorgroup == g && cursorfile > 0 && cursorfile >= groups[g].filecount)
           cursorfile = groups[g].filecount - 1;
       }
+
+      if (deletedbytes < 1000.0)
+        format_status_left(status, L"Deleted %ld files (occupying %.0f bytes).", totaldeleted, deletedbytes);
+      else if (deletedbytes <= (1000.0 * 1000.0))
+        format_status_left(status, L"Deleted %ld files (occupying %.1f KB).", totaldeleted, deletedbytes / 1000.0);
+      else if (deletedbytes <= (1000.0 * 1000.0 * 1000.0))
+        format_status_left(status, L"Deleted %ld files (occupying %.1f MB).", totaldeleted, deletedbytes / (1000.0 * 1000.0));
+      else
+        format_status_left(status, L"Deleted %ld files (occupying %.1f GB).", totaldeleted, deletedbytes / (1000.0 * 1000.0 * 1000.0));
 
       /* delist empty groups */
       to = 0;
@@ -2529,10 +2982,12 @@ void deletefiles_ncurses(file_t *files)
         break;
 
       /* resize windows */
-      wresize(filewin, LINES - 1, COLS);
+      wresize(filewin, LINES - 2, COLS);
 
-      wresize(statuswin, 1, COLS);
-      mvwin(statuswin, LINES - 1, 0);
+      wresize(statuswin, 2, COLS);
+      mvwin(statuswin, LINES - 2, 0);
+
+      status_text_alloc(status, COLS);
 
       /* recalculate line boundaries */
       groupfirstline = 0;
@@ -2553,6 +3008,8 @@ void deletefiles_ncurses(file_t *files)
   } while (doprune);
 
   endwin();
+
+  free(commandbuffer);
 
   free_command_identifier_tree(commandidentifier);
 
