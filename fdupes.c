@@ -2406,6 +2406,7 @@ void deletefiles_ncurses(file_t *files)
     /* wait for user input */
     keyresult = wget_wch(statuswin, &wch);
 
+    /* handle keypress */
     if (keyresult == OK && ((wch != '\t' && wch != '\n' && wch != '.' && wch != '?') || commandbuffer[0] != 0)) /* enter command input mode */
     {
       commandbuffer[0] = L'\0';
@@ -2704,306 +2705,291 @@ void deletefiles_ncurses(file_t *files)
       /* redraw file list and wait for input */
       continue;
     }
-
-    /* handle keypress */
-    switch (wch)
+    else if (keyresult == KEY_CODE_YES)
     {
-    case KEY_DOWN:
-      if (keyresult != KEY_CODE_YES)
-        break;
-
-      if (cursorfile < groups[cursorgroup].filecount - 1)
-        scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
-      else if (cursorgroup < totalgroups - 1)
-        scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
-
-      break;
-    
-    case KEY_UP:
-      if (keyresult != KEY_CODE_YES)
-        break;
-
-      if (cursorfile > 0)
-        scroll_to_previous_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
-      else if (cursorgroup > 0)
-        scroll_to_previous_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
-
-      break;
-
-    case KEY_SF:
-      ++topline;
-      break;
-
-    case KEY_SR:
-      if (topline > 0)
-        --topline;
-      break;
-
-    case KEY_NPAGE:
-      topline += getmaxy(filewin);
-      break;
-
-    case KEY_PPAGE:
-      topline -= getmaxy(filewin);
-
-      if (topline < 0)
-        topline = 0;
-
-      break;
-
-    case KEY_RIGHT:
-      if (keyresult != KEY_CODE_YES)
-        break;
-
-      groups[cursorgroup].files[cursorfile].action = 1;
-
-      format_status_left(status, L"1 file marked for preservation.");
-
-      if (cursorfile < groups[cursorgroup].filecount - 1)
-        scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
-      else if (cursorgroup < totalgroups - 1)
-        scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
-
-      break;
-
-    case KEY_LEFT:
-      if (keyresult != KEY_CODE_YES)
-        break;
-
-      deletecount = 0;
-
-      groups[cursorgroup].files[cursorfile].action = -1;
-
-      format_status_left(status, L"1 file marked for deletion.");
-
-      for (x = 0; x < groups[cursorgroup].filecount; ++x)
-        if (groups[cursorgroup].files[x].action == -1)
-          ++deletecount;
- 
-      if (deletecount < groups[cursorgroup].filecount)
+      switch (wch)
       {
+      case KEY_DOWN:
         if (cursorfile < groups[cursorgroup].filecount - 1)
           scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
         else if (cursorgroup < totalgroups - 1)
           scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
-      }
 
-      break;
-
-    case '?':
-      if (groups[cursorgroup].files[cursorfile].action == 0)
         break;
 
-      groups[cursorgroup].files[cursorfile].action = 0;
+      case KEY_UP:
+        if (cursorfile > 0)
+          scroll_to_previous_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+        else if (cursorgroup > 0)
+          scroll_to_previous_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
-      if (cursorfile < groups[cursorgroup].filecount - 1)
-        scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
-      else if (cursorgroup < totalgroups - 1)
-        scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
-
-      break;
-
-    case '\n':
-      deletecount = 0;
-      preservecount = 0;
-
-      for (x = 0; x < groups[cursorgroup].filecount; ++x)
-      {
-        if (groups[cursorgroup].files[x].action == 1)
-          ++preservecount;
-      }
-
-      if (preservecount == 0)
         break;
 
-      for (x = 0; x < groups[cursorgroup].filecount; ++x)
-      {
-        if (groups[cursorgroup].files[x].action == 0)
-          groups[cursorgroup].files[x].action = -1;
-
-        if (groups[cursorgroup].files[x].action == -1)
-          ++deletecount;
-      }
-
-      if (cursorgroup < totalgroups - 1 && deletecount < groups[cursorgroup].filecount)
-        scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
-
-      break;
-
-    case '\t':
-      if (cursorgroup < totalgroups - 1)
-        scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
-
-      break;
-
-    case KEY_BACKSPACE:
-      if (keyresult != KEY_CODE_YES)
+      case KEY_SF:
+        ++topline;
         break;
 
-      if (cursorgroup > 0)
-      {
-        --cursorgroup;
-
-        cursorfile = 0;
-
-        if (groups[cursorgroup].startline < topline)
-          topline -= topline - groups[cursorgroup].startline;
-      }
-      break;
-
-    case KEY_DC:
-      if (keyresult != KEY_CODE_YES)
+      case KEY_SR:
+        if (topline > 0)
+          --topline;
         break;
 
-      totaldeleted = 0;
-      deletedbytes = 0;
+      case KEY_NPAGE:
+        topline += getmaxy(filewin);
+        break;
 
-      for (g = 0; g < totalgroups; ++g)
-      {
-        preservecount = 0;
+      case KEY_PPAGE:
+        topline -= getmaxy(filewin);
+
+        if (topline < 0)
+          topline = 0;
+
+        break;
+
+      case KEY_RIGHT:
+        groups[cursorgroup].files[cursorfile].action = 1;
+
+        format_status_left(status, L"1 file marked for preservation.");
+
+        if (cursorfile < groups[cursorgroup].filecount - 1)
+          scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+        else if (cursorgroup < totalgroups - 1)
+          scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
+        break;
+
+      case KEY_LEFT:
         deletecount = 0;
-        unresolvedcount = 0;
 
-        for (f = 0; f < groups[g].filecount; ++f)
+        groups[cursorgroup].files[cursorfile].action = -1;
+
+        format_status_left(status, L"1 file marked for deletion.");
+
+        for (x = 0; x < groups[cursorgroup].filecount; ++x)
+          if (groups[cursorgroup].files[x].action == -1)
+            ++deletecount;
+
+        if (deletecount < groups[cursorgroup].filecount)
         {
-          switch (groups[g].files[f].action)
-          {
-            case -1:
-              ++deletecount;
-              break;
-            case 0:
-              ++unresolvedcount;
-              break;
-            case 1:
-              ++preservecount;
-              break;
-          }
+          if (cursorfile < groups[cursorgroup].filecount - 1)
+            scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          else if (cursorgroup < totalgroups - 1)
+            scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
         }
 
-        /* delete files marked for deletion unless no files left undeleted */
-        if (deletecount < groups[g].filecount)
+        break;
+
+      case KEY_BACKSPACE:
+        if (cursorgroup > 0)
         {
+          --cursorgroup;
+
+          cursorfile = 0;
+
+          if (groups[cursorgroup].startline < topline)
+            topline -= topline - groups[cursorgroup].startline;
+        }
+        break;
+
+      case KEY_DC:
+        totaldeleted = 0;
+        deletedbytes = 0;
+
+        for (g = 0; g < totalgroups; ++g)
+        {
+          preservecount = 0;
+          deletecount = 0;
+          unresolvedcount = 0;
+
           for (f = 0; f < groups[g].filecount; ++f)
           {
-            if (groups[g].files[f].action == -1)
+            switch (groups[g].files[f].action)
             {
-              if (remove(groups[g].files[f].file->d_name) == 0)
-              {
-                groups[g].files[f].action = -2;
-
-                deletedbytes += groups[g].files[f].file->size;
-                ++totaldeleted;
-              }
+              case -1:
+                ++deletecount;
+                break;
+              case 0:
+                ++unresolvedcount;
+                break;
+              case 1:
+                ++preservecount;
+                break;
             }
           }
 
-          deletecount = 0;
-        }
+          /* delete files marked for deletion unless no files left undeleted */
+          if (deletecount < groups[g].filecount)
+          {
+            for (f = 0; f < groups[g].filecount; ++f)
+            {
+              if (groups[g].files[f].action == -1)
+              {
+                if (remove(groups[g].files[f].file->d_name) == 0)
+                {
+                  groups[g].files[f].action = -2;
 
-        /* if no files left unresolved, mark preserved files for delisting */
-        if (unresolvedcount == 0)
-        {
-          for (f = 0; f < groups[g].filecount; ++f) 
-            if (groups[g].files[f].action == 1)
-              groups[g].files[f].action = -2;
+                  deletedbytes += groups[g].files[f].file->size;
+                  ++totaldeleted;
+                }
+              }
+            }
 
-          preservecount = 0;
-        }
-        /* if only one file left unresolved, mark it for delesting */
-        else if (unresolvedcount == 1 && preservecount + deletecount == 0)
-        {
+            deletecount = 0;
+          }
+
+          /* if no files left unresolved, mark preserved files for delisting */
+          if (unresolvedcount == 0)
+          {
+            for (f = 0; f < groups[g].filecount; ++f)
+              if (groups[g].files[f].action == 1)
+                groups[g].files[f].action = -2;
+
+            preservecount = 0;
+          }
+          /* if only one file left unresolved, mark it for delesting */
+          else if (unresolvedcount == 1 && preservecount + deletecount == 0)
+          {
+            for (f = 0; f < groups[g].filecount; ++f)
+              if (groups[g].files[f].action == 0)
+                groups[g].files[f].action = -2;
+          }
+
+          /* delist any files marked for delisting */
+          to = 0;
           for (f = 0; f < groups[g].filecount; ++f)
-            if (groups[g].files[f].action == 0)
-              groups[g].files[f].action = -2;
-        }
+            if (groups[g].files[f].action != -2)
+              groups[g].files[to++] = groups[g].files[f];
 
-        /* delist any files marked for delisting */
-        to = 0;
-        for (f = 0; f < groups[g].filecount; ++f)
-          if (groups[g].files[f].action != -2)
-            groups[g].files[to++] = groups[g].files[f];
-
-        groups[g].filecount = to;
-
-        /* reposition cursor, if necessary */
-        if (cursorgroup == g && cursorfile > 0 && cursorfile >= groups[g].filecount)
-          cursorfile = groups[g].filecount - 1;
-      }
-
-      if (deletedbytes < 1000.0)
-        format_status_left(status, L"Deleted %ld files (occupying %.0f bytes).", totaldeleted, deletedbytes);
-      else if (deletedbytes <= (1000.0 * 1000.0))
-        format_status_left(status, L"Deleted %ld files (occupying %.1f KB).", totaldeleted, deletedbytes / 1000.0);
-      else if (deletedbytes <= (1000.0 * 1000.0 * 1000.0))
-        format_status_left(status, L"Deleted %ld files (occupying %.1f MB).", totaldeleted, deletedbytes / (1000.0 * 1000.0));
-      else
-        format_status_left(status, L"Deleted %ld files (occupying %.1f GB).", totaldeleted, deletedbytes / (1000.0 * 1000.0 * 1000.0));
-
-      /* delist empty groups */
-      to = 0;
-      for (g = 0; g < totalgroups; ++g)
-      {
-        if (groups[g].filecount > 0)
-        {
-          groups[to] = groups[g];
+          groups[g].filecount = to;
 
           /* reposition cursor, if necessary */
-          if (g == cursorgroup)
-            cursorgroup = to;
+          if (cursorgroup == g && cursorfile > 0 && cursorfile >= groups[g].filecount)
+            cursorfile = groups[g].filecount - 1;
+        }
 
-          ++to;
-        } 
-      }
+        if (deletedbytes < 1000.0)
+          format_status_left(status, L"Deleted %ld files (occupying %.0f bytes).", totaldeleted, deletedbytes);
+        else if (deletedbytes <= (1000.0 * 1000.0))
+          format_status_left(status, L"Deleted %ld files (occupying %.1f KB).", totaldeleted, deletedbytes / 1000.0);
+        else if (deletedbytes <= (1000.0 * 1000.0 * 1000.0))
+          format_status_left(status, L"Deleted %ld files (occupying %.1f MB).", totaldeleted, deletedbytes / (1000.0 * 1000.0));
+        else
+          format_status_left(status, L"Deleted %ld files (occupying %.1f GB).", totaldeleted, deletedbytes / (1000.0 * 1000.0 * 1000.0));
 
-      totalgroups = to;
+        /* delist empty groups */
+        to = 0;
+        for (g = 0; g < totalgroups; ++g)
+        {
+          if (groups[g].filecount > 0)
+          {
+            groups[to] = groups[g];
 
-      /* reposition cursor, if necessary */
-      if (cursorgroup >= totalgroups)
-        cursorgroup = totalgroups - 1;
+            /* reposition cursor, if necessary */
+            if (g == cursorgroup)
+              cursorgroup = to;
 
-      /* recalculate line boundaries */
-      groupfirstline = 0;
+            ++to;
+          }
+        }
 
-      for (g = 0; g < totalgroups; ++g)
-      {
-        groups[g].startline = groupfirstline;
-        groups[g].endline = groupfirstline + 2;
+        totalgroups = to;
 
-        for (f = 0; f < groups[g].filecount; ++f)
-          groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+        /* reposition cursor, if necessary */
+        if (cursorgroup >= totalgroups)
+          cursorgroup = totalgroups - 1;
 
-        groupfirstline = groups[g].endline + 1;
-      }
+        /* recalculate line boundaries */
+        groupfirstline = 0;
 
-      break;
+        for (g = 0; g < totalgroups; ++g)
+        {
+          groups[g].startline = groupfirstline;
+          groups[g].endline = groupfirstline + 2;
 
-    case KEY_RESIZE:
-      if (keyresult != KEY_CODE_YES)
+          for (f = 0; f < groups[g].filecount; ++f)
+            groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+
+          groupfirstline = groups[g].endline + 1;
+        }
+
         break;
 
-      /* resize windows */
-      wresize(filewin, LINES - 2, COLS);
+      case KEY_RESIZE:
+        /* resize windows */
+        wresize(filewin, LINES - 2, COLS);
 
-      wresize(statuswin, 2, COLS);
-      mvwin(statuswin, LINES - 2, 0);
+        wresize(statuswin, 2, COLS);
+        mvwin(statuswin, LINES - 2, 0);
 
-      status_text_alloc(status, COLS);
+        status_text_alloc(status, COLS);
 
-      /* recalculate line boundaries */
-      groupfirstline = 0;
+        /* recalculate line boundaries */
+        groupfirstline = 0;
 
-      for (g = 0; g < totalgroups; ++g)
-      {
-        groups[g].startline = groupfirstline;
-        groups[g].endline = groupfirstline + 2;
+        for (g = 0; g < totalgroups; ++g)
+        {
+          groups[g].startline = groupfirstline;
+          groups[g].endline = groupfirstline + 2;
 
-        for (f = 0; f < groups[g].filecount; ++f)
-          groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+          for (f = 0; f < groups[g].filecount; ++f)
+            groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
 
-        groupfirstline = groups[g].endline + 1;
+          groupfirstline = groups[g].endline + 1;
+        }
+
+        break;
       }
+    }
+    else if (keyresult == OK)
+    {
+      switch (wch)
+      {
+      case '?':
+        if (groups[cursorgroup].files[cursorfile].action == 0)
+          break;
 
-      break;
+        groups[cursorgroup].files[cursorfile].action = 0;
+
+        if (cursorfile < groups[cursorgroup].filecount - 1)
+          scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+        else if (cursorgroup < totalgroups - 1)
+          scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
+        break;
+
+      case '\n':
+        deletecount = 0;
+        preservecount = 0;
+
+        for (x = 0; x < groups[cursorgroup].filecount; ++x)
+        {
+          if (groups[cursorgroup].files[x].action == 1)
+            ++preservecount;
+        }
+
+        if (preservecount == 0)
+          break;
+
+        for (x = 0; x < groups[cursorgroup].filecount; ++x)
+        {
+          if (groups[cursorgroup].files[x].action == 0)
+            groups[cursorgroup].files[x].action = -1;
+
+          if (groups[cursorgroup].files[x].action == -1)
+            ++deletecount;
+        }
+
+        if (cursorgroup < totalgroups - 1 && deletecount < groups[cursorgroup].filecount)
+          scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
+        break;
+
+      case '\t':
+        if (cursorgroup < totalgroups - 1)
+          scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
+        break;
+      }
     }
   } while (doprune);
 
