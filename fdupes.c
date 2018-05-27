@@ -1348,6 +1348,24 @@ int getgroupfileline(struct filegroup *group, int fileindex, int columns, int fi
   return l;
 }
 
+void set_file_action(struct groupfile *file, int new_action, size_t *deletion_tally)
+{
+  switch (file->action)
+  {
+    case -1:
+      if (new_action != -1)
+        --*deletion_tally;
+      break;
+
+    default:
+      if (new_action == -1)
+        ++*deletion_tally;
+      break;
+  }
+
+  file->action = new_action;
+}
+
 /* get command and arguments from user input */
 void get_command_arguments(wchar_t **arguments, wchar_t *input)
 {
@@ -1707,7 +1725,7 @@ int cmd_invert_group_selections(struct filegroup *groups, int groupcount, wchar_
 }
 
 /* mark selected files for preservation */
-int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
+int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status)
 {
   int g;
   int f;
@@ -1719,7 +1737,7 @@ int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *command
     {
       if (groups[g].files[f].selected)
       {
-        groups[g].files[f].action = 1;
+        set_file_action(&groups[g].files[f], 1, deletiontally);
         ++keepfilecount;
       }
     }
@@ -1731,7 +1749,7 @@ int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *command
 }
 
 /* mark selected files for deletion */
-int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
+int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status)
 {
   int g;
   int f;
@@ -1743,7 +1761,7 @@ int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *comma
     {
       if (groups[g].files[f].selected)
       {
-        groups[g].files[f].action = -1;
+        set_file_action(&groups[g].files[f], -1, deletiontally);
         ++deletefilecount;
       }
     }
@@ -1755,7 +1773,7 @@ int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *comma
 }
 
 /* mark selected files as unresolved */
-int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
+int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status)
 {
   int g;
   int f;
@@ -1767,7 +1785,7 @@ int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *comman
     {
       if (groups[g].files[f].selected)
       {
-        groups[g].files[f].action = 0;
+        set_file_action(&groups[g].files[f], 0, deletiontally);
         ++resetfilecount;
       }
     }
@@ -2146,6 +2164,7 @@ void deletefiles_ncurses(file_t *files)
   int deletecount;
   int unresolvedcount;
   int totaldeleted;
+  size_t globaldeletiontally = 0;
   double deletedbytes;
   int row;
   int x;
@@ -2500,20 +2519,20 @@ void deletefiles_ncurses(file_t *files)
                 break;
 
               case COMMAND_KEEP_SELECTED:
-                cmd_keep_selected(groups, totalgroups, commandarguments, status);
+                cmd_keep_selected(groups, totalgroups, commandarguments, &globaldeletiontally, status);
                 break;
 
               case COMMAND_DELETE_SELECTED:
-                cmd_delete_selected(groups, totalgroups, commandarguments, status);
+                cmd_delete_selected(groups, totalgroups, commandarguments, &globaldeletiontally, status);
                 break;
 
               case COMMAND_RESET_SELECTED:
-                cmd_reset_selected(groups, totalgroups, commandarguments, status);
+                cmd_reset_selected(groups, totalgroups, commandarguments, &globaldeletiontally, status);
                 break;
 
               case COMMAND_RESET_GROUP:
                 for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                  groups[cursorgroup].files[x].action = 0;
+                  set_file_action(&groups[cursorgroup].files[x], 0, &globaldeletiontally);
 
                 format_status_left(status, L"Reset all files in current group.");
 
@@ -2522,7 +2541,7 @@ void deletefiles_ncurses(file_t *files)
               case COMMAND_PRESERVE_ALL:
                 /* mark all files for preservation */
                 for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                  groups[cursorgroup].files[x].action = 1;
+                  set_file_action(&groups[cursorgroup].files[x], 1, &globaldeletiontally);
 
                 format_status_left(status, L"%d files marked for preservation", groups[cursorgroup].filecount);
 
@@ -2585,7 +2604,7 @@ void deletefiles_ncurses(file_t *files)
                   if (wcstolcheck != token && *wcstolcheck == '\0')
                   {
                     if (number > 0 && number <= groups[cursorgroup].filecount)
-                      groups[cursorgroup].files[number - 1].action = 1;
+                      set_file_action(&groups[cursorgroup].files[number - 1], 1, &globaldeletiontally);
                   }
 
                   token = wcstok(NULL, L",", &wcsptr);
@@ -2609,7 +2628,7 @@ void deletefiles_ncurses(file_t *files)
                   {
                     if (groups[cursorgroup].files[x].action == 0)
                     {
-                      groups[cursorgroup].files[x].action = -1;
+                      set_file_action(&groups[cursorgroup].files[x], -1, &globaldeletiontally);
                       ++deletecount;
                     }
                   }
@@ -2747,7 +2766,7 @@ void deletefiles_ncurses(file_t *files)
         break;
 
       case KEY_RIGHT:
-        groups[cursorgroup].files[cursorfile].action = 1;
+        set_file_action(&groups[cursorgroup].files[cursorfile], 1, &globaldeletiontally);
 
         format_status_left(status, L"1 file marked for preservation.");
 
@@ -2761,7 +2780,7 @@ void deletefiles_ncurses(file_t *files)
       case KEY_LEFT:
         deletecount = 0;
 
-        groups[cursorgroup].files[cursorfile].action = -1;
+        set_file_action(&groups[cursorgroup].files[cursorfile], -1, &globaldeletiontally);
 
         format_status_left(status, L"1 file marked for deletion.");
 
@@ -2826,7 +2845,7 @@ void deletefiles_ncurses(file_t *files)
               {
                 if (remove(groups[g].files[f].file->d_name) == 0)
                 {
-                  groups[g].files[f].action = -2;
+                  set_file_action(&groups[g].files[f], -2, &globaldeletiontally);
 
                   deletedbytes += groups[g].files[f].file->size;
                   ++totaldeleted;
@@ -2842,7 +2861,7 @@ void deletefiles_ncurses(file_t *files)
           {
             for (f = 0; f < groups[g].filecount; ++f)
               if (groups[g].files[f].action == 1)
-                groups[g].files[f].action = -2;
+                set_file_action(&groups[g].files[f], -2, &globaldeletiontally);
 
             preservecount = 0;
           }
@@ -2851,7 +2870,7 @@ void deletefiles_ncurses(file_t *files)
           {
             for (f = 0; f < groups[g].filecount; ++f)
               if (groups[g].files[f].action == 0)
-                groups[g].files[f].action = -2;
+                set_file_action(&groups[g].files[f], -2, &globaldeletiontally);
           }
 
           /* delist any files marked for delisting */
@@ -2948,7 +2967,7 @@ void deletefiles_ncurses(file_t *files)
         if (groups[cursorgroup].files[cursorfile].action == 0)
           break;
 
-        groups[cursorgroup].files[cursorfile].action = 0;
+        set_file_action(&groups[cursorgroup].files[cursorfile], 0, &globaldeletiontally);
 
         if (cursorfile < groups[cursorgroup].filecount - 1)
           scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
@@ -2973,7 +2992,7 @@ void deletefiles_ncurses(file_t *files)
         for (x = 0; x < groups[cursorgroup].filecount; ++x)
         {
           if (groups[cursorgroup].files[x].action == 0)
-            groups[cursorgroup].files[x].action = -1;
+            set_file_action(&groups[cursorgroup].files[x], -1, &globaldeletiontally);
 
           if (groups[cursorgroup].files[x].action == -1)
             ++deletecount;
