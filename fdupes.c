@@ -2745,8 +2745,6 @@ void deletefiles_ncurses(file_t *files)
             groupfirstline = groups[g].endline + 1;
           }
 
-          wattron(statuswin, A_REVERSE);
-
           commandbuffer[0] = '\0';
 
           break;
