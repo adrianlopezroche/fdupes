@@ -1218,6 +1218,119 @@ void print_prompt(WINDOW *statuswin, wchar_t *prompt, ...)
   free(text);
 }
 
+#define GET_COMMAND_OK 1
+#define GET_COMMAND_CANCELED 2
+#define GET_COMMAND_ERROR_OUT_OF_MEMORY 3
+#define GET_COMMAND_RESIZE_REQUESTED 4
+
+int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW *statuswin, int cancel_on_erase, int append)
+{
+  int docommandinput;
+  int keyresult;
+  wint_t wch;
+  size_t length;
+  size_t newsize;
+  wchar_t *realloccommandbuffer;
+  int cursor_x;
+  int cursor_y;
+
+  getyx(statuswin, cursor_y, cursor_x);
+
+  if (*commandbuffer == 0)
+  {
+    *commandbuffersize = 80;
+    *commandbuffer = malloc(*commandbuffersize * sizeof(wchar_t));
+    if (*commandbuffer == 0)
+      return GET_COMMAND_ERROR_OUT_OF_MEMORY;
+  }
+
+  if (!append)
+  {
+    (*commandbuffer)[0] = L'\0';
+  }
+  else
+  {
+    wprintw(statuswin, "%ls", *commandbuffer);
+
+    wnoutrefresh(statuswin);
+    doupdate();
+  }
+
+  docommandinput = 1;
+  do
+  {
+    keyresult = wget_wch(statuswin, &wch);
+
+    if (keyresult == OK)
+    {
+      switch (wch)
+      {
+        case KEY_ESCAPE:
+          (*commandbuffer)[0] = '\0';
+
+          return GET_COMMAND_CANCELED;
+
+        case '\n':
+          docommandinput = 0;
+          continue;
+
+        default:
+          length = wcslen(*commandbuffer);
+
+          if (length + 1 >= *commandbuffersize)
+          {
+            newsize = *commandbuffersize * 2;
+
+            realloccommandbuffer = (wchar_t*)realloc(*commandbuffer, newsize * sizeof(wchar_t));
+            if (realloccommandbuffer == 0)
+              return GET_COMMAND_ERROR_OUT_OF_MEMORY;
+
+            *commandbuffer = realloccommandbuffer;
+            *commandbuffersize = newsize;
+          }
+
+          (*commandbuffer)[length] = wch;
+          (*commandbuffer)[length+1] = L'\0';
+
+          break;
+      }
+    }
+    else if (keyresult == KEY_CODE_YES)
+    {
+      switch (wch)
+      {
+        case KEY_BACKSPACE:
+          length = wcslen(*commandbuffer);
+
+          if (cancel_on_erase && length <= 1)
+          {
+            (*commandbuffer)[0] = L'\0';
+
+            return GET_COMMAND_CANCELED;
+          }
+
+          (*commandbuffer)[length-1] = L'\0';
+
+          break;
+
+        case KEY_RESIZE:
+          return GET_COMMAND_RESIZE_REQUESTED;
+      }
+    }
+
+    wmove(statuswin, cursor_y, cursor_x);
+    wclrtoeol(statuswin);
+    wmove(statuswin, cursor_y, cursor_x);
+
+    wprintw(statuswin, "%ls", *commandbuffer);
+
+    wnoutrefresh(statuswin);
+    doupdate();
+  } while (docommandinput);
+
+  return GET_COMMAND_OK;
+}
+
 struct groupfile
 {
   file_t *file;
@@ -2175,13 +2288,10 @@ void deletefiles_ncurses(file_t *files)
   int f;
   int to;
   wchar_t *commandbuffer;
-  wchar_t *realloccommandbuffer;
   size_t commandbuffersize;
   wchar_t *commandarguments;
   struct command_identifier_node *commandidentifier;
-  int docommandinput;
   int doprune;
-  size_t length;
   wchar_t *token;
   wchar_t *wcsptr;
   wchar_t *wcstolcheck;
@@ -2216,6 +2326,8 @@ void deletefiles_ncurses(file_t *files)
   groups = malloc(sizeof(struct filegroup) * allocatedgroups);
   if (groups == 0)
   {
+    free(commandbuffer);
+
     endwin();
     errormsg("out of memory\n");
     exit(1);
@@ -2224,6 +2336,9 @@ void deletefiles_ncurses(file_t *files)
   commandidentifier = build_command_identifier_tree(command_list);
   if (commandidentifier == 0)
   {
+    free(groups);
+    free(commandbuffer);
+
     endwin();
     errormsg("out of memory\n");
     exit(1);
@@ -2249,6 +2364,8 @@ void deletefiles_ncurses(file_t *files)
           free(groups[g].files);
 
         free(groups);
+        free(commandbuffer);
+        free_command_identifier_tree(commandidentifier);
 
         endwin();
         errormsg("out of memory\n");
@@ -2425,304 +2542,229 @@ void deletefiles_ncurses(file_t *files)
     /* wait for user input */
     keyresult = wget_wch(statuswin, &wch);
 
-    /* handle keypress */
-    if (keyresult == OK && ((wch != '\t' && wch != '\n' && wch != '.' && wch != '?') || commandbuffer[0] != 0)) /* enter command input mode */
+    if (keyresult == OK && ((wch != '\t' && wch != '\n' && wch != '.' && wch != '?') || commandbuffer[0] != 0))
     {
-      commandbuffer[0] = L'\0';
+      commandbuffer[0] = wch;
+      commandbuffer[1] = '\0';
 
-      docommandinput = 1;
-      do
+      switch (get_command_text(&commandbuffer, &commandbuffersize, statuswin, 1, 1))
       {
-        if (keyresult == OK)
-        {
-          if (wch == KEY_ESCAPE)
-          {
-            commandbuffer[0] = '\0';
-            docommandinput = 0;
-            continue;
-          }
-          else if (wch != '\n') /* add character to buffer */
-          {
-            /* increase command buffer, if necessary */
-            length = wcslen(commandbuffer);
+        case GET_COMMAND_OK:
+          get_command_arguments(&commandarguments, commandbuffer);
 
-            if (length + 1 >= commandbuffersize)
-            {
-              commandbuffersize *= 2;
+          switch (identify_command(commandidentifier, commandbuffer, 0))
+          {
+            case COMMAND_SELECT_CONTAINING:
+              cmd_select_containing(groups, totalgroups, commandarguments, status);
+              break;
 
-              realloccommandbuffer = (wchar_t*) realloc(commandbuffer, commandbuffersize * sizeof(wchar_t));
-              if (realloccommandbuffer == 0)
+            case COMMAND_SELECT_BEGINNING:
+              cmd_select_beginning(groups, totalgroups, commandarguments, status);
+              break;
+
+            case COMMAND_SELECT_ENDING:
+              cmd_select_ending(groups, totalgroups, commandarguments, status);
+              break;
+
+            case COMMAND_SELECT_MATCHING:
+              cmd_select_matching(groups, totalgroups, commandarguments, status);
+              break;
+
+            case COMMAND_CLEAR_SELECTIONS_CONTAINING:
+              cmd_clear_selections_containing(groups, totalgroups, commandarguments, status);
+              break;
+
+            case COMMAND_CLEAR_SELECTIONS_BEGINNING:
+              cmd_clear_selections_beginning(groups, totalgroups, commandarguments, status);
+              break;
+
+            case COMMAND_CLEAR_SELECTIONS_ENDING:
+              cmd_clear_selections_ending(groups, totalgroups, commandarguments, status);
+              break;
+
+            case COMMAND_CLEAR_SELECTIONS_MATCHING:
+              cmd_clear_selections_matching(groups, totalgroups, commandarguments, status);
+              break;
+
+            case COMMAND_CLEAR_ALL_SELECTIONS:
+              cmd_clear_all_selections(groups, totalgroups, commandarguments, status);
+              break;
+
+            case COMMAND_INVERT_GROUP_SELECTIONS:
+              cmd_invert_group_selections(groups, totalgroups, commandarguments, status);
+              break;
+
+            case COMMAND_KEEP_SELECTED:
+              cmd_keep_selected(groups, totalgroups, commandarguments, &globaldeletiontally, status);
+              break;
+
+            case COMMAND_DELETE_SELECTED:
+              cmd_delete_selected(groups, totalgroups, commandarguments, &globaldeletiontally, status);
+              break;
+
+            case COMMAND_RESET_SELECTED:
+              cmd_reset_selected(groups, totalgroups, commandarguments, &globaldeletiontally, status);
+              break;
+
+            case COMMAND_RESET_GROUP:
+              for (x = 0; x < groups[cursorgroup].filecount; ++x)
+                set_file_action(&groups[cursorgroup].files[x], 0, &globaldeletiontally);
+
+              format_status_left(status, L"Reset all files in current group.");
+
+              break;
+
+            case COMMAND_PRESERVE_ALL:
+              /* mark all files for preservation */
+              for (x = 0; x < groups[cursorgroup].filecount; ++x)
+                set_file_action(&groups[cursorgroup].files[x], 1, &globaldeletiontally);
+
+              format_status_left(status, L"%d files marked for preservation", groups[cursorgroup].filecount);
+
+              if (cursorgroup < totalgroups - 1)
+                scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
+              break;
+
+            case COMMAND_EXIT: /* exit program */
+              doprune = 0;
+              continue;
+
+            default: /* parse list of files to preserve and mark for preservation */
+              intresult = validate_file_list(groups + cursorgroup, commandbuffer);
+              if (intresult != FILE_LIST_OK)
               {
-                free(commandbuffer);
+                if (intresult == FILE_LIST_ERROR_UNKNOWN_COMMAND)
+                {
+                  format_status_left(status, L"Unrecognized command");
+                  break;
+                }
+                else if (intresult == FILE_LIST_ERROR_INDEX_OUT_OF_RANGE)
+                {
+                  format_status_left(status, L"Index out of range (1 - %d).", groups[cursorgroup].filecount);
+                  break;
+                }
+                else if (intresult == FILE_LIST_ERROR_LIST_CONTAINS_INVALID_INDEX)
+                {
+                  format_status_left(status, L"Invalid index");
+                  break;
+                }
+                else if (intresult == FILE_LIST_ERROR_OUT_OF_MEMORY)
+                {
+                  free(commandbuffer);
 
-                for (g = 0; g < totalgroups; ++g)
-                  free(groups[g].files);
+                  free_command_identifier_tree(commandidentifier);
 
-                free(groups);
+                  for (g = 0; g < totalgroups; ++g)
+                    free(groups[g].files);
 
-                endwin();
-                errormsg("out of memory\n");
-                exit(1);
+                  free(groups);
+
+                  endwin();
+                  errormsg("out of memory\n");
+                  exit(1);
+                }
+                else
+                {
+                  format_status_left(status, L"Could not interpret command");
+                  break;
+                }
               }
 
-              commandbuffer = realloccommandbuffer;
-            }
+              token = wcstok(commandbuffer, L",", &wcsptr);
 
-            /* append character to command buffer */
-            commandbuffer[length] = wch;
-            commandbuffer[length+1] = L'\0';
-          }
-          else /* process command */
-          {
-            get_command_arguments(&commandarguments, commandbuffer);
-
-            switch (identify_command(commandidentifier, commandbuffer, 0))
-            {
-              case COMMAND_SELECT_CONTAINING:
-                cmd_select_containing(groups, totalgroups, commandarguments, status);
-                break;
-
-              case COMMAND_SELECT_BEGINNING:
-                cmd_select_beginning(groups, totalgroups, commandarguments, status);
-                break;
-
-              case COMMAND_SELECT_ENDING:
-                cmd_select_ending(groups, totalgroups, commandarguments, status);
-                break;
-
-              case COMMAND_SELECT_MATCHING:
-                cmd_select_matching(groups, totalgroups, commandarguments, status);
-                break;
-
-              case COMMAND_CLEAR_SELECTIONS_CONTAINING:
-                cmd_clear_selections_containing(groups, totalgroups, commandarguments, status);
-                break;
-
-              case COMMAND_CLEAR_SELECTIONS_BEGINNING:
-                cmd_clear_selections_beginning(groups, totalgroups, commandarguments, status);
-                break;
-
-              case COMMAND_CLEAR_SELECTIONS_ENDING:
-                cmd_clear_selections_ending(groups, totalgroups, commandarguments, status);
-                break;
-
-              case COMMAND_CLEAR_SELECTIONS_MATCHING:
-                cmd_clear_selections_matching(groups, totalgroups, commandarguments, status);
-                break;
-
-              case COMMAND_CLEAR_ALL_SELECTIONS:
-                cmd_clear_all_selections(groups, totalgroups, commandarguments, status);
-                break;
-
-              case COMMAND_INVERT_GROUP_SELECTIONS:
-                cmd_invert_group_selections(groups, totalgroups, commandarguments, status);
-                break;
-
-              case COMMAND_KEEP_SELECTED:
-                cmd_keep_selected(groups, totalgroups, commandarguments, &globaldeletiontally, status);
-                break;
-
-              case COMMAND_DELETE_SELECTED:
-                cmd_delete_selected(groups, totalgroups, commandarguments, &globaldeletiontally, status);
-                break;
-
-              case COMMAND_RESET_SELECTED:
-                cmd_reset_selected(groups, totalgroups, commandarguments, &globaldeletiontally, status);
-                break;
-
-              case COMMAND_RESET_GROUP:
-                for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                  set_file_action(&groups[cursorgroup].files[x], 0, &globaldeletiontally);
-
-                format_status_left(status, L"Reset all files in current group.");
-
-                break;
-
-              case COMMAND_PRESERVE_ALL:
-                /* mark all files for preservation */
-                for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                  set_file_action(&groups[cursorgroup].files[x], 1, &globaldeletiontally);
-
-                format_status_left(status, L"%d files marked for preservation", groups[cursorgroup].filecount);
-
-                if (cursorgroup < totalgroups - 1)
-                  scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
-
-                break;
-
-              case COMMAND_EXIT: /* exit program */
-                docommandinput = 0;
-                doprune = 0;
-                continue;
-
-              default: /* parse list of files to preserve and mark for preservation */
-                intresult = validate_file_list(groups + cursorgroup, commandbuffer);
-                if (intresult != FILE_LIST_OK)
+              while (token != NULL)
+              {
+                number = wcstol(token, &wcstolcheck, 10);
+                if (wcstolcheck != token && *wcstolcheck == '\0')
                 {
-                  if (intresult == FILE_LIST_ERROR_UNKNOWN_COMMAND)
-                  {
-                    format_status_left(status, L"Unrecognized command");
-                    break;
-                  }
-                  else if (intresult == FILE_LIST_ERROR_INDEX_OUT_OF_RANGE)
-                  {
-                    format_status_left(status, L"Index out of range (1 - %d).", groups[cursorgroup].filecount);
-                    break;
-                  }
-                  else if (intresult == FILE_LIST_ERROR_LIST_CONTAINS_INVALID_INDEX)
-                  {
-                    format_status_left(status, L"Invalid index");
-                    break;
-                  }
-                  else if (intresult == FILE_LIST_ERROR_OUT_OF_MEMORY)
-                  {
-                    free(commandbuffer);
-
-                    free_command_identifier_tree(commandidentifier);
-
-                    for (g = 0; g < totalgroups; ++g)
-                      free(groups[g].files);
-
-                    free(groups);
-
-                    endwin();
-                    errormsg("out of memory\n");
-                    exit(1);
-                  }
-                  else
-                  {
-                    format_status_left(status, L"Could not interpret command");
-                    break;
-                  }
+                  if (number > 0 && number <= groups[cursorgroup].filecount)
+                    set_file_action(&groups[cursorgroup].files[number - 1], 1, &globaldeletiontally);
                 }
 
-                token = wcstok(commandbuffer, L",", &wcsptr);
+                token = wcstok(NULL, L",", &wcsptr);
+              }
 
-                while (token != NULL)
-                {
-                  number = wcstol(token, &wcstolcheck, 10);
-                  if (wcstolcheck != token && *wcstolcheck == '\0')
-                  {
-                    if (number > 0 && number <= groups[cursorgroup].filecount)
-                      set_file_action(&groups[cursorgroup].files[number - 1], 1, &globaldeletiontally);
-                  }
+              /* mark remaining files for deletion */
+              preservecount = 0;
+              deletecount = 0;
 
-                  token = wcstok(NULL, L",", &wcsptr);
-                }
+              for (x = 0; x < groups[cursorgroup].filecount; ++x)
+              {
+                if (groups[cursorgroup].files[x].action == 1)
+                  ++preservecount;
+                if (groups[cursorgroup].files[x].action == -1)
+                  ++deletecount;
+              }
 
-                /* mark remaining files for deletion */
-                preservecount = 0;
-                deletecount = 0;
-
+              if (preservecount > 0)
+              {
                 for (x = 0; x < groups[cursorgroup].filecount; ++x)
                 {
-                  if (groups[cursorgroup].files[x].action == 1)
-                    ++preservecount;
-                  if (groups[cursorgroup].files[x].action == -1)
+                  if (groups[cursorgroup].files[x].action == 0)
+                  {
+                    set_file_action(&groups[cursorgroup].files[x], -1, &globaldeletiontally);
                     ++deletecount;
-                }
-
-                if (preservecount > 0)
-                {
-                  for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                  {
-                    if (groups[cursorgroup].files[x].action == 0)
-                    {
-                      set_file_action(&groups[cursorgroup].files[x], -1, &globaldeletiontally);
-                      ++deletecount;
-                    }
                   }
                 }
-
-                format_status_left(status, L"%d files marked for preservation, %d for deletion", preservecount, deletecount);
-
-                if (cursorgroup < totalgroups - 1 && preservecount > 0)
-                  scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
-
-                break;
-            }
-
-            /* exit command mode */
-            wattron(statuswin, A_REVERSE);
-            commandbuffer[0] = '\0';
-            docommandinput = 0;
-
-            continue;
-          }
-        }
-        else if (keyresult == KEY_CODE_YES)
-        {
-          switch (wch)
-          {
-          case KEY_BACKSPACE:
-            /* erase last character */
-            length = wcslen(commandbuffer);
-
-            if (length == 1)
-            {
-              wattron(statuswin, A_REVERSE);
-              commandbuffer[0] = '\0';
-              docommandinput = 0;
-              continue;
-            }
-
-            commandbuffer[length-1] = '\0';
-
-            break;
-
-          case KEY_RESIZE:
-              /* resize windows */
-              wresize(filewin, LINES - 2, COLS);
-
-              wresize(statuswin, 2, COLS);
-              mvwin(statuswin, LINES - 2, 0);
-
-              status_text_alloc(status, COLS);
-
-              /* recalculate line boundaries */
-              groupfirstline = 0;
-
-              for (g = 0; g < totalgroups; ++g)
-              {
-                groups[g].startline = groupfirstline;
-                groups[g].endline = groupfirstline + 2;
-
-                for (f = 0; f < groups[g].filecount; ++f)
-                  groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
-
-                groupfirstline = groups[g].endline + 1;
               }
 
-              /* exit command mode */
-              wattron(statuswin, A_REVERSE);
+              format_status_left(status, L"%d files marked for preservation, %d for deletion", preservecount, deletecount);
 
-              commandbuffer[0] = '\0';
-              docommandinput = 0;
+              if (cursorgroup < totalgroups - 1 && preservecount > 0)
+                scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
-              continue;
+              break;
           }
-        }
 
-        print_status(statuswin, status);
+          break;
 
-        if (totalgroups > 0)
-          print_prompt(statuswin, L"[ Preserve files (1 - %d, all, help) ]:", groups[cursorgroup].filecount);
-        else if (dupesfound)
-          print_prompt(statuswin, L"[ No duplicates remaining (type 'exit' to exit program) ]:", groups[cursorgroup].filecount);
-        else
-          print_prompt(statuswin, L"[ No duplicates found (type 'exit' to exit program) ]:", groups[cursorgroup].filecount);
+        case GET_COMMAND_CANCELED:
+          continue;
 
-        wprintw(statuswin, " %ls", commandbuffer);
+        case GET_COMMAND_RESIZE_REQUESTED:
+          /* resize windows */
+          wresize(filewin, LINES - 2, COLS);
 
-        wnoutrefresh(statuswin);
-        doupdate();
+          wresize(statuswin, 2, COLS);
+          mvwin(statuswin, LINES - 2, 0);
 
-        /* get next character */
-        keyresult = wget_wch(statuswin, &wch);
-      } while (docommandinput);
+          status_text_alloc(status, COLS);
 
-      /* redraw file list and wait for input */
-      continue;
+          /* recalculate line boundaries */
+          groupfirstline = 0;
+
+          for (g = 0; g < totalgroups; ++g)
+          {
+            groups[g].startline = groupfirstline;
+            groups[g].endline = groupfirstline + 2;
+
+            for (f = 0; f < groups[g].filecount; ++f)
+              groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+
+            groupfirstline = groups[g].endline + 1;
+          }
+
+          wattron(statuswin, A_REVERSE);
+
+          commandbuffer[0] = '\0';
+
+          break;
+
+        case GET_COMMAND_ERROR_OUT_OF_MEMORY:
+          for (g = 0; g < totalgroups; ++g)
+            free(groups[g].files);
+
+          free(groups);
+          free(commandbuffer);
+          free_command_identifier_tree(commandidentifier);
+
+          endwin();
+          errormsg("out of memory\n");
+          exit(1);
+
+          break;
+      }
     }
     else if (keyresult == KEY_CODE_YES)
     {
