@@ -1650,15 +1650,17 @@ int cmd_clear_selections_containing(struct filegroup *groups, int groupcount, wc
 {
   int g;
   int f;
-  int selectedgroupcount = 0;
-  int selectedfilecount = 0;
-  int groupselected;
+  int matchedgroupcount = 0;
+  int matchedfilecount = 0;
+  int groupmatched;
+  int selectionsremaining;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
-      groupselected = 0;
+      groupmatched = 0;
+      selectionsremaining = 0;
 
       for (f = 0; f < groups[g].filecount; ++f)
       {
@@ -1666,17 +1668,23 @@ int cmd_clear_selections_containing(struct filegroup *groups, int groupcount, wc
         {
           groups[g].files[f].selected = 0;
 
-          groupselected = 1;
-          ++selectedfilecount;
+          groupmatched = 1;
+          ++matchedfilecount;
         }
+
+        if (groups[g].files[f].selected)
+          selectionsremaining = 1;
       }
 
-      if (groupselected)
-        ++selectedgroupcount;
+      if (!selectionsremaining)
+        groups[g].selected = 0;
+
+      if (groupmatched)
+        ++matchedgroupcount;
     }
   }
 
-  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
+  format_status_left(status, L"Matched %d files in %d groups.", matchedfilecount, matchedgroupcount);
 
   return 1;
 }
@@ -1686,15 +1694,17 @@ int cmd_clear_selections_beginning(struct filegroup *groups, int groupcount, wch
 {
   int g;
   int f;
-  int selectedgroupcount = 0;
-  int selectedfilecount = 0;
-  int groupselected;
+  int matchedgroupcount = 0;
+  int matchedfilecount = 0;
+  int groupmatched;
+  int selectionsremaining;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
-      groupselected = 0;
+      groupmatched = 0;
+      selectionsremaining = 0;
 
       for (f = 0; f < groups[g].filecount; ++f)
       {
@@ -1702,17 +1712,23 @@ int cmd_clear_selections_beginning(struct filegroup *groups, int groupcount, wch
         {
           groups[g].files[f].selected = 0;
 
-          groupselected = 1;
-          ++selectedfilecount;
+          groupmatched = 1;
+          ++matchedfilecount;
         }
+
+        if (groups[g].files[f].selected)
+          selectionsremaining = 1;
       }
 
-      if (groupselected)
-        ++selectedgroupcount;
+      if (!selectionsremaining)
+        groups[g].selected = 0;
+
+      if (groupmatched)
+        ++matchedgroupcount;
     }
   }
 
-  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
+  format_status_left(status, L"Matched %d files in %d groups.", matchedfilecount, matchedgroupcount);
 
   return 1;
 }
@@ -1722,15 +1738,17 @@ int cmd_clear_selections_ending(struct filegroup *groups, int groupcount, wchar_
 {
   int g;
   int f;
-  int selectedgroupcount = 0;
-  int selectedfilecount = 0;
-  int groupselected;
+  int matchedgroupcount = 0;
+  int matchedfilecount = 0;
+  int groupmatched;
+  int selectionsremaining;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
-      groupselected = 0;
+      groupmatched = 0;
+      selectionsremaining = 0;
 
       for (f = 0; f < groups[g].filecount; ++f)
       {
@@ -1738,17 +1756,23 @@ int cmd_clear_selections_ending(struct filegroup *groups, int groupcount, wchar_
         {
           groups[g].files[f].selected = 0;
 
-          groupselected = 1;
-          ++selectedfilecount;
+          groupmatched = 1;
+          ++matchedfilecount;
         }
+
+        if (groups[g].files[f].selected)
+          selectionsremaining = 1;
       }
 
-      if (groupselected)
-        ++selectedgroupcount;
+      if (!selectionsremaining)
+        groups[g].selected = 0;
+
+      if (groupmatched)
+        ++matchedgroupcount;
     }
   }
 
-  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
+  format_status_left(status, L"Matched %d files in %d groups.", matchedfilecount, matchedgroupcount);
 
   return 1;
 }
@@ -1758,15 +1782,17 @@ int cmd_clear_selections_matching(struct filegroup *groups, int groupcount, wcha
 {
   int g;
   int f;
-  int selectedgroupcount = 0;
-  int selectedfilecount = 0;
-  int groupselected;
+  int matchedgroupcount = 0;
+  int matchedfilecount = 0;
+  int groupmatched;
+  int selectionsremaining;
 
   if (wcscmp(commandarguments, L"") != 0)
   {
     for (g = 0; g < groupcount; ++g)
     {
-      groupselected = 0;
+      groupmatched = 0;
+      selectionsremaining = 0;
 
       for (f = 0; f < groups[g].filecount; ++f)
       {
@@ -1774,17 +1800,23 @@ int cmd_clear_selections_matching(struct filegroup *groups, int groupcount, wcha
         {
           groups[g].files[f].selected = 0;
 
-          groupselected = 1;
-          ++selectedfilecount;
+          groupmatched = 1;
+          ++matchedfilecount;
         }
+
+        if (groups[g].files[f].selected)
+          selectionsremaining = 1;
       }
 
-      if (groupselected)
-        ++selectedgroupcount;
+      if (!selectionsremaining)
+        groups[g].selected = 0;
+
+      if (groupmatched)
+        ++matchedgroupcount;
     }
   }
 
-  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
+  format_status_left(status, L"Matched %d files in %d groups.", matchedfilecount, matchedgroupcount);
 
   return 1;
 }
