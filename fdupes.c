@@ -1981,6 +1981,8 @@ int validate_file_list(struct filegroup *currentgroup, wchar_t *commandbuffer_in
 #define COMMAND_PRESERVE_ALL 15
 #define COMMAND_EXIT 16
 #define COMMAND_HELP 17
+#define COMMAND_YES 18
+#define COMMAND_NO 19
 
 /* command name to command ID mappings */
 struct command_map {
@@ -2004,6 +2006,12 @@ struct command_map {
   {L"all", COMMAND_PRESERVE_ALL},
   {L"exit", COMMAND_EXIT},
   {L"quit", COMMAND_EXIT},
+  {0, COMMAND_UNDEFINED}
+};
+
+struct command_map confirmation_keyword_list[] = {
+  {L"yes", COMMAND_YES},
+  {L"no", COMMAND_NO},
   {0, COMMAND_UNDEFINED}
 };
 
@@ -2291,6 +2299,7 @@ void deletefiles_ncurses(file_t *files)
   size_t commandbuffersize;
   wchar_t *commandarguments;
   struct command_identifier_node *commandidentifier;
+  struct command_identifier_node *confirmationkeywordidentifier;
   int doprune;
   wchar_t *token;
   wchar_t *wcsptr;
@@ -2344,6 +2353,18 @@ void deletefiles_ncurses(file_t *files)
     exit(1);
   }
 
+  confirmationkeywordidentifier = build_command_identifier_tree(confirmation_keyword_list);
+  if (confirmationkeywordidentifier == 0)
+  {
+    free(groups);
+    free(commandbuffer);
+    free_command_identifier_tree(commandidentifier);
+
+    endwin();
+    errormsg("out of memory\n");
+    exit(1);
+  }
+
   curfile = files;
   while (curfile)
   {
@@ -2366,6 +2387,7 @@ void deletefiles_ncurses(file_t *files)
         free(groups);
         free(commandbuffer);
         free_command_identifier_tree(commandidentifier);
+        free_command_identifier_tree(confirmationkeywordidentifier);
 
         endwin();
         errormsg("out of memory\n");
@@ -2627,8 +2649,76 @@ void deletefiles_ncurses(file_t *files)
               break;
 
             case COMMAND_EXIT: /* exit program */
-              doprune = 0;
-              continue;
+              if (globaldeletiontally == 0)
+              {
+                doprune = 0;
+                continue;
+              }
+              else
+              {
+                print_prompt(statuswin, L"[ There are files marked for deletion. Exit anyway? ]: ");
+
+                switch (get_command_text(&commandbuffer, &commandbuffersize, statuswin, 0, 0))
+                {
+                  case GET_COMMAND_OK:
+                    switch (identify_command(confirmationkeywordidentifier, commandbuffer, 0))
+                    {
+                      case COMMAND_YES:
+                        doprune = 0;
+                        continue;
+
+                      case COMMAND_NO:
+                      case COMMAND_UNDEFINED:
+                        continue;
+                    }
+                    break;
+
+                  case GET_COMMAND_CANCELED:
+                    continue;
+
+                  case GET_COMMAND_RESIZE_REQUESTED:
+                    /* resize windows */
+                    wresize(filewin, LINES - 2, COLS);
+
+                    wresize(statuswin, 2, COLS);
+                    mvwin(statuswin, LINES - 2, 0);
+
+                    status_text_alloc(status, COLS);
+
+                    /* recalculate line boundaries */
+                    groupfirstline = 0;
+
+                    for (g = 0; g < totalgroups; ++g)
+                    {
+                      groups[g].startline = groupfirstline;
+                      groups[g].endline = groupfirstline + 2;
+
+                      for (f = 0; f < groups[g].filecount; ++f)
+                        groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+
+                      groupfirstline = groups[g].endline + 1;
+                    }
+
+                    commandbuffer[0] = '\0';
+
+                    break;
+
+                  case GET_COMMAND_ERROR_OUT_OF_MEMORY:
+                    for (g = 0; g < totalgroups; ++g)
+                      free(groups[g].files);
+
+                    free(groups);
+                    free(commandbuffer);
+                    free_command_identifier_tree(commandidentifier);
+                    free_command_identifier_tree(confirmationkeywordidentifier);
+
+                    endwin();
+                    errormsg("out of memory\n");
+                    exit(1);
+                    break;
+                }
+              }
+              break;
 
             default: /* parse list of files to preserve and mark for preservation */
               intresult = validate_file_list(groups + cursorgroup, commandbuffer);
@@ -2756,6 +2846,7 @@ void deletefiles_ncurses(file_t *files)
           free(groups);
           free(commandbuffer);
           free_command_identifier_tree(commandidentifier);
+          free_command_identifier_tree(confirmationkeywordidentifier);
 
           endwin();
           errormsg("out of memory\n");
