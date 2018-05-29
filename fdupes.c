@@ -2504,8 +2504,7 @@ void deletefiles_ncurses(file_t *files)
     curfile = curfile->next;
   }
 
-  if (totalgroups > 0)
-    dupesfound = 1;
+  dupesfound = totalgroups > 0;
 
   status = status_text_alloc(0, COLS);
   format_status_left(status, L"Ready");
