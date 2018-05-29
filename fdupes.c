@@ -31,6 +31,7 @@
 #endif
 #include <string.h>
 #include <errno.h>
+#include <signal.h>
 #include <locale.h>
 #define __USE_XOPEN
 #include <wchar.h>
@@ -62,6 +63,8 @@
 char *program_name;
 
 unsigned long flags = 0;
+
+static volatile int got_sigint = 0;
 
 #define CHUNK_SIZE 8192
 
@@ -1259,7 +1262,19 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
   docommandinput = 1;
   do
   {
-    keyresult = wget_wch(statuswin, &wch);
+    do
+    {
+      keyresult = wget_wch(statuswin, &wch);
+
+      if (got_sigint)
+      {
+        got_sigint = 0;
+
+        (*commandbuffer)[0] = '\0';
+
+        return GET_COMMAND_CANCELED;
+      }
+    } while (keyresult == ERR);
 
     if (keyresult == OK)
     {
@@ -2319,6 +2334,11 @@ void scroll_to_previous_file(int *topline, int *cursorgroup, int *cursorfile, st
   }
 }
 
+void sigint_handler(int signal)
+{
+  got_sigint = 1;
+}
+
 void deletefiles_ncurses(file_t *files)
 {
   WINDOW *filewin;
@@ -2331,6 +2351,8 @@ void deletefiles_ncurses(file_t *files)
   int topline = 0;
   int cursorgroup = 0;
   int cursorfile = 0;
+  int cursor_x;
+  int cursor_y;
   int groupfirstline = 0;
   int totallines = 0;
   int allocatedgroups = 0;
@@ -2364,10 +2386,12 @@ void deletefiles_ncurses(file_t *files)
   struct status_text *status;
   int dupesfound;
   int intresult;
+  struct sigaction action;
 
   initscr();
   noecho();
   cbreak();
+  halfdelay(5);
 
   filewin = newwin(LINES - 2, COLS, 0, 0);
   statuswin = newwin(2, COLS, LINES - 2, 0);
@@ -2420,6 +2444,9 @@ void deletefiles_ncurses(file_t *files)
     errormsg("out of memory\n");
     exit(1);
   }
+
+  action.sa_handler = sigint_handler;
+  sigaction(SIGINT, &action, 0);
 
   curfile = files;
   while (curfile)
@@ -2617,7 +2644,26 @@ void deletefiles_ncurses(file_t *files)
     doupdate();
 
     /* wait for user input */
-    keyresult = wget_wch(statuswin, &wch);
+    do
+    {
+      keyresult = wget_wch(statuswin, &wch);
+
+      if (got_sigint)
+      {
+        getyx(statuswin, cursor_y, cursor_x);
+
+        format_status_left(status, L"Type 'exit' to exit fdupes.");
+        print_status(statuswin, status);
+
+        wattroff(statuswin, A_REVERSE);
+        wmove(statuswin, cursor_y, cursor_x);
+
+        got_sigint = 0;
+
+        wnoutrefresh(statuswin);
+        doupdate();
+      }
+    } while (keyresult == ERR);
 
     if (keyresult == OK && ((wch != '\t' && wch != '\n' && wch != '.' && wch != '?') || commandbuffer[0] != 0))
     {
