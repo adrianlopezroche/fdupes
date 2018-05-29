@@ -2607,9 +2607,9 @@ void deletefiles_ncurses(file_t *files)
     if (totalgroups > 0)
       print_prompt(statuswin, L"[ Preserve files (1 - %d, all, help) ]:", groups[cursorgroup].filecount);
     else if (dupesfound)
-      print_prompt(statuswin, L"[ No duplicates remaining (type 'exit' to exit program) ]:", groups[cursorgroup].filecount);
+      print_prompt(statuswin, L"[ No duplicates remaining (type 'exit' to exit program) ]:");
     else
-      print_prompt(statuswin, L"[ No duplicates found (type 'exit' to exit program) ]:", groups[cursorgroup].filecount);
+      print_prompt(statuswin, L"[ No duplicates found (type 'exit' to exit program) ]:");
 
     wprintw(statuswin, " ");
 
