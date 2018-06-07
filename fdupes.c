@@ -33,7 +33,7 @@
 #include <errno.h>
 #include <libgen.h>
 
-#include "md5/md5.h"
+#include "xxHash/xxhash.h"
 
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
@@ -73,8 +73,6 @@ ordertype_t ordertype = ORDER_MTIME;
 
 #define PARTIAL_MD5_SIZE 4096
 
-#define MD5_DIGEST_LENGTH 16
-
 /* 
 
 TODO: Partial sums (for working with very large files).
@@ -82,7 +80,7 @@ TODO: Partial sums (for working with very large files).
 typedef struct _signature
 {
   md5_state_t state;
-  md5_byte_t  digest[16];
+  XXH64_hash_t  digest[16];
 } signature_t;
 
 typedef struct _signatures
@@ -96,8 +94,8 @@ typedef struct _signatures
 typedef struct _file {
   char *d_name;
   off_t size;
-  md5_byte_t *crcpartial;
-  md5_byte_t *crcsignature;
+  XXH64_hash_t *crcpartial;
+  XXH64_hash_t *crcsignature;
   dev_t device;
   ino_t inode;
   time_t sorttime;
@@ -358,18 +356,15 @@ int grokdir(char *dir, file_t **filelistp)
   return filecount;
 }
 
-md5_byte_t *getcrcsignatureuntil(char *filename, off_t max_read)
+XXH64_hash_t *getcrcsignatureuntil(char *filename, off_t max_read)
 {
   off_t fsize;
   off_t toread;
-  md5_state_t state;
-  static md5_byte_t digest[MD5_DIGEST_LENGTH];  
-  static md5_byte_t chunk[CHUNK_SIZE];
+  XXH64_hash_t state = 0UL;
+  static XXH64_hash_t digest;  
+  static XXH64_hash_t chunk[CHUNK_SIZE];
   FILE *file;
    
-  md5_init(&state);
-
- 
   fsize = filesize(filename);
   
   if (max_read != 0 && fsize > max_read)
@@ -388,48 +383,35 @@ md5_byte_t *getcrcsignatureuntil(char *filename, off_t max_read)
       fclose(file);
       return NULL;
     }
-    md5_append(&state, chunk, toread);
+    state = XXH64(chunk, toread, state);
     fsize -= toread;
   }
 
-  md5_finish(&state, digest);
+  digest = state;
 
   fclose(file);
 
-  return digest;
+  return &digest;
 }
 
-md5_byte_t *getcrcsignature(char *filename)
+XXH64_hash_t *getcrcsignature(char *filename)
 {
   return getcrcsignatureuntil(filename, 0);
 }
 
-md5_byte_t *getcrcpartialsignature(char *filename)
+XXH64_hash_t *getcrcpartialsignature(char *filename)
 {
   return getcrcsignatureuntil(filename, PARTIAL_MD5_SIZE);
 }
 
-int md5cmp(const md5_byte_t *a, const md5_byte_t *b)
+int md5cmp(const XXH64_hash_t *a, const XXH64_hash_t *b)
 {
-  int x;
-
-  for (x = 0; x < MD5_DIGEST_LENGTH; ++x)
-  {
-    if (a[x] < b[x])
-      return -1;
-    else if (a[x] > b[x])
-      return 1;
-  }
-
-  return 0;
+  return *a - *b;
 }
 
-void md5copy(md5_byte_t *to, const md5_byte_t *from)
+void md5copy(XXH64_hash_t *to, const XXH64_hash_t *from)
 {
-  int x;
-
-  for (x = 0; x < MD5_DIGEST_LENGTH; ++x)
-    to[x] = from[x];
+  *to = *from;
 }
 
 void purgetree(filetree_t *checktree)
@@ -520,7 +502,7 @@ int is_hardlink(filetree_t *checktree, file_t *file)
 file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 {
   int cmpresult;
-  md5_byte_t *crcsignature;
+  XXH64_hash_t *crcsignature;
   off_t fsize;
 
   /* If device and inode fields are equal one of the files is a 
@@ -550,7 +532,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
         return NULL;
       }
 
-      checktree->file->crcpartial = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
+      checktree->file->crcpartial = (XXH64_hash_t*) malloc(sizeof(XXH64_hash_t));
       if (checktree->file->crcpartial == NULL) {
 	errormsg("out of memory\n");
 	exit(1);
@@ -565,7 +547,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
         return NULL;
       }
 
-      file->crcpartial = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
+      file->crcpartial = (XXH64_hash_t*) malloc(sizeof(XXH64_hash_t));
       if (file->crcpartial == NULL) {
 	errormsg("out of memory\n");
 	exit(1);
@@ -581,7 +563,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 	crcsignature = getcrcsignature(checktree->file->d_name);
 	if (crcsignature == NULL) return NULL;
 
-	checktree->file->crcsignature = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
+	checktree->file->crcsignature = (XXH64_hash_t*) malloc(sizeof(XXH64_hash_t));
 	if (checktree->file->crcsignature == NULL) {
 	  errormsg("out of memory\n");
 	  exit(1);
@@ -593,7 +575,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 	crcsignature = getcrcsignature(file->d_name);
 	if (crcsignature == NULL) return NULL;
 
-	file->crcsignature = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
+	file->crcsignature = (XXH64_hash_t*) malloc(sizeof(XXH64_hash_t));
 	if (file->crcsignature == NULL) {
 	  errormsg("out of memory\n");
 	  exit(1);
