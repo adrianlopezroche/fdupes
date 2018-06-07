@@ -84,7 +84,7 @@ INSTALL_DATA    = $(INSTALL) -c -m 0644
 #
 #ADDITIONAL_OBJECTS = getopt.o
 
-OBJECT_FILES = fdupes.o md5/md5.o $(ADDITIONAL_OBJECTS)
+OBJECT_FILES = fdupes.o xxHash/xxhash.o $(ADDITIONAL_OBJECTS)
 
 #####################################################################
 # no need to modify anything beyond this point                      #

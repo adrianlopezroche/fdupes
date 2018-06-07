@@ -1,4 +1,0 @@
-The MD5 library code residing within this directory was written 
-by L. Peter Deutsch. Although distributed here with fdupes, the 
-license for his MD5 library is different from the fdupes license. 
-Please look md5.c or md5.h for licensing information.
