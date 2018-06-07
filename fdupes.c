@@ -1642,7 +1642,7 @@ int cmd_select_matching(struct filegroup *groups, int groupcount, wchar_t *comma
       {
         if (wcsmbcscmp(commandarguments, groups[g].files[f].file->d_name) == 0)
         {
-          groups[f].selected = 1;
+          groups[g].selected = 1;
           groups[g].files[f].selected = 1;
 
           groupselected = 1;
