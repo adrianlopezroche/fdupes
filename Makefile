@@ -73,6 +73,10 @@ MKDIR   = mkdir -p
 #MKDIR   = mkdirhier 
 #MKDIR   = mkinstalldirs
 
+#
+# Use 8-bit code units for regex patterns and data.
+#
+PCRE2_CODE_UNIT_WIDTH = -DPCRE2_CODE_UNIT_WIDTH=8
 
 #
 # Make Configuration
@@ -80,7 +84,7 @@ MKDIR   = mkdir -p
 CC = gcc
 COMPILER_OPTIONS = -Wall -O -g
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT)
+CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT) $(PCRE2_CODE_UNIT_WIDTH)
 
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
@@ -88,7 +92,7 @@ INSTALL_DATA    = $(INSTALL) -c -m 0644
 #
 # EXTERNAL LIBRARIES
 #
-EXTERNAL_LIBRARIES = -lncursesw
+EXTERNAL_LIBRARIES = -lncursesw -lpcre2-8
 
 #
 # ADDITIONAL_OBJECTS - some platforms will need additional object files

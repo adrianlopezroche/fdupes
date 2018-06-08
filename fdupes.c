@@ -37,6 +37,7 @@
 #include <wchar.h>
 #define _XOPEN_SOURCE_EXTENDED
 #include <ncursesw/ncurses.h>
+#include <pcre2.h>
 
 #define KEY_ESCAPE 27
 
@@ -1660,6 +1661,70 @@ int cmd_select_matching(struct filegroup *groups, int groupcount, wchar_t *comma
   return 1;
 }
 
+/* select files matching pattern */
+int cmd_select_regex(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
+{
+  size_t size;
+  char *mbs;
+  int errorcode;
+  PCRE2_SIZE erroroffset;
+  pcre2_code *code;
+  pcre2_match_data *md;
+  int matches;
+  int g;
+  int f;
+  int selectedgroupcount = 0;
+  int selectedfilecount = 0;
+  int groupselected;
+
+  size = wcstombs(0, commandarguments, 0) + 1;
+  mbs = (char*) malloc(size * sizeof(char));
+  if (mbs == 0)
+    return -1;
+
+  wcstombs(mbs, commandarguments, size);
+
+  code = pcre2_compile((PCRE2_SPTR8)mbs, PCRE2_ZERO_TERMINATED, PCRE2_UTF | PCRE2_UCP, &errorcode, &erroroffset, 0);
+
+  free(mbs);
+
+  if (code == 0)
+    return -1;
+
+  pcre2_jit_compile(code, PCRE2_JIT_COMPLETE);
+
+  md = pcre2_match_data_create(1, 0);
+  if (md == 0)
+    return -1;
+
+  for (g = 0; g < groupcount; ++g)
+  {
+    groupselected = 0;
+
+    for (f = 0; f < groups[g].filecount; ++f)
+    {
+      matches = pcre2_match(code, (PCRE2_SPTR8)groups[g].files[f].file->d_name, PCRE2_ZERO_TERMINATED, 0, 0, md, 0);
+      if (matches > 0)
+      {
+        groups[g].selected = 1;
+        groups[g].files[f].selected = 1;
+
+        groupselected = 1;
+        ++selectedfilecount;
+      }
+    }
+
+    if (groupselected)
+      ++selectedgroupcount;
+  }
+
+  format_status_left(status, L"Matched %d files in %d groups.", selectedfilecount, selectedgroupcount);
+
+  pcre2_code_free(code);
+
+  return 1;
+}
+
 /* clear selections containing string */
 int cmd_clear_selections_containing(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
@@ -1860,6 +1925,83 @@ int cmd_clear_selections_matching(struct filegroup *groups, int groupcount, wcha
   return 1;
 }
 
+/* clear selection matching pattern */
+int cmd_clear_selections_regex(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
+{
+  size_t size;
+  char *mbs;
+  int errorcode;
+  PCRE2_SIZE erroroffset;
+  pcre2_code *code;
+  pcre2_match_data *md;
+  int matches;
+  int g;
+  int f;
+  int matchedgroupcount = 0;
+  int matchedfilecount = 0;
+  int groupmatched;
+  int filedeselected;
+  int selectionsremaining;
+
+  size = wcstombs(0, commandarguments, 0) + 1;
+  mbs = (char*) malloc(size * sizeof(char));
+  if (mbs == 0)
+    return -1;
+
+  wcstombs(mbs, commandarguments, size);
+
+  code = pcre2_compile((PCRE2_SPTR8)mbs, PCRE2_ZERO_TERMINATED, PCRE2_UTF | PCRE2_UCP, &errorcode, &erroroffset, 0);
+
+  free(mbs);
+
+  if (code == 0)
+    return -1;
+
+  pcre2_jit_compile(code, PCRE2_JIT_COMPLETE);
+
+  md = pcre2_match_data_create(1, 0);
+  if (md == 0)
+    return -1;
+
+  for (g = 0; g < groupcount; ++g)
+  {
+    groupmatched = 0;
+    filedeselected = 0;
+    selectionsremaining = 0;
+
+    for (f = 0; f < groups[g].filecount; ++f)
+    {
+      matches = pcre2_match(code, (PCRE2_SPTR8)groups[g].files[f].file->d_name, PCRE2_ZERO_TERMINATED, 0, 0, md, 0);
+      if (matches > 0)
+      {
+        if (groups[g].files[f].selected)
+        {
+          groups[g].files[f].selected = 0;
+          filedeselected = 1;
+        }
+
+        groupmatched = 1;
+        ++matchedfilecount;
+      }
+
+      if (groups[g].files[f].selected)
+        selectionsremaining = 1;
+    }
+
+    if (filedeselected && !selectionsremaining)
+      groups[g].selected = 0;
+
+    if (groupmatched)
+      ++matchedgroupcount;
+  }
+
+  format_status_left(status, L"Matched %d files in %d groups.", matchedfilecount, matchedgroupcount);
+
+  pcre2_code_free(code);
+
+  return 1;
+}
+
 /* clear all selections and selected groups */
 int cmd_clear_all_selections(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
@@ -2054,6 +2196,8 @@ int validate_file_list(struct filegroup *currentgroup, wchar_t *commandbuffer_in
 #define COMMAND_HELP 17
 #define COMMAND_YES 18
 #define COMMAND_NO 19
+#define COMMAND_SELECT_REGEX 20
+#define COMMAND_CLEAR_SELECTIONS_REGEX 21
 
 /* command name to command ID mappings */
 struct command_map {
@@ -2064,10 +2208,12 @@ struct command_map {
   {L"s[", COMMAND_SELECT_BEGINNING},
   {L"s]", COMMAND_SELECT_ENDING},
   {L"s[]", COMMAND_SELECT_MATCHING},
+  {L"s%%", COMMAND_SELECT_REGEX},
   {L"cs*", COMMAND_CLEAR_SELECTIONS_CONTAINING},
   {L"cs[", COMMAND_CLEAR_SELECTIONS_BEGINNING},
   {L"cs]", COMMAND_CLEAR_SELECTIONS_ENDING},
   {L"cs[]", COMMAND_CLEAR_SELECTIONS_MATCHING},
+  {L"cs%%", COMMAND_CLEAR_SELECTIONS_REGEX},
   {L"ca", COMMAND_CLEAR_ALL_SELECTIONS},
   {L"ig", COMMAND_INVERT_GROUP_SELECTIONS},
   {L"+", COMMAND_KEEP_SELECTED},
@@ -2693,6 +2839,10 @@ void deletefiles_ncurses(file_t *files)
               cmd_select_matching(groups, totalgroups, commandarguments, status);
               break;
 
+            case COMMAND_SELECT_REGEX:
+              cmd_select_regex(groups, totalgroups, commandarguments, status);
+              break;
+
             case COMMAND_CLEAR_SELECTIONS_CONTAINING:
               cmd_clear_selections_containing(groups, totalgroups, commandarguments, status);
               break;
@@ -2707,6 +2857,10 @@ void deletefiles_ncurses(file_t *files)
 
             case COMMAND_CLEAR_SELECTIONS_MATCHING:
               cmd_clear_selections_matching(groups, totalgroups, commandarguments, status);
+              break;
+
+            case COMMAND_CLEAR_SELECTIONS_REGEX:
+              cmd_clear_selections_regex(groups, totalgroups, commandarguments, status);
               break;
 
             case COMMAND_CLEAR_ALL_SELECTIONS:
