@@ -2533,6 +2533,8 @@ void deletefiles_ncurses(file_t *files)
   int dupesfound;
   int intresult;
   struct sigaction action;
+  int adjusttopline;
+  int toplineoffset = 0;
 
   initscr();
   noecho();
@@ -3304,17 +3306,40 @@ void deletefiles_ncurses(file_t *files)
           cursorgroup = totalgroups - 1;
 
         /* recalculate line boundaries */
+        adjusttopline = 1;
+        toplineoffset = 0;
         groupfirstline = 0;
 
         for (g = 0; g < totalgroups; ++g)
         {
+          if (adjusttopline && groups[g].endline >= topline)
+            toplineoffset = groups[g].endline - topline;
+
           groups[g].startline = groupfirstline;
           groups[g].endline = groupfirstline + 2;
 
           for (f = 0; f < groups[g].filecount; ++f)
             groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
 
+          if (adjusttopline && toplineoffset > 0)
+          {
+            topline = groups[g].endline - toplineoffset;
+
+            if (topline < 0)
+              topline = 0;
+
+            adjusttopline = 0;
+          }
+
           groupfirstline = groups[g].endline + 1;
+        }
+
+        if (totalgroups > 0 && groups[totalgroups-1].endline <= topline)
+        {
+          topline = groups[totalgroups-1].endline - getmaxy(filewin) + 1;
+
+          if (topline < 0)
+            topline = 0;
         }
 
         break;
