@@ -3350,8 +3350,8 @@ void deletefiles_ncurses(file_t *files)
             groups[to] = groups[g];
 
             /* reposition cursor, if necessary */
-            if (g == cursorgroup)
-              cursorgroup = to;
+            if (to == cursorgroup && to != g)
+              cursorfile = 0;
 
             ++to;
           }
@@ -3361,7 +3361,10 @@ void deletefiles_ncurses(file_t *files)
 
         /* reposition cursor, if necessary */
         if (cursorgroup >= totalgroups)
+        {
           cursorgroup = totalgroups - 1;
+          cursorfile = 0;
+        }
 
         /* recalculate line boundaries */
         adjusttopline = 1;
