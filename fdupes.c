@@ -2926,11 +2926,13 @@ void deletefiles_ncurses(file_t *files)
 
                       case COMMAND_NO:
                       case COMMAND_UNDEFINED:
+                        commandbuffer[0] = '\0';
                         continue;
                     }
                     break;
 
                   case GET_COMMAND_CANCELED:
+                    commandbuffer[0] = '\0';
                     continue;
 
                   case GET_COMMAND_RESIZE_REQUESTED:
@@ -3111,6 +3113,8 @@ void deletefiles_ncurses(file_t *files)
 
           break;
       }
+
+      commandbuffer[0] = '\0';
     }
     else if (keyresult == KEY_CODE_YES)
     {
