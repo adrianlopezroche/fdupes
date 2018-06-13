@@ -1226,6 +1226,10 @@ void print_prompt(WINDOW *statuswin, wchar_t *prompt, ...)
 #define GET_COMMAND_CANCELED 2
 #define GET_COMMAND_ERROR_OUT_OF_MEMORY 3
 #define GET_COMMAND_RESIZE_REQUESTED 4
+#define GET_COMMAND_KEY_NPAGE 5
+#define GET_COMMAND_KEY_PPAGE 6
+#define GET_COMMAND_KEY_SF 7
+#define GET_COMMAND_KEY_SR 8
 
 int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW *statuswin, int cancel_on_erase, int append)
 {
@@ -1328,6 +1332,18 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
           (*commandbuffer)[length-1] = L'\0';
 
           break;
+
+        case KEY_NPAGE:
+          return GET_COMMAND_KEY_NPAGE;
+
+        case KEY_PPAGE:
+          return GET_COMMAND_KEY_PPAGE;
+
+        case KEY_SF:
+          return GET_COMMAND_KEY_SF;
+
+        case KEY_SR:
+          return GET_COMMAND_KEY_SR;
 
         case KEY_RESIZE:
           return GET_COMMAND_RESIZE_REQUESTED;
@@ -2535,6 +2551,7 @@ void deletefiles_ncurses(file_t *files)
   struct sigaction action;
   int adjusttopline;
   int toplineoffset = 0;
+  int resumecommandinput = 0;
 
   initscr();
   noecho();
@@ -2792,31 +2809,36 @@ void deletefiles_ncurses(file_t *files)
     doupdate();
 
     /* wait for user input */
-    do
+    if (!resumecommandinput)
     {
-      keyresult = wget_wch(statuswin, &wch);
-
-      if (got_sigint)
+      do
       {
-        getyx(statuswin, cursor_y, cursor_x);
+        keyresult = wget_wch(statuswin, &wch);
 
-        format_status_left(status, L"Type 'exit' to exit fdupes.");
-        print_status(statuswin, status);
+        if (got_sigint)
+        {
+          getyx(statuswin, cursor_y, cursor_x);
 
-        wattroff(statuswin, A_REVERSE);
-        wmove(statuswin, cursor_y, cursor_x);
+          format_status_left(status, L"Type 'exit' to exit fdupes.");
+          print_status(statuswin, status);
 
-        got_sigint = 0;
+          wattroff(statuswin, A_REVERSE);
+          wmove(statuswin, cursor_y, cursor_x);
 
-        wnoutrefresh(statuswin);
-        doupdate();
-      }
-    } while (keyresult == ERR);
+          got_sigint = 0;
 
-    if (keyresult == OK && ((wch != '\t' && wch != '\n' && wch != '.' && wch != '?') || commandbuffer[0] != 0))
-    {
+          wnoutrefresh(statuswin);
+          doupdate();
+        }
+      } while (keyresult == ERR);
+
       commandbuffer[0] = wch;
       commandbuffer[1] = '\0';
+    }
+
+    if (resumecommandinput || (keyresult == OK && ((wch != '\t' && wch != '\n' && wch != '.' && wch != '?'))))
+    {
+      resumecommandinput = 0;
 
       switch (get_command_text(&commandbuffer, &commandbuffersize, statuswin, 1, 1))
       {
@@ -3067,6 +3089,38 @@ void deletefiles_ncurses(file_t *files)
           }
 
           break;
+
+        case GET_COMMAND_KEY_SF:
+          ++topline;
+
+          resumecommandinput = 1;
+
+          continue;
+
+        case GET_COMMAND_KEY_SR:
+          if (topline > 0)
+            --topline;
+
+          resumecommandinput = 1;
+
+          continue;
+
+        case GET_COMMAND_KEY_NPAGE:
+          topline += getmaxy(filewin);
+
+          resumecommandinput = 1;
+
+          continue;
+
+        case GET_COMMAND_KEY_PPAGE:
+          topline -= getmaxy(filewin);
+
+          if (topline < 0)
+            topline = 0;
+
+          resumecommandinput = 1;
+
+          continue;
 
         case GET_COMMAND_CANCELED:
           continue;
