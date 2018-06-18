@@ -2928,6 +2928,16 @@ void deletefiles_ncurses(file_t *files)
 
               break;
 
+            case COMMAND_HELP:
+              endwin();
+
+              if (system(HELP_COMMAND_STRING) == -1)
+                format_status_left(status, L"Could not display help text.");
+
+              refresh();
+
+              break;
+
             case COMMAND_EXIT: /* exit program */
               if (globaldeletiontally == 0)
               {
