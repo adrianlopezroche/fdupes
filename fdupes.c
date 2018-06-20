@@ -1217,7 +1217,9 @@ void print_prompt(WINDOW *statuswin, wchar_t *prompt, ...)
   wmove(statuswin, 0, 0);
   wclrtoeol(statuswin);
 
+  wattron(statuswin, A_BOLD);
   mvwaddnwstr(statuswin, 0, 0, text, wcslen(text));
+  wattroff(statuswin, A_BOLD);
 
   free(text);
 }
@@ -2724,13 +2726,13 @@ void deletefiles_ncurses(file_t *files)
       
       if (linestyle == linestyle_groupheader)
       {
-        wattron(filewin, A_BOLD);
+        wattron(filewin, A_UNDERLINE);
         if (groups[groupindex].selected)
           wattron(filewin, A_REVERSE);
         wprintw(filewin, "Set %d of %d:\n", groupindex + 1, totalgroups);
         if (groups[groupindex].selected)
           wattroff(filewin, A_REVERSE);
-        wattroff(filewin, A_BOLD);
+        wattroff(filewin, A_UNDERLINE);
       }
       else if (linestyle == linestyle_groupheaderspacing)
       {
