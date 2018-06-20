@@ -2839,7 +2839,7 @@ void deletefiles_ncurses(file_t *files)
       commandbuffer[1] = '\0';
     }
 
-    if (resumecommandinput || (keyresult == OK && ((wch != '\t' && wch != '\n' && wch != '.' && wch != '?'))))
+    if (resumecommandinput || (keyresult == OK && ((wch != '\t' && wch != '\n' && wch != '?'))))
     {
       resumecommandinput = 0;
 
