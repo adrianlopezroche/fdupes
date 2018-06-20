@@ -81,7 +81,7 @@ PCRE2_CODE_UNIT_WIDTH = -DPCRE2_CODE_UNIT_WIDTH=8
 #
 #
 #
-HELP_COMMAND_STRING = -DHELP_COMMAND_STRING="\"man fdupes-help\""
+HELP_COMMAND_STRING = -DHELP_COMMAND_STRING="\"man 1 fdupes-help\""
 
 #
 # Make Configuration
