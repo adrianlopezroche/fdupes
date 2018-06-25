@@ -1012,6 +1012,43 @@ int sort_pairs_by_mtime(file_t *f1, file_t *f2)
   return 0;
 }
 
+int get_num_digits(int value)
+{
+  int digits = 0;
+
+  if (value < 0)
+    value = -value;
+
+  do {
+    value /= 10;
+    ++digits;
+  } while (value > 0);
+
+  return digits;
+}
+
+void print_spaces(WINDOW *window, int spaces)
+{
+  int x;
+
+  for (x = 0; x < spaces; ++x)
+    waddch(window, L' ');
+}
+
+void print_right_justified_int(WINDOW *window, int number, int width)
+{
+  int length;
+
+  length = get_num_digits(number);
+  if (number < 0)
+    ++length;
+
+  if (length < width)
+    print_spaces(window, width - length);
+
+  wprintw(window, "%d", number);
+}
+
 void putline(WINDOW *window, const char *str, const int line, const int columns, const int compensate_indent)
 {
   wchar_t *dest = 0;
@@ -1401,21 +1438,31 @@ enum linestyle getlinestyle(struct filegroup *group, int line)
     return linestyle_filename;
 }
 
-int filerowcount(file_t *file, const int columns, const int first_line_indent)
+#define FILENAME_INDENT_EXTRA 5
+#define FILE_INDEX_MIN_WIDTH 3
+
+int filerowcount(file_t *file, const int columns, int group_file_count)
 {
-  int lines = 1;
+  int lines;
   int line_remaining;
   int x = 0;
   size_t read;
   size_t filename_bytes;
   wchar_t ch;
   mbstate_t mbstate;
+  int index_width;
 
   memset(&mbstate, 0, sizeof(mbstate));
 
   filename_bytes = strlen(file->d_name);
 
-  line_remaining = columns - first_line_indent;
+  index_width = get_num_digits(group_file_count);
+  if (index_width < FILE_INDEX_MIN_WIDTH)
+    index_width = FILE_INDEX_MIN_WIDTH;
+
+  lines = (index_width + FILENAME_INDENT_EXTRA) / columns + 1;
+
+  line_remaining = columns - (index_width + FILENAME_INDENT_EXTRA) % columns;
 
   while (x < filename_bytes)
   {
@@ -1452,7 +1499,7 @@ int getgroupindex(struct filegroup *groups, int group_count, int group_hint, int
   return group;
 }
 
-int getgroupfileindex(int *row, struct filegroup *group, int line, int columns, int first_line_indent)
+int getgroupfileindex(int *row, struct filegroup *group, int line, int columns)
 {
   int l;
   int f = 0;
@@ -1462,7 +1509,7 @@ int getgroupfileindex(int *row, struct filegroup *group, int line, int columns, 
 
   while (f < group->filecount)
   {
-    rowcount = filerowcount(group->files[f].file, columns, first_line_indent);
+    rowcount = filerowcount(group->files[f].file, columns, group->filecount);
 
     if (line <= l + rowcount - 1)
     {
@@ -1477,7 +1524,7 @@ int getgroupfileindex(int *row, struct filegroup *group, int line, int columns, 
   return -1;
 }
 
-int getgroupfileline(struct filegroup *group, int fileindex, int columns, int first_line_indent)
+int getgroupfileline(struct filegroup *group, int fileindex, int columns)
 {
   int l;
   int f = 0;
@@ -1487,7 +1534,7 @@ int getgroupfileline(struct filegroup *group, int fileindex, int columns, int fi
 
   while (f < fileindex && f < group->filecount)
   {
-    rowcount = filerowcount(group->files[f].file, columns, first_line_indent);
+    rowcount = filerowcount(group->files[f].file, columns, group->filecount);
     l += rowcount;
     ++f;
   }
@@ -2441,8 +2488,6 @@ int identify_command(struct command_identifier_node *tree, wchar_t *command_buff
   }
 }
 
-#define FILENAME_INDENT 8
-
 void scroll_to_next_group(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
 {
   *cursorgroup += 1;
@@ -2462,12 +2507,12 @@ void scroll_to_next_file(int *topline, int *cursorgroup, int *cursorfile, struct
 {
   *cursorfile += 1;
 
-  if (getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) >= *topline + getmaxy(filewin))
+  if (getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS) >= *topline + getmaxy(filewin))
   {
-      if (groups[*cursorgroup].endline - getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) < getmaxy(filewin))
+      if (groups[*cursorgroup].endline - getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS) < getmaxy(filewin))
         *topline += groups[*cursorgroup].endline - *topline - getmaxy(filewin) + 1;
       else
-        *topline += getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) - *topline;
+        *topline += getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS) - *topline;
   }
 }
 
@@ -2490,10 +2535,10 @@ void scroll_to_previous_file(int *topline, int *cursorgroup, int *cursorfile, st
 {
   *cursorfile -= 1;
 
-  if (getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) < *topline)
+  if (getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS) < *topline)
   {
-      if (getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) - groups[*cursorgroup].startline < getmaxy(filewin))
-        *topline -= getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS, FILENAME_INDENT) - groups[*cursorgroup].startline + 1;
+      if (getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS) - groups[*cursorgroup].startline < getmaxy(filewin))
+        *topline -= getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS) - groups[*cursorgroup].startline + 1;
       else
         *topline -= getmaxy(filewin);
   }
@@ -2555,6 +2600,7 @@ void deletefiles_ncurses(file_t *files)
   int adjusttopline;
   int toplineoffset = 0;
   int resumecommandinput = 0;
+  int index_width;
 
   initscr();
   noecho();
@@ -2657,9 +2703,15 @@ void deletefiles_ncurses(file_t *files)
     dupefile = curfile;
     do
     {
-      groups[totalgroups].endline += filerowcount(dupefile, COLS, FILENAME_INDENT);
-
       ++groupfilecount;
+
+      dupefile = dupefile->duplicates;
+    } while(dupefile);
+
+    dupefile = curfile;
+    do
+    {
+      groups[totalgroups].endline += filerowcount(dupefile, COLS, groupfilecount);
 
       dupefile = dupefile->duplicates;
     } while (dupefile);
@@ -2722,6 +2774,11 @@ void deletefiles_ncurses(file_t *files)
 
       groupindex = getgroupindex(groups, totalgroups, groupindex, x);
 
+      index_width = get_num_digits(groups[groupindex].filecount);
+
+      if (index_width < FILE_INDEX_MIN_WIDTH)
+        index_width = FILE_INDEX_MIN_WIDTH;
+
       linestyle = getlinestyle(groups + groupindex, x);
       
       if (linestyle == linestyle_groupheader)
@@ -2740,18 +2797,22 @@ void deletefiles_ncurses(file_t *files)
       }
       else if (linestyle == linestyle_filename)
       {
-        f = getgroupfileindex(&row, groups + groupindex, x, COLS, FILENAME_INDENT);
+        f = getgroupfileindex(&row, groups + groupindex, x, COLS);
 
         if (cursorgroup != groupindex)
         {
           if (row == 0)
-            wprintw(filewin, "    [%c] ", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
+          {
+            print_spaces(filewin, index_width);
+
+            wprintw(filewin, " [%c] ", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
+          }
 
           cy = getcury(filewin);
 
           if (groups[groupindex].files[f].selected)
             wattron(filewin, A_REVERSE);
-          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, FILENAME_INDENT);
+          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + FILENAME_INDENT_EXTRA);
           if (groups[groupindex].files[f].selected)
             wattroff(filewin, A_REVERSE);
 
@@ -2762,7 +2823,8 @@ void deletefiles_ncurses(file_t *files)
         {
           if (row == 0)
           {
-            wprintw(filewin, "%3d ", f+1);
+            print_right_justified_int(filewin, f+1, index_width);
+            wprintw(filewin, " ");
 
             if (cursorgroup == groupindex && cursorfile == f)
               wattron(filewin, A_REVERSE);
@@ -2776,7 +2838,7 @@ void deletefiles_ncurses(file_t *files)
 
           if (groups[groupindex].files[f].selected)
             wattron(filewin, A_REVERSE);
-          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, FILENAME_INDENT);
+          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + FILENAME_INDENT_EXTRA);
           if (groups[groupindex].files[f].selected)
             wattroff(filewin, A_REVERSE);
 
@@ -2988,7 +3050,7 @@ void deletefiles_ncurses(file_t *files)
                       groups[g].endline = groupfirstline + 2;
 
                       for (f = 0; f < groups[g].filecount; ++f)
-                        groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+                        groups[g].endline += filerowcount(groups[g].files[f].file, COLS, groups[g].filecount);
 
                       groupfirstline = groups[g].endline + 1;
                     }
@@ -3156,7 +3218,7 @@ void deletefiles_ncurses(file_t *files)
             groups[g].endline = groupfirstline + 2;
 
             for (f = 0; f < groups[g].filecount; ++f)
-              groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+              groups[g].endline += filerowcount(groups[g].files[f].file, COLS, groups[g].filecount);
 
             groupfirstline = groups[g].endline + 1;
           }
@@ -3393,7 +3455,7 @@ void deletefiles_ncurses(file_t *files)
           groups[g].endline = groupfirstline + 2;
 
           for (f = 0; f < groups[g].filecount; ++f)
-            groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+            groups[g].endline += filerowcount(groups[g].files[f].file, COLS, groups[g].filecount);
 
           if (adjusttopline && toplineoffset > 0)
           {
@@ -3436,7 +3498,7 @@ void deletefiles_ncurses(file_t *files)
           groups[g].endline = groupfirstline + 2;
 
           for (f = 0; f < groups[g].filecount; ++f)
-            groups[g].endline += filerowcount(groups[g].files[f].file, COLS, FILENAME_INDENT);
+            groups[g].endline += filerowcount(groups[g].files[f].file, COLS, groups[g].filecount);
 
           groupfirstline = groups[g].endline + 1;
         }
