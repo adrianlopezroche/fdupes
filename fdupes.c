@@ -2509,7 +2509,7 @@ void scroll_to_group(int *topline, int group, int tail, struct filegroup *groups
   }
 }
 
-void scroll_to_next_group(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
+void move_to_next_group(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
 {
   *cursorgroup += 1;
 
@@ -2538,7 +2538,7 @@ int move_to_next_selected_group(int *topline, int *cursorgroup, int *cursorfile,
   return 0;
 }
 
-void scroll_to_next_file(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
+void move_to_next_file(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
 {
   *cursorfile += 1;
 
@@ -2551,7 +2551,7 @@ void scroll_to_next_file(int *topline, int *cursorgroup, int *cursorfile, struct
   }
 }
 
-void scroll_to_previous_group(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
+void move_to_previous_group(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
 {
   *cursorgroup -= 1;
 
@@ -2580,7 +2580,7 @@ int move_to_previous_selected_group(int *topline, int *cursorgroup, int *cursorf
   return 0;
 }
 
-void scroll_to_previous_file(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
+void move_to_previous_file(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
 {
   *cursorfile -= 1;
 
@@ -3037,7 +3037,7 @@ void deletefiles_ncurses(file_t *files)
               format_status_left(status, L"%d files marked for preservation", groups[cursorgroup].filecount);
 
               if (cursorgroup < totalgroups - 1)
-                scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+                move_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
               break;
 
@@ -3207,7 +3207,7 @@ void deletefiles_ncurses(file_t *files)
               format_status_left(status, L"%d files marked for preservation, %d for deletion", preservecount, deletecount);
 
               if (cursorgroup < totalgroups - 1 && preservecount > 0)
-                scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+                move_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
               break;
           }
@@ -3300,17 +3300,17 @@ void deletefiles_ncurses(file_t *files)
       {
       case KEY_DOWN:
         if (cursorfile < groups[cursorgroup].filecount - 1)
-          scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          move_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
         else if (cursorgroup < totalgroups - 1)
-          scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          move_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
         break;
 
       case KEY_UP:
         if (cursorfile > 0)
-          scroll_to_previous_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          move_to_previous_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
         else if (cursorgroup > 0)
-          scroll_to_previous_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          move_to_previous_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
         break;
 
@@ -3341,9 +3341,9 @@ void deletefiles_ncurses(file_t *files)
         format_status_left(status, L"1 file marked for preservation.");
 
         if (cursorfile < groups[cursorgroup].filecount - 1)
-          scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          move_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
         else if (cursorgroup < totalgroups - 1)
-          scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          move_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
         break;
 
@@ -3361,9 +3361,9 @@ void deletefiles_ncurses(file_t *files)
         if (deletecount < groups[cursorgroup].filecount)
         {
           if (cursorfile < groups[cursorgroup].filecount - 1)
-            scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+            move_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
           else if (cursorgroup < totalgroups - 1)
-            scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+            move_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
         }
 
         break;
@@ -3574,9 +3574,9 @@ void deletefiles_ncurses(file_t *files)
         set_file_action(&groups[cursorgroup].files[cursorfile], 0, &globaldeletiontally);
 
         if (cursorfile < groups[cursorgroup].filecount - 1)
-          scroll_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          move_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
         else if (cursorgroup < totalgroups - 1)
-          scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          move_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
         break;
 
@@ -3603,13 +3603,13 @@ void deletefiles_ncurses(file_t *files)
         }
 
         if (cursorgroup < totalgroups - 1 && deletecount < groups[cursorgroup].filecount)
-          scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          move_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
         break;
 
       case '\t':
         if (cursorgroup < totalgroups - 1)
-          scroll_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+          move_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
 
         break;
       }
