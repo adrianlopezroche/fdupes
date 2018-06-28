@@ -37,7 +37,7 @@ Scroll up by one line. Not supported on some terminals.
 
 .SH "MOVING THE CURSOR"
 .PP
-The cursor tells fdupes which file and/or group to act on, as described in the next section. The cursor's position can be changed as follows:
+The cursor tells fdupes which file and/or set of duplicates to act on, as described in the next section. The cursor's position can be changed as follows:
 
 .B 
 .IP "DOWN"
@@ -49,30 +49,30 @@ Move cursor back to the previous file.
 
 .B 
 .IP "TAB"
-Advance cursor to the next group on the list.
+Advance cursor to the next set of duplicates.
 
 .B 
 .IP "BACKSPACE"
-Move cursor back to the previous group.
+Move cursor back to the previous set.
 
 .B
 .IP "SHIFT + RIGHT"
 Advance cursor to the next
 .I selected
-group, if any.
+set, if any.
 
 .B
 .IP "SHIFT + LEFT"
 Move cursor back to the previous
 .I selected
-group, if any.
+set, if any.
 
 .PP
-It is also possible to jump directly to a particular group:
+It is also possible to jump directly to a particular set:
 
 .B
 .IP "'goto <index>'"
-Move cursor to the top of the group indicated by
+Move cursor to the top of the set indicated by
 .IR index .
 
 .SH "TAGGING FILES USING THE CURSOR"
@@ -92,7 +92,7 @@ Tag current file for deletion.
 Remove tag from current file.
 
 .PP
-Entire sets of files can be tagged by providing a list of indices in a comma-separated list. Files in the current group whose indices appear on the list will be tagged for keeping, while any other files in that group will be tagged for deletion. As with individual files, the current group is identified by the cursor.
+Entire sets of files can be tagged by providing a list of indices in a comma-separated list. Files in the current set whose indices appear on the list will be tagged for keeping, while any other files in that set will be tagged for deletion. As with individual files, the current set is identified by the cursor.
 
 .PP
 As an example, given the following list of duplicates:
@@ -125,10 +125,10 @@ for deletion. The special command
 will tag all files for keeping.
 
 .PP
-There is one more command to deal with files in the current group:
+There is one more command to deal with files in the current set:
 .B
 .IP "'rg'"
-Remove tags from all files in current group.
+Remove tags from all files in current set.
 
 .SH "FILE SELECTION COMMANDS"
 .PP
@@ -186,7 +186,7 @@ Clear all selections.
 
 .B
 .IP "'igs'"
-Invert selections within selected groups. For example, if files 1 and 4 in a set of 5 are selected,
+Invert selections within selected sets. For example, if files 1 and 4 in a set of 5 are selected,
 .B
 igs
 will deselect files 1 and 4, and select files 2, 3, and 5. Immediately repeating the same command will deselect files 2, 3, and 5, and select files 1 and 4, restoring selections to their previous state.
