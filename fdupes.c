@@ -2488,19 +2488,54 @@ int identify_command(struct command_identifier_node *tree, wchar_t *command_buff
   }
 }
 
+void scroll_to_group(int *topline, int group, int tail, struct filegroup *groups, WINDOW *filewin)
+{
+  if (*topline < groups[group].startline)
+  {
+    if (groups[group].endline >= *topline + getmaxy(filewin))
+    {
+      if (groups[group].endline - groups[group].startline < getmaxy(filewin))
+        *topline = groups[group].endline - getmaxy(filewin) + 1;
+      else
+        *topline = groups[group].startline;
+    }
+  }
+  else
+  {
+    if (groups[group].endline - groups[group].startline < getmaxy(filewin) || !tail)
+      *topline = groups[group].startline;
+    else
+      *topline = groups[group].endline - getmaxy(filewin);
+  }
+}
+
 void scroll_to_next_group(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
 {
   *cursorgroup += 1;
 
   *cursorfile = 0;
 
-  if (groups[*cursorgroup].endline >= *topline + getmaxy(filewin))
+  scroll_to_group(topline, *cursorgroup, 0, groups, filewin);
+}
+
+int move_to_next_selected_group(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, int totalgroups, WINDOW *filewin)
+{
+  size_t g;
+
+  for (g = *cursorgroup + 1; g < totalgroups; ++g)
   {
-    if (groups[*cursorgroup].endline - groups[*cursorgroup].startline < getmaxy(filewin))
-      *topline += groups[*cursorgroup].endline - *topline - getmaxy(filewin) + 1;
-    else
-      *topline += groups[*cursorgroup].startline - *topline;
+    if (groups[g].selected)
+    {
+      *cursorgroup = g;
+      *cursorfile = 0;
+
+      scroll_to_group(topline, *cursorgroup, 0, groups, filewin);
+
+      return 1;
+    }
   }
+
+  return 0;
 }
 
 void scroll_to_next_file(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
@@ -2522,13 +2557,27 @@ void scroll_to_previous_group(int *topline, int *cursorgroup, int *cursorfile, s
 
   *cursorfile = groups[*cursorgroup].filecount - 1;
 
-  if (groups[*cursorgroup].startline < *topline)
+  scroll_to_group(topline, *cursorgroup, 1, groups, filewin);
+}
+
+int move_to_previous_selected_group(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, int totalgroups, WINDOW *filewin)
+{
+  size_t g;
+
+  for (g = *cursorgroup; g > 0; --g)
   {
-    if (groups[*cursorgroup].endline - groups[*cursorgroup].startline < getmaxy(filewin))
-      *topline -= *topline - groups[*cursorgroup].startline;
-    else
-      *topline -= *topline + getmaxy(filewin) - groups[*cursorgroup].endline;
+    if (groups[g - 1].selected)
+    {
+      *cursorgroup = g - 1;
+      *cursorfile = 0;
+
+      scroll_to_group(topline, *cursorgroup, 0, groups, filewin);
+
+      return 1;
+    }
   }
+
+  return 0;
 }
 
 void scroll_to_previous_file(int *topline, int *cursorgroup, int *cursorfile, struct filegroup *groups, WINDOW *filewin)
@@ -3329,6 +3378,14 @@ void deletefiles_ncurses(file_t *files)
           if (groups[cursorgroup].startline < topline)
             topline -= topline - groups[cursorgroup].startline;
         }
+        break;
+
+      case KEY_SRIGHT:
+        move_to_next_selected_group(&topline, &cursorgroup, &cursorfile, groups, totalgroups, filewin);
+        break;
+
+      case KEY_SLEFT:
+        move_to_previous_selected_group(&topline, &cursorgroup, &cursorfile, groups, totalgroups, filewin);
         break;
 
       case KEY_DC:
