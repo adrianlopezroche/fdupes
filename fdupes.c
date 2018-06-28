@@ -2263,6 +2263,7 @@ int validate_file_list(struct filegroup *currentgroup, wchar_t *commandbuffer_in
 #define COMMAND_NO 19
 #define COMMAND_SELECT_REGEX 20
 #define COMMAND_CLEAR_SELECTIONS_REGEX 21
+#define COMMAND_GOTO_SET 22
 
 /* command name to command ID mappings */
 struct command_map {
@@ -2286,6 +2287,7 @@ struct command_map {
   {L"rs", COMMAND_RESET_SELECTED},
   {L"rg", COMMAND_RESET_GROUP},
   {L"all", COMMAND_PRESERVE_ALL},
+  {L"goto", COMMAND_GOTO_SET},
   {L"exit", COMMAND_EXIT},
   {L"quit", COMMAND_EXIT},
   {L"help", COMMAND_HELP},
@@ -3038,6 +3040,29 @@ void deletefiles_ncurses(file_t *files)
 
               if (cursorgroup < totalgroups - 1)
                 move_to_next_group(&topline, &cursorgroup, &cursorfile, groups, filewin);
+
+              break;
+
+            case COMMAND_GOTO_SET:
+              number = wcstol(commandarguments, &wcstolcheck, 10);
+              if (wcstolcheck != commandarguments && *wcstolcheck == '\0')
+              {
+                if (number >= 1 && number <= totalgroups)
+                {
+                  scroll_to_group(&topline, number - 1, 0, groups, filewin);
+
+                  cursorgroup = number - 1;
+                  cursorfile = 0;
+                }
+                else
+                {
+                  format_status_left(status, L"Group index out of range.");
+                }
+              }
+              else
+              {
+                format_status_left(status, L"Invalid group index.");
+              }
 
               break;
 
