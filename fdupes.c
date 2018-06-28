@@ -2545,9 +2545,9 @@ void move_to_next_file(int *topline, int *cursorgroup, int *cursorfile, struct f
   if (getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS) >= *topline + getmaxy(filewin))
   {
       if (groups[*cursorgroup].endline - getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS) < getmaxy(filewin))
-        *topline += groups[*cursorgroup].endline - *topline - getmaxy(filewin) + 1;
+        *topline = groups[*cursorgroup].endline - getmaxy(filewin) + 1;
       else
-        *topline += getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS) - *topline;
+        *topline = getgroupfileline(&groups[*cursorgroup], *cursorfile, COLS);
   }
 }
 
@@ -3375,8 +3375,7 @@ void deletefiles_ncurses(file_t *files)
 
           cursorfile = 0;
 
-          if (groups[cursorgroup].startline < topline)
-            topline -= topline - groups[cursorgroup].startline;
+          scroll_to_group(&topline, cursorgroup, 0, groups, filewin);
         }
         break;
 
