@@ -1230,19 +1230,18 @@ void print_status(WINDOW *statuswin, struct status_text *status)
 
   text[cols] = L'\0';
 
-  wattron(statuswin, A_REVERSE);
-  mvwaddnwstr(statuswin, 1, 0, text, wcslen(text));
+  mvwaddnwstr(statuswin, 0, 0, text, wcslen(text));
 
   free(text);
 }
 
-void print_prompt(WINDOW *statuswin, wchar_t *prompt, ...)
+void print_prompt(WINDOW *promptwin, wchar_t *prompt, ...)
 {
   wchar_t *text;
   va_list ap;
   size_t cols;
 
-  cols = getmaxx(statuswin);
+  cols = getmaxx(promptwin);
 
   text = (wchar_t*)malloc((cols + 1) * sizeof(wchar_t));
 
@@ -1250,13 +1249,11 @@ void print_prompt(WINDOW *statuswin, wchar_t *prompt, ...)
   vswprintf(text, cols, prompt, ap);
   va_end(ap);
 
-  wattroff(statuswin, A_REVERSE);
-  wmove(statuswin, 0, 0);
-  wclrtoeol(statuswin);
+  wclear(promptwin);
 
-  wattron(statuswin, A_BOLD);
-  mvwaddnwstr(statuswin, 0, 0, text, wcslen(text));
-  wattroff(statuswin, A_BOLD);
+  wattron(promptwin, A_BOLD);
+  mvwaddnwstr(promptwin, 0, 0, text, wcslen(text));
+  wattroff(promptwin, A_BOLD);
 
   free(text);
 }
@@ -1270,7 +1267,7 @@ void print_prompt(WINDOW *statuswin, wchar_t *prompt, ...)
 #define GET_COMMAND_KEY_SF 7
 #define GET_COMMAND_KEY_SR 8
 
-int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW *statuswin, int cancel_on_erase, int append)
+int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW *promptwin, int cancel_on_erase, int append)
 {
   int docommandinput;
   int keyresult;
@@ -1281,7 +1278,7 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
   int cursor_x;
   int cursor_y;
 
-  getyx(statuswin, cursor_y, cursor_x);
+  getyx(promptwin, cursor_y, cursor_x);
 
   if (*commandbuffer == 0)
   {
@@ -1297,9 +1294,9 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
   }
   else
   {
-    wprintw(statuswin, "%ls", *commandbuffer);
+    wprintw(promptwin, "%ls", *commandbuffer);
 
-    wnoutrefresh(statuswin);
+    wnoutrefresh(promptwin);
     doupdate();
   }
 
@@ -1308,7 +1305,7 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
   {
     do
     {
-      keyresult = wget_wch(statuswin, &wch);
+      keyresult = wget_wch(promptwin, &wch);
 
       if (got_sigint)
       {
@@ -1389,13 +1386,13 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
       }
     }
 
-    wmove(statuswin, cursor_y, cursor_x);
-    wclrtoeol(statuswin);
-    wmove(statuswin, cursor_y, cursor_x);
+    wmove(promptwin, cursor_y, cursor_x);
+    wclrtoeol(promptwin);
+    wmove(promptwin, cursor_y, cursor_x);
 
-    wprintw(statuswin, "%ls", *commandbuffer);
+    wprintw(promptwin, "%ls", *commandbuffer);
 
-    wnoutrefresh(statuswin);
+    wnoutrefresh(promptwin);
     doupdate();
   } while (docommandinput);
 
@@ -2603,6 +2600,7 @@ void sigint_handler(int signal)
 void deletefiles_ncurses(file_t *files)
 {
   WINDOW *filewin;
+  WINDOW *promptwin;
   WINDOW *statuswin;
   file_t *curfile;
   file_t *dupefile;
@@ -2659,13 +2657,16 @@ void deletefiles_ncurses(file_t *files)
   halfdelay(5);
 
   filewin = newwin(LINES - 2, COLS, 0, 0);
-  statuswin = newwin(2, COLS, LINES - 2, 0);
+  statuswin = newwin(1, COLS, LINES - 1, 0);
+  promptwin = newwin(1, COLS, LINES - 2, 0);
 
   scrollok(filewin, FALSE);
+  scrollok(statuswin, FALSE);
+  scrollok(promptwin, FALSE);
 
   wattron(statuswin, A_REVERSE);
 
-  keypad(statuswin, 1);
+  keypad(promptwin, 1);
 
   commandbuffersize = 80;
   commandbuffer = malloc(commandbuffersize * sizeof(wchar_t));
@@ -2913,15 +2914,16 @@ void deletefiles_ncurses(file_t *files)
     print_status(statuswin, status);
 
     if (totalgroups > 0)
-      print_prompt(statuswin, L"[ Preserve files (1 - %d, all, help) ]:", groups[cursorgroup].filecount);
+      print_prompt(promptwin, L"[ Preserve files (1 - %d, all, help) ]:", groups[cursorgroup].filecount);
     else if (dupesfound)
-      print_prompt(statuswin, L"[ No duplicates remaining (type 'exit' to exit program) ]:");
+      print_prompt(promptwin, L"[ No duplicates remaining (type 'exit' to exit program) ]:");
     else
-      print_prompt(statuswin, L"[ No duplicates found (type 'exit' to exit program) ]:");
+      print_prompt(promptwin, L"[ No duplicates found (type 'exit' to exit program) ]:");
 
-    wprintw(statuswin, " ");
+    wprintw(promptwin, " ");
 
     wnoutrefresh(statuswin);
+    wnoutrefresh(promptwin);
     doupdate();
 
     /* wait for user input */
@@ -2929,7 +2931,7 @@ void deletefiles_ncurses(file_t *files)
     {
       do
       {
-        keyresult = wget_wch(statuswin, &wch);
+        keyresult = wget_wch(promptwin, &wch);
 
         if (got_sigint)
         {
@@ -2956,7 +2958,7 @@ void deletefiles_ncurses(file_t *files)
     {
       resumecommandinput = 0;
 
-      switch (get_command_text(&commandbuffer, &commandbuffersize, statuswin, 1, 1))
+      switch (get_command_text(&commandbuffer, &commandbuffersize, promptwin, 1, 1))
       {
         case GET_COMMAND_OK:
           get_command_arguments(&commandarguments, commandbuffer);
@@ -3084,9 +3086,9 @@ void deletefiles_ncurses(file_t *files)
               }
               else
               {
-                print_prompt(statuswin, L"[ There are files marked for deletion. Exit anyway? ]: ");
+                print_prompt(promptwin, L"[ There are files marked for deletion. Exit anyway? ]: ");
 
-                switch (get_command_text(&commandbuffer, &commandbuffersize, statuswin, 0, 0))
+                switch (get_command_text(&commandbuffer, &commandbuffersize, promptwin, 0, 0))
                 {
                   case GET_COMMAND_OK:
                     switch (identify_command(confirmationkeywordidentifier, commandbuffer, 0))
@@ -3110,8 +3112,10 @@ void deletefiles_ncurses(file_t *files)
                     /* resize windows */
                     wresize(filewin, LINES - 2, COLS);
 
-                    wresize(statuswin, 2, COLS);
-                    mvwin(statuswin, LINES - 2, 0);
+                    wresize(statuswin, 1, COLS);
+                    wresize(promptwin, 1, COLS);
+                    mvwin(statuswin, LINES - 1, 0);
+                    mvwin(promptwin, LINES - 2, 0);
 
                     status_text_alloc(status, COLS);
 
@@ -3278,8 +3282,10 @@ void deletefiles_ncurses(file_t *files)
           /* resize windows */
           wresize(filewin, LINES - 2, COLS);
 
-          wresize(statuswin, 2, COLS);
-          mvwin(statuswin, LINES - 2, 0);
+          wresize(statuswin, 1, COLS);
+          wresize(promptwin, 1, COLS);
+          mvwin(statuswin, LINES - 1, 0);
+          mvwin(promptwin, LINES - 2, 0);
 
           status_text_alloc(status, COLS);
 
@@ -3565,8 +3571,10 @@ void deletefiles_ncurses(file_t *files)
         /* resize windows */
         wresize(filewin, LINES - 2, COLS);
 
-        wresize(statuswin, 2, COLS);
-        mvwin(statuswin, LINES - 2, 0);
+        wresize(statuswin, 1, COLS);
+        wresize(promptwin, 1, COLS);
+        mvwin(statuswin, LINES - 1, 0);
+        mvwin(promptwin, LINES - 2, 0);
 
         status_text_alloc(status, COLS);
 
