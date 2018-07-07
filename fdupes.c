@@ -1189,6 +1189,13 @@ struct status_text *status_text_alloc(struct status_text *status, size_t width)
   return result;
 }
 
+void free_status_text(struct status_text *status)
+{
+  free(status->left);
+  free(status->right);
+  free(status);
+}
+
 void format_status_left(struct status_text *status, wchar_t *format, ...)
 {
   va_list ap;
@@ -2806,6 +2813,21 @@ void deletefiles_ncurses(file_t *files)
   dupesfound = totalgroups > 0;
 
   status = status_text_alloc(0, COLS);
+  if (status == 0)
+  {
+    for (g = 0; g < totalgroups; ++g)
+      free(groups[g].files);
+
+    free(groups);
+    free(commandbuffer);
+    free_command_identifier_tree(commandidentifier);
+    free_command_identifier_tree(confirmationkeywordidentifier);
+
+    endwin();
+    errormsg("out of memory\n");
+    exit(1);
+  }
+
   format_status_left(status, L"Ready");
 
   doprune = 1;
@@ -3651,6 +3673,8 @@ void deletefiles_ncurses(file_t *files)
   endwin();
 
   free(commandbuffer);
+
+  free_status_text(status);
 
   free_command_identifier_tree(commandidentifier);
 
