@@ -1242,27 +1242,122 @@ void print_status(WINDOW *statuswin, struct status_text *status)
   free(text);
 }
 
-void print_prompt(WINDOW *promptwin, wchar_t *prompt, ...)
+struct prompt_info
 {
   wchar_t *text;
+  size_t allocated;
+  size_t offset;
+  size_t cursor;
+};
+
+struct prompt_info *prompt_info_alloc(size_t initial_size)
+{
+  struct prompt_info *out;
+
+  if (initial_size < 1)
+    return 0;
+
+  out = (struct prompt_info*) malloc(sizeof(struct prompt_info));
+  if (out == 0)
+    return 0;
+
+  out->text = malloc(initial_size * sizeof(wchar_t));
+  if (out->text == 0)
+  {
+    free(out);
+    return 0;
+  }
+
+  out->text[0] = L'\0';
+  out->allocated = initial_size;
+  out->offset = 0;
+  out->cursor = 0;
+
+  return out;
+}
+
+void free_prompt_info(struct prompt_info *info)
+{
+  free(info->text);
+  free(info);
+}
+
+int format_prompt(struct prompt_info *prompt, wchar_t *format, ...)
+{
   va_list ap;
-  size_t cols;
+  va_list aq;
+  FILE *fp;
+  int size;
+  wchar_t *newtext;
 
-  cols = getmaxx(promptwin);
+  va_start(ap, format);
+  va_copy(aq, ap);
 
-  text = (wchar_t*)malloc((cols + 1) * sizeof(wchar_t));
+  fp = fopen("/dev/null", "w");
+  size = vfwprintf(fp, format, aq);
+  fclose(fp);
 
-  va_start(ap, prompt);
-  vswprintf(text, cols, prompt, ap);
+  if (size + 1 > prompt->allocated)
+  {
+    newtext = (wchar_t*)realloc(prompt->text, (size + 1) * sizeof(wchar_t));
+
+    if (newtext == 0)
+      return 0;
+
+    prompt->text = newtext;
+    prompt->allocated = size + 1;
+  }
+
+  vswprintf(prompt->text, prompt->allocated, format, ap);
+
+  va_end(aq);
   va_end(ap);
 
-  wclear(promptwin);
+  return 1;
+}
 
-  wattron(promptwin, A_BOLD);
-  mvwaddnwstr(promptwin, 0, 0, text, wcslen(text));
-  wattroff(promptwin, A_BOLD);
+void update_prompt(WINDOW *promptwin, struct prompt_info *prompt, wchar_t *commandbuffer, int cursor_delta)
+{
+  const size_t cursor_stop = wcslen(prompt->text);
+  const size_t right_edge = getmaxx(promptwin);
+  const size_t cursor_position = cursor_stop + prompt->cursor - prompt->offset;
 
-  free(text);
+  if (cursor_delta > 0)
+  {
+    if (prompt->cursor + cursor_delta > wcslen(commandbuffer))
+     cursor_delta = wcslen(commandbuffer) - prompt->cursor;
+
+    if (cursor_position + cursor_delta >= right_edge)
+      prompt->offset += cursor_delta;
+  }
+  else if (cursor_delta < 0)
+  {
+    if (-cursor_delta > prompt->cursor)
+      cursor_delta = -(int)prompt->cursor;
+
+    if (cursor_position + cursor_delta < cursor_stop)
+      prompt->offset += cursor_delta;
+  }
+
+  prompt->cursor += cursor_delta;
+}
+
+void print_prompt(WINDOW *promptwin, struct prompt_info *prompt, wchar_t *commandbuffer)
+{
+  werase(promptwin);
+
+  if (prompt->offset <= wcslen(prompt->text))
+  {
+    wattron(promptwin, A_BOLD);
+    waddwstr(promptwin, prompt->text + prompt->offset);
+    wattroff(promptwin, A_BOLD);
+
+    waddwstr(promptwin, commandbuffer);
+  }
+  else if (prompt->offset < wcslen(prompt->text) + wcslen(commandbuffer))
+  {
+   waddwstr(promptwin, commandbuffer + prompt->offset - wcslen(prompt->text));
+  }
 }
 
 #define GET_COMMAND_OK 1
@@ -1274,18 +1369,16 @@ void print_prompt(WINDOW *promptwin, wchar_t *prompt, ...)
 #define GET_COMMAND_KEY_SF 7
 #define GET_COMMAND_KEY_SR 8
 
-int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW *promptwin, int cancel_on_erase, int append)
+int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW *promptwin, struct prompt_info *prompt, int cancel_on_erase, int append)
 {
   int docommandinput;
   int keyresult;
   wint_t wch;
+  wint_t oldch;
   size_t length;
   size_t newsize;
   wchar_t *realloccommandbuffer;
-  int cursor_x;
-  int cursor_y;
-
-  getyx(promptwin, cursor_y, cursor_x);
+  size_t c;
 
   if (*commandbuffer == 0)
   {
@@ -1301,10 +1394,13 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
   }
   else
   {
-    wprintw(promptwin, "%ls", *commandbuffer);
+    print_prompt(promptwin, prompt, *commandbuffer);
 
-    wnoutrefresh(promptwin);
-    doupdate();
+    prompt->cursor = wcswidth(*commandbuffer, wcslen(*commandbuffer));
+
+    wmove(promptwin, 0, wcslen(prompt->text) + prompt->cursor - prompt->offset);
+
+    wrefresh(promptwin);
   }
 
   docommandinput = 1;
@@ -1329,15 +1425,27 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
       switch (wch)
       {
         case KEY_ESCAPE:
+          prompt->offset = 0;
+          prompt->cursor = 0;
+          docommandinput = 0;
+
           (*commandbuffer)[0] = '\0';
 
           return GET_COMMAND_CANCELED;
 
         case '\n':
+          prompt->offset = 0;
+          prompt->cursor = 0;
           docommandinput = 0;
           continue;
 
+        case '\t':
+          continue;
+
         default:
+          if (!iswprint(wch))
+            continue;
+
           length = wcslen(*commandbuffer);
 
           if (length + 1 >= *commandbuffersize)
@@ -1352,8 +1460,12 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
             *commandbuffersize = newsize;
           }
 
-          (*commandbuffer)[length] = wch;
-          (*commandbuffer)[length+1] = L'\0';
+          for (c = length + 1; c >= prompt->cursor + 1; --c)
+            (*commandbuffer)[c] = (*commandbuffer)[c-1];
+
+          (*commandbuffer)[prompt->cursor] = wch;
+
+          update_prompt(promptwin, prompt, *commandbuffer, wcwidth(wch));
 
           break;
       }
@@ -1365,14 +1477,47 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
         case KEY_BACKSPACE:
           length = wcslen(*commandbuffer);
 
-          if (cancel_on_erase && length <= 1)
-          {
-            (*commandbuffer)[0] = L'\0';
+          oldch = (*commandbuffer)[prompt->cursor];
 
+          if (prompt->cursor > 0)
+            for (c = prompt->cursor; c <= length; ++c)
+              (*commandbuffer)[c-1] = (*commandbuffer)[c];
+
+          update_prompt(promptwin, prompt, *commandbuffer, oldch != 0 ? -wcwidth(oldch) : -1);
+
+          if (cancel_on_erase && wcslen(*commandbuffer) == 0)
             return GET_COMMAND_CANCELED;
-          }
 
-          (*commandbuffer)[length-1] = L'\0';
+          break;
+
+        case KEY_DC:
+          length = wcslen(*commandbuffer);
+
+          if (prompt->cursor < length)
+            for (c = prompt->cursor; c <= length; ++c)
+              (*commandbuffer)[c] = (*commandbuffer)[c+1];
+
+          if (cancel_on_erase && wcslen(*commandbuffer) == 0)
+            return GET_COMMAND_CANCELED;
+
+          break;
+
+        case KEY_LEFT:
+          length = wcslen(*commandbuffer);
+
+          oldch = (*commandbuffer)[prompt->cursor];
+
+          update_prompt(promptwin, prompt, *commandbuffer, oldch != 0 ? -wcwidth(oldch) : -1);
+
+          break;
+
+        case KEY_RIGHT:
+          length = wcslen(*commandbuffer);
+
+          oldch = (*commandbuffer)[prompt->cursor];
+
+          if (prompt->cursor + wcwidth((*commandbuffer)[prompt->cursor]) <= length)
+            update_prompt(promptwin, prompt, *commandbuffer, wcwidth(oldch));
 
           break;
 
@@ -1393,14 +1538,11 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
       }
     }
 
-    wmove(promptwin, cursor_y, cursor_x);
-    wclrtoeol(promptwin);
-    wmove(promptwin, cursor_y, cursor_x);
+    print_prompt(promptwin, prompt, *commandbuffer);
 
-    wprintw(promptwin, "%ls", *commandbuffer);
+    wmove(promptwin, 0, wcslen(prompt->text) + prompt->cursor - prompt->offset);
 
-    wnoutrefresh(promptwin);
-    doupdate();
+    wrefresh(promptwin);
   } while (docommandinput);
 
   return GET_COMMAND_OK;
@@ -2650,6 +2792,7 @@ void deletefiles_ncurses(file_t *files)
   wchar_t *wcstolcheck;
   long int number;
   struct status_text *status;
+  struct prompt_info *prompt;
   int dupesfound;
   int intresult;
   struct sigaction action;
@@ -2830,6 +2973,24 @@ void deletefiles_ncurses(file_t *files)
 
   format_status_left(status, L"Ready");
 
+  prompt = prompt_info_alloc(80);
+  if (prompt == 0)
+  {
+    free_status_text(status);
+
+    for (g = 0; g < totalgroups; ++g)
+      free(groups[g].files);
+
+    free(groups);
+    free(commandbuffer);
+    free_command_identifier_tree(commandidentifier);
+    free_command_identifier_tree(confirmationkeywordidentifier);
+
+    endwin();
+    errormsg("out of memory\n");
+    exit(1);
+  }
+
   doprune = 1;
   do
   {
@@ -2926,8 +3087,6 @@ void deletefiles_ncurses(file_t *files)
       }
     }
 
-    wnoutrefresh(filewin);
-
     if (totalgroups > 0)
       format_status_right(status, L"Set %d of %d", cursorgroup+1, totalgroups);
     else
@@ -2936,17 +3095,18 @@ void deletefiles_ncurses(file_t *files)
     print_status(statuswin, status);
 
     if (totalgroups > 0)
-      print_prompt(promptwin, L"[ Preserve files (1 - %d, all, help) ]:", groups[cursorgroup].filecount);
+      format_prompt(prompt, L"[ Preserve files (1 - %d, all, help) ]: ", groups[cursorgroup].filecount);
     else if (dupesfound)
-      print_prompt(promptwin, L"[ No duplicates remaining (type 'exit' to exit program) ]:");
+      format_prompt(prompt, L"[ No duplicates remaining (type 'exit' to exit program) ]: ");
     else
-      print_prompt(promptwin, L"[ No duplicates found (type 'exit' to exit program) ]:");
+      format_prompt(prompt, L"[ No duplicates found (type 'exit' to exit program) ]: ");
 
-    wprintw(promptwin, " ");
+    print_prompt(promptwin, prompt, L"");
 
-    wnoutrefresh(statuswin);
-    wnoutrefresh(promptwin);
-    doupdate();
+    /* refresh windows (using wrefresh instead of wnoutrefresh to avoid bug in gnome-terminal) */
+    wrefresh(filewin);
+    wrefresh(statuswin);
+    wrefresh(promptwin);
 
     /* wait for user input */
     if (!resumecommandinput)
@@ -2967,20 +3127,26 @@ void deletefiles_ncurses(file_t *files)
 
           got_sigint = 0;
 
-          wnoutrefresh(statuswin);
-          doupdate();
+          wrefresh(statuswin);
         }
       } while (keyresult == ERR);
 
-      commandbuffer[0] = wch;
-      commandbuffer[1] = '\0';
+      if (keyresult == OK && iswprint(wch))
+      {
+        commandbuffer[0] = wch;
+        commandbuffer[1] = '\0';
+      }
+      else
+      {
+        commandbuffer[0] = '\0';
+      }
     }
 
-    if (resumecommandinput || (keyresult == OK && ((wch != '\t' && wch != '\n' && wch != '?'))))
+    if (resumecommandinput || (keyresult == OK && iswprint(wch) && ((wch != '\t' && wch != '\n' && wch != '?'))))
     {
       resumecommandinput = 0;
 
-      switch (get_command_text(&commandbuffer, &commandbuffersize, promptwin, 1, 1))
+      switch (get_command_text(&commandbuffer, &commandbuffersize, promptwin, prompt, 1, 1))
       {
         case GET_COMMAND_OK:
           get_command_arguments(&commandarguments, commandbuffer);
@@ -3108,9 +3274,11 @@ void deletefiles_ncurses(file_t *files)
               }
               else
               {
-                print_prompt(promptwin, L"[ There are files marked for deletion. Exit anyway? ]: ");
+                format_prompt(prompt, L"[ There are files marked for deletion. Exit anyway? ]: ");
 
-                switch (get_command_text(&commandbuffer, &commandbuffersize, promptwin, 0, 0))
+                print_prompt(promptwin, prompt, L"");
+
+                switch (get_command_text(&commandbuffer, &commandbuffersize, promptwin, prompt, 0, 0))
                 {
                   case GET_COMMAND_OK:
                     switch (identify_command(confirmationkeywordidentifier, commandbuffer, 0))
@@ -3423,13 +3591,12 @@ void deletefiles_ncurses(file_t *files)
 
       case KEY_BACKSPACE:
         if (cursorgroup > 0)
-        {
           --cursorgroup;
 
-          cursorfile = 0;
+        cursorfile = 0;
 
-          scroll_to_group(&topline, cursorgroup, 0, groups, filewin);
-        }
+        scroll_to_group(&topline, cursorgroup, 0, groups, filewin);
+
         break;
 
       case KEY_SRIGHT:
@@ -3673,6 +3840,8 @@ void deletefiles_ncurses(file_t *files)
   endwin();
 
   free(commandbuffer);
+
+  free_prompt_info(prompt);
 
   free_status_text(status);
 
