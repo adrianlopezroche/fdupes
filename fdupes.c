@@ -60,6 +60,7 @@
 #define F_RECURSEAFTER      0x0200
 #define F_NOPROMPT          0x0400
 #define F_SUMMARIZEMATCHES  0x0800
+#define F_PLAINPROMPT       0x1000
 
 char *program_name;
 
@@ -2834,7 +2835,6 @@ void deletefiles_ncurses(file_t *files)
   int resumecommandinput = 0;
   int index_width;
 
-  initscr();
   noecho();
   cbreak();
   halfdelay(5);
@@ -3963,6 +3963,8 @@ void help_text()
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
   printf("                  \tprompting the user\n");
+  printf(" -p --plain       \twith --delete, use line-based prompt (as with older\n");
+  printf("                  \tversions of fdupes) instead of screen-mode interface\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -4000,6 +4002,7 @@ int main(int argc, char **argv) {
     { "relink", 0, 0, 'l' },
     { "noempty", 0, 0, 'n' },
     { "delete", 0, 0, 'd' },
+    { "plain", 0, 0, 'p' },
     { "version", 0, 0, 'v' },
     { "help", 0, 0, 'h' },
     { "noprompt", 0, 0, 'N' },
@@ -4053,6 +4056,9 @@ int main(int argc, char **argv) {
       break;
     case 'd':
       SETFLAG(flags, F_DELETEFILES);
+      break;
+    case 'p':
+      SETFLAG(flags, F_PLAINPROMPT);
       break;
     case 'v':
       printf("fdupes %s\n", VERSION);
@@ -4171,11 +4177,24 @@ int main(int argc, char **argv) {
     }
     else
     {
-	deletefiles_ncurses(files);
-	/*
-      stdin = freopen("/dev/tty", "r", stdin);
-      deletefiles(files, 1, stdin);
-	*/
+      if (!ISFLAG(flags, F_PLAINPROMPT))
+      {
+        if (newterm(getenv("TERM"), stdout, stdin) != 0)
+        {
+          deletefiles_ncurses(files);
+        }
+        else
+        {
+          errormsg("could not enter screen mode; falling back to plain mode\n\n");
+          SETFLAG(flags, F_PLAINPROMPT);
+        }
+      }
+
+      if (ISFLAG(flags, F_PLAINPROMPT))
+      {
+        stdin = freopen("/dev/tty", "r", stdin);
+        deletefiles(files, 1, stdin);
+      }
     }
   }
 
