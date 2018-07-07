@@ -2925,6 +2925,9 @@ void deletefiles_ncurses(file_t *files)
         free(groups[g].files);
 
       free(groups);
+      free(commandbuffer);
+      free_command_identifier_tree(commandidentifier);
+      free_command_identifier_tree(confirmationkeywordidentifier);
 
       endwin();
       errormsg("out of memory\n");
