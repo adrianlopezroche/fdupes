@@ -1027,6 +1027,22 @@ int get_num_digits(int value)
   return digits;
 }
 
+int vwprintlength(const wchar_t *format, va_list args)
+{
+  FILE *fp;
+  int size;
+
+  fp = fopen("/dev/null", "w");
+  if (fp == 0)
+    return 0;
+
+  size = vfwprintf(fp, format, args);
+
+  fclose(fp);
+
+  return size;
+}
+
 void print_spaces(WINDOW *window, int spaces)
 {
   int x;
@@ -1199,18 +1215,38 @@ void free_status_text(struct status_text *status)
 void format_status_left(struct status_text *status, wchar_t *format, ...)
 {
   va_list ap;
+  va_list aq;
+  int size;
 
   va_start(ap, format);
+  va_copy(aq, ap);
+
+  size = vwprintlength(format, aq);
+
+  status_text_alloc(status, size);
+
   vswprintf(status->left, status->width + 1, format, ap);
+
+  va_end(aq);
   va_end(ap);
 }
 
 void format_status_right(struct status_text *status, wchar_t *format, ...)
 {
   va_list ap;
+  va_list aq;
+  int size;
 
   va_start(ap, format);
+  va_copy(aq, ap);
+
+  size = vwprintlength(format, aq);
+
+  status_text_alloc(status, size);
+
   vswprintf(status->right, status->width + 1, format, ap);
+
+  va_end(aq);
   va_end(ap);
 }
 
@@ -1286,16 +1322,13 @@ int format_prompt(struct prompt_info *prompt, wchar_t *format, ...)
 {
   va_list ap;
   va_list aq;
-  FILE *fp;
   int size;
   wchar_t *newtext;
 
   va_start(ap, format);
   va_copy(aq, ap);
 
-  fp = fopen("/dev/null", "w");
-  size = vfwprintf(fp, format, aq);
-  fclose(fp);
+  size = vwprintlength(format, aq);
 
   if (size + 1 > prompt->allocated)
   {
