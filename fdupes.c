@@ -3556,7 +3556,7 @@ void deletefiles_ncurses(file_t *files)
 
         break;
 
-      case KEY_RIGHT:
+      case KEY_SRIGHT:
         set_file_action(&groups[cursorgroup].files[cursorfile], 1, &globaldeletiontally);
 
         format_status_left(status, L"1 file marked for preservation.");
@@ -3568,7 +3568,7 @@ void deletefiles_ncurses(file_t *files)
 
         break;
 
-      case KEY_LEFT:
+      case KEY_SLEFT:
         deletecount = 0;
 
         set_file_action(&groups[cursorgroup].files[cursorfile], -1, &globaldeletiontally);
@@ -3599,11 +3599,11 @@ void deletefiles_ncurses(file_t *files)
 
         break;
 
-      case KEY_SRIGHT:
+      case KEY_F(3):
         move_to_next_selected_group(&topline, &cursorgroup, &cursorfile, groups, totalgroups, filewin);
         break;
 
-      case KEY_SLEFT:
+      case KEY_F(2):
         move_to_previous_selected_group(&topline, &cursorgroup, &cursorfile, groups, totalgroups, filewin);
         break;
 
