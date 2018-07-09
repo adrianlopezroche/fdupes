@@ -89,10 +89,16 @@ HELP_COMMAND_STRING = -DHELP_COMMAND_STRING="\"man 1 fdupes-help\""
 CC = gcc
 COMPILER_OPTIONS = -Wall -O -g
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT) $(PCRE2_CODE_UNIT_WIDTH) $(HELP_COMMAND_STRING)
+CFLAGS= $(COMPILER_OPTIONS) -I. -DPROGRAM_NAME=\"$(PROGRAM_NAME)\" -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT) $(PCRE2_CODE_UNIT_WIDTH) $(HELP_COMMAND_STRING)
+
+DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
+DEPDIR := .d
+$(shell mkdir -p $(DEPDIR) >/dev/null)
 
 INSTALL_PROGRAM = $(INSTALL) -c -m 0755
 INSTALL_DATA    = $(INSTALL) -c -m 0644
+
+POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
 #
 # EXTERNAL LIBRARIES
@@ -105,13 +111,47 @@ EXTERNAL_LIBRARIES = -lncursesw -lpcre2-8
 #
 #ADDITIONAL_OBJECTS = getopt.o
 
-OBJECT_FILES = fdupes.o md5/md5.o $(ADDITIONAL_OBJECTS)
+OBJECT_FILES = fdupes.o\
+	ncurses-interface.o\
+	ncurses-commands.o\
+	ncurses-getcommand.o\
+	ncurses-prompt.o\
+	ncurses-status.o\
+	ncurses-print.o\
+	commandidentifier.o\
+	errormsg.o\
+	wcs.o\
+	md5/md5.o\
+	$(ADDITIONAL_OBJECTS)
+
+SRCS = fdupes.c\
+	ncurses-interface.c\
+	ncurses-commands.c\
+	ncurses-getcommand.c\
+	ncurses-prompt.c\
+	ncurses-status.c\
+	ncurses-print.c\
+	commandidentifier.c\
+	errormsg.c\
+	wcs.c\
+	md5/md5.c
 
 #####################################################################
 # no need to modify anything beyond this point                      #
 #####################################################################
 
 all: fdupes
+
+%.o : %.c
+%.o : %.c $(DEPDIR)/%.d
+	$(CC) -c $(CFLAGS) $(DEPFLAGS) $(OUTPUT_OPTION) $<
+	$(POSTCOMPILE)
+
+$(DEPDIR)/%.d: ;
+.PRECIOUS: $(DEPDIR)/%.d
+
+md5/md5.o: md5/md5.c md5/md5.h
+	$(CC) -c $(CFLAGS) $(OUTPUT_OPTION) $<
 
 fdupes: $(OBJECT_FILES)
 	$(CC) $(CFLAGS) -o fdupes $(OBJECT_FILES) $(EXTERNAL_LIBRARIES)
@@ -125,10 +165,17 @@ install: fdupes installdirs
 	$(INSTALL_DATA)		fdupes.1 $(MAN_DIR)/$(PROGRAM_NAME).$(MAN_EXT)
 	$(INSTALL_DATA)		fdupes-help.1 $(MAN_DIR)/fdupes-help.$(MAN_EXT)
 
+.PHONY: clean
 clean:
 	$(RM) $(OBJECT_FILES)
 	$(RM) fdupes
 	$(RM) *~ md5/*~
 
+distclean: clean
+	rm -f .d/*.d .d/*.Td
+	rmdir .d
+
 love:
 	@echo You\'re not my type. Go find a human partner.
+
+include $(wildcard $(patsubst %,$(DEPDIR)/%.d,$(basename $(SRCS))))
