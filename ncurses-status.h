@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NCURSESSTATUS_H
+#define NCURSESSTATUS_H
 
 #define __USE_XOPEN
 #include <wchar.h>
@@ -17,3 +18,5 @@ void free_status_text(struct status_text *status);
 void format_status_left(struct status_text *status, wchar_t *format, ...);
 void format_status_right(struct status_text *status, wchar_t *format, ...);
 void print_status(WINDOW *statuswin, struct status_text *status);
+
+#endif

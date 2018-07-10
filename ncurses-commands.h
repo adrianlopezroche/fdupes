@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NCURSESCOMMANDS_H
+#define NCURSESCOMMANDS_H
 
 #include "commandidentifier.h"
 #include "filegroup.h"
@@ -48,3 +49,5 @@ int cmd_invert_group_selections(struct filegroup *groups, int groupcount, wchar_
 int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status);
 int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status);
 int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status);
+
+#endif

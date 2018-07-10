@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NCURSESPRINT_H
+#define NCURSESPRINT_H
 
 #define __USE_XOPEN
 #include <wchar.h>
@@ -11,3 +12,5 @@ void print_spaces(WINDOW *window, int spaces);
 void print_right_justified_int(WINDOW *window, int number, int width);
 int vwprintflength(const wchar_t *format, va_list args);
 int get_num_digits(int value);
+
+#endif

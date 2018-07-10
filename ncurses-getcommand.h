@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NCURSESGETCOMMAND_H
+#define NCURSESGETCOMMAND_H
 
 #define __USE_XOPEN
 #include <wchar.h>
@@ -17,3 +18,5 @@
 
 void get_command_arguments(wchar_t **arguments, wchar_t *input);
 int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW *promptwin, struct prompt_info *prompt, int cancel_on_erase, int append);
+
+#endif

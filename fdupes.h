@@ -1,4 +1,5 @@
-#pragma once
+#ifndef FDUPES_H
+#define FDUPES_H
 
 #include <sys/stat.h>
 
@@ -14,3 +15,5 @@ typedef struct _file {
   struct _file *duplicates;
   struct _file *next;
 } file_t;
+
+#endif

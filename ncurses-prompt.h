@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NCURSESPROMPT_H
+#define NCURSESPROMPT_H
 
 #define __USE_XOPEN
 #include <wchar.h>
@@ -18,3 +19,5 @@ void free_prompt_info(struct prompt_info *info);
 int format_prompt(struct prompt_info *prompt, wchar_t *format, ...);
 void update_prompt(WINDOW *promptwin, struct prompt_info *prompt, wchar_t *commandbuffer, int cursor_delta);
 void print_prompt(WINDOW *promptwin, struct prompt_info *prompt, wchar_t *commandbuffer);
+
+#endif

@@ -1,3 +1,6 @@
+#ifndef WCS_H
+#define WCS_H
+
 #define __USE_XOPEN
 #include <wchar.h>
 
@@ -6,3 +9,5 @@ int wcsinmbcs(char *haystack, wchar_t *needle);
 int wcsbeginmbcs(char *haystack, wchar_t *needle);
 int wcsendsmbcs(char *haystack, wchar_t *needle);
 wchar_t *wcsrstr(wchar_t *haystack, wchar_t *needle);
+
+#endif

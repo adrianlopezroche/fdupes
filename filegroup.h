@@ -1,4 +1,5 @@
-#pragma once
+#ifndef FILEGROUP_H
+#define FILEGROUP_H
 
 #include "fdupes.h"
 
@@ -17,3 +18,5 @@ struct filegroup
   int endline;
   int selected;
 };
+
+#endif

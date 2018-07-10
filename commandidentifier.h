@@ -1,4 +1,5 @@
-#pragma once
+#ifndef COMMANDIDENTIFIER_H
+#define COMMANDIDENTIFIER_H
 
 #define __USE_XOPEN
 #include <wchar.h>
@@ -25,3 +26,5 @@ struct command_identifier_node
 int identify_command(struct command_identifier_node *tree, wchar_t *command_buffer, size_t ch);
 struct command_identifier_node *build_command_identifier_tree(struct command_map *commands);
 void free_command_identifier_tree(struct command_identifier_node *tree);
+
+#endif
