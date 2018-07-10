@@ -33,6 +33,7 @@
 #include <locale.h>
 #include <ncursesw/ncurses.h>
 #include "fdupes.h"
+#include "errormsg.h"
 #include "ncurses-interface.h"
 
 #ifndef EXTERNAL_MD5
