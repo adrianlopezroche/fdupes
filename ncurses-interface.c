@@ -671,11 +671,11 @@ void deletefiles_ncurses(file_t *files)
     print_status(statuswin, status);
 
     if (totalgroups > 0)
-      format_prompt(prompt, L"[ Preserve files (1 - %d, all, help) ]: ", groups[cursorgroup].filecount);
+      format_prompt(prompt, L"( Preserve files [1 - %d, all, help] )", groups[cursorgroup].filecount);
     else if (dupesfound)
-      format_prompt(prompt, L"[ No duplicates remaining (type 'exit' to exit program) ]: ");
+      format_prompt(prompt, L"( No duplicates remaining; type 'exit' to exit program )");
     else
-      format_prompt(prompt, L"[ No duplicates found (type 'exit' to exit program) ]: ");
+      format_prompt(prompt, L"( No duplicates found; type 'exit' to exit program )");
 
     print_prompt(promptwin, prompt, L"");
 
@@ -850,9 +850,10 @@ void deletefiles_ncurses(file_t *files)
               }
               else
               {
-                format_prompt(prompt, L"[ There are files marked for deletion. Exit anyway? ]: ");
-
+                format_prompt(prompt, L"( There are files marked for deletion. Exit anyway? )");
                 print_prompt(promptwin, prompt, L"");
+
+                wrefresh(promptwin);
 
                 switch (get_command_text(&commandbuffer, &commandbuffersize, promptwin, prompt, 0, 0))
                 {
@@ -1042,7 +1043,7 @@ void deletefiles_ncurses(file_t *files)
           continue;
 
         case GET_COMMAND_CANCELED:
-          continue;
+          break;
 
         case GET_COMMAND_RESIZE_REQUESTED:
           /* resize windows */

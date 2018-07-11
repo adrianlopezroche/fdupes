@@ -24,6 +24,7 @@ struct prompt_info *prompt_info_alloc(size_t initial_size)
   out->allocated = initial_size;
   out->offset = 0;
   out->cursor = 0;
+  out->active = 0;
 
   return out;
 }
@@ -46,9 +47,9 @@ int format_prompt(struct prompt_info *prompt, wchar_t *format, ...)
 
   size = vwprintflength(format, aq);
 
-  if (size + 1 > prompt->allocated)
+  if (size + 3 > prompt->allocated)
   {
-    newtext = (wchar_t*)realloc(prompt->text, (size + 1) * sizeof(wchar_t));
+    newtext = (wchar_t*)realloc(prompt->text, (size + 3) * sizeof(wchar_t));
 
     if (newtext == 0)
       return 0;
@@ -59,10 +60,21 @@ int format_prompt(struct prompt_info *prompt, wchar_t *format, ...)
 
   vswprintf(prompt->text, prompt->allocated, format, ap);
 
+  size = wcslen(prompt->text);
+
+  prompt->text[size + 0] = L':';
+  prompt->text[size + 1] = L' ';
+  prompt->text[size + 2] = L'\0';
+
   va_end(aq);
   va_end(ap);
 
   return 1;
+}
+
+void set_prompt_active_state(struct prompt_info *prompt, int active)
+{
+  prompt->active = active;
 }
 
 void update_prompt(WINDOW *promptwin, struct prompt_info *prompt, wchar_t *commandbuffer, int cursor_delta)
@@ -93,6 +105,11 @@ void update_prompt(WINDOW *promptwin, struct prompt_info *prompt, wchar_t *comma
 
 void print_prompt(WINDOW *promptwin, struct prompt_info *prompt, wchar_t *commandbuffer)
 {
+  if (prompt->active)
+    prompt->text[wcslen(prompt->text) - 2] = '=';
+  else
+    prompt->text[wcslen(prompt->text) - 2] = ':';
+
   werase(promptwin);
 
   if (prompt->offset <= wcslen(prompt->text))
@@ -105,6 +122,6 @@ void print_prompt(WINDOW *promptwin, struct prompt_info *prompt, wchar_t *comman
   }
   else if (prompt->offset < wcslen(prompt->text) + wcslen(commandbuffer))
   {
-   waddwstr(promptwin, commandbuffer + prompt->offset - wcslen(prompt->text));
+    waddwstr(promptwin, commandbuffer + prompt->offset - wcslen(prompt->text));
   }
 }

@@ -35,12 +35,18 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
   wchar_t *realloccommandbuffer;
   size_t c;
 
+  set_prompt_active_state(prompt, 1);
+  wrefresh(promptwin);
+
   if (*commandbuffer == 0)
   {
     *commandbuffersize = 80;
     *commandbuffer = malloc(*commandbuffersize * sizeof(wchar_t));
     if (*commandbuffer == 0)
+    {
+      set_prompt_active_state(prompt, 0);
       return GET_COMMAND_ERROR_OUT_OF_MEMORY;
+    }
   }
 
   if (!append)
@@ -71,6 +77,8 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
 
         (*commandbuffer)[0] = '\0';
 
+        set_prompt_active_state(prompt, 0);
+
         return GET_COMMAND_CANCELED;
       }
     } while (keyresult == ERR);
@@ -85,6 +93,8 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
           docommandinput = 0;
 
           (*commandbuffer)[0] = '\0';
+
+          set_prompt_active_state(prompt, 0);
 
           return GET_COMMAND_CANCELED;
 
@@ -109,7 +119,10 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
 
             realloccommandbuffer = (wchar_t*)realloc(*commandbuffer, newsize * sizeof(wchar_t));
             if (realloccommandbuffer == 0)
+            {
+              set_prompt_active_state(prompt, 0);
               return GET_COMMAND_ERROR_OUT_OF_MEMORY;
+            }
 
             *commandbuffer = realloccommandbuffer;
             *commandbuffersize = newsize;
@@ -119,6 +132,8 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
             (*commandbuffer)[c] = (*commandbuffer)[c-1];
 
           (*commandbuffer)[prompt->cursor] = wch;
+
+          set_prompt_active_state(prompt, 1);
 
           update_prompt(promptwin, prompt, *commandbuffer, wcwidth(wch));
 
@@ -132,6 +147,14 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
         case KEY_BACKSPACE:
           length = wcslen(*commandbuffer);
 
+          if (length == 0)
+          {
+            set_prompt_active_state(prompt, 0);
+
+            if (cancel_on_erase)
+              return GET_COMMAND_CANCELED;
+          }
+
           oldch = (*commandbuffer)[prompt->cursor];
 
           if (prompt->cursor > 0)
@@ -139,9 +162,6 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
               (*commandbuffer)[c-1] = (*commandbuffer)[c];
 
           update_prompt(promptwin, prompt, *commandbuffer, oldch != 0 ? -wcwidth(oldch) : -1);
-
-          if (cancel_on_erase && wcslen(*commandbuffer) == 0)
-            return GET_COMMAND_CANCELED;
 
           break;
 
@@ -151,9 +171,6 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
           if (prompt->cursor < length)
             for (c = prompt->cursor; c <= length; ++c)
               (*commandbuffer)[c] = (*commandbuffer)[c+1];
-
-          if (cancel_on_erase && wcslen(*commandbuffer) == 0)
-            return GET_COMMAND_CANCELED;
 
           break;
 
@@ -199,6 +216,8 @@ int get_command_text(wchar_t **commandbuffer, size_t *commandbuffersize, WINDOW 
 
     wrefresh(promptwin);
   } while (docommandinput);
+
+  set_prompt_active_state(prompt, 0);
 
   return GET_COMMAND_OK;
 }
