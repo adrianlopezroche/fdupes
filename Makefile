@@ -32,6 +32,12 @@ FILEOFFSET_64BIT = -D_FILE_OFFSET_BITS=64
 #
 #EXTERNAL_MD5 = -DEXTERNAL_MD5=\"md5sum\"
 
+#
+# Uncomment the following line on systems lacking ncurses support, or
+# for installations where the screen-mode interface is not desired.
+#
+#NO_NCURSES = -DNO_NCURSES
+
 #####################################################################
 # Developer Configuration Section                                   #
 #####################################################################
@@ -89,7 +95,7 @@ HELP_COMMAND_STRING = -DHELP_COMMAND_STRING="\"man 1 fdupes-help\""
 CC = gcc
 COMPILER_OPTIONS = -Wall -O -g
 
-CFLAGS= $(COMPILER_OPTIONS) -I. -DPROGRAM_NAME=\"$(PROGRAM_NAME)\" -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(FILEOFFSET_64BIT) $(PCRE2_CODE_UNIT_WIDTH) $(HELP_COMMAND_STRING)
+CFLAGS= $(COMPILER_OPTIONS) -I. -DPROGRAM_NAME=\"$(PROGRAM_NAME)\" -DVERSION=\"$(VERSION)\" $(EXTERNAL_MD5) $(OMIT_GETOPT_LONG) $(NO_NCURSES) $(FILEOFFSET_64BIT) $(PCRE2_CODE_UNIT_WIDTH) $(HELP_COMMAND_STRING)
 
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 DEPDIR := .d
@@ -103,7 +109,9 @@ POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 #
 # EXTERNAL LIBRARIES
 #
+ifndef NO_NCURSES
 EXTERNAL_LIBRARIES = -lncursesw -lpcre2-8
+endif
 
 #
 # ADDITIONAL_OBJECTS - some platforms will need additional object files
@@ -111,30 +119,38 @@ EXTERNAL_LIBRARIES = -lncursesw -lpcre2-8
 #
 #ADDITIONAL_OBJECTS = getopt.o
 
-OBJECT_FILES = fdupes.o\
-	ncurses-interface.o\
+ifndef NO_NCURSES
+NCURSES_OBJECT_FILES = ncurses-interface.o\
 	ncurses-commands.o\
 	ncurses-getcommand.o\
 	ncurses-prompt.o\
 	ncurses-status.o\
 	ncurses-print.o\
 	commandidentifier.o\
+	wcs.o
+endif
+
+OBJECT_FILES = fdupes.o\
 	errormsg.o\
-	wcs.o\
 	md5/md5.o\
+	$(NCURSES_OBJECT_FILES)\
 	$(ADDITIONAL_OBJECTS)
 
-SRCS = fdupes.c\
-	ncurses-interface.c\
+ifndef NO_NCURSES
+NCURSES_SRCS = ncurses-interface.c\
 	ncurses-commands.c\
 	ncurses-getcommand.c\
 	ncurses-prompt.c\
 	ncurses-status.c\
 	ncurses-print.c\
 	commandidentifier.c\
+	wcs.c
+endif
+
+SRCS = fdupes.c\
 	errormsg.c\
-	wcs.c\
-	md5/md5.c
+	md5/md5.c\
+	$(NCURSES_SRCS)
 
 #####################################################################
 # no need to modify anything beyond this point                      #
@@ -163,7 +179,9 @@ installdirs:
 install: fdupes installdirs
 	$(INSTALL_PROGRAM)	fdupes   $(BIN_DIR)/$(PROGRAM_NAME)
 	$(INSTALL_DATA)		fdupes.1 $(MAN_DIR)/$(PROGRAM_NAME).$(MAN_EXT)
+ifndef NO_NCURSES
 	$(INSTALL_DATA)		fdupes-help.1 $(MAN_DIR)/fdupes-help.$(MAN_EXT)
+endif
 
 .PHONY: clean
 clean:

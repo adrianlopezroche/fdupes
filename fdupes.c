@@ -940,8 +940,10 @@ void help_text()
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
   printf("                  \tprompting the user\n");
+#ifndef NO_NCURSES
   printf(" -p --plain       \twith --delete, use line-based prompt (as with older\n");
   printf("                  \tversions of fdupes) instead of screen-mode interface\n");
+#endif
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifdef OMIT_GETOPT_LONG
@@ -1154,6 +1156,7 @@ int main(int argc, char **argv) {
     }
     else
     {
+#ifndef NO_NCURSES
       if (!ISFLAG(flags, F_PLAINPROMPT))
       {
         if (newterm(getenv("TERM"), stdout, stdin) != 0)
@@ -1172,6 +1175,10 @@ int main(int argc, char **argv) {
         stdin = freopen("/dev/tty", "r", stdin);
         deletefiles(files, 1, stdin);
       }
+#else
+    stdin = freopen("/dev/tty", "r", stdin);
+    deletefiles(files, 1, stdin);
+#endif
     }
   }
 
