@@ -843,14 +843,18 @@ void deletefiles_ncurses(file_t *files)
               break;
 
             case COMMAND_EXIT: /* exit program */
-              if (globaldeletiontally == 0)
+              if (totalgroups == 0)
               {
                 doprune = 0;
                 continue;
               }
               else
               {
-                format_prompt(prompt, L"( There are files marked for deletion. Exit anyway? )");
+                if (globaldeletiontally != 0)
+                  format_prompt(prompt, L"( There are files marked for deletion. Exit without deleting? )");
+                else
+                  format_prompt(prompt, L"( There are duplicates remaining. Exit anyway? )");
+
                 print_prompt(promptwin, prompt, L"");
 
                 wrefresh(promptwin);
