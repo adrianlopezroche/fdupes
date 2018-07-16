@@ -1,10 +1,12 @@
 #ifndef NCURSESPROMPT_H
 #define NCURSESPROMPT_H
 
-#define __USE_XOPEN
 #include <wchar.h>
-#define _XOPEN_SOURCE_EXTENDED
-#include <ncursesw/ncurses.h>
+#ifdef HAVE_NCURSESW_CURSES_H
+  #include <ncursesw/curses.h>
+#else
+  #include <curses.h>
+#endif
 
 struct prompt_info
 {

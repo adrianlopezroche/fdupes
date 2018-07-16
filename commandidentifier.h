@@ -1,7 +1,6 @@
 #ifndef COMMANDIDENTIFIER_H
 #define COMMANDIDENTIFIER_H
 
-#define __USE_XOPEN
 #include <wchar.h>
 
 #define COMMAND_RECOGNIZER_OUT_OF_MEMORY -2

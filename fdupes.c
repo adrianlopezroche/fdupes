@@ -19,6 +19,7 @@
    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#include <config.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -31,7 +32,11 @@
 #endif
 #include <errno.h>
 #include <locale.h>
-#include <ncursesw/ncurses.h>
+#ifdef HAVE_NCURSESW_CURSES_H
+  #include <ncursesw/curses.h>
+#else
+  #include <curses.h>
+#endif
 #include "fdupes.h"
 #include "errormsg.h"
 #include "ncurses-interface.h"

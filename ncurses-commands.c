@@ -1,7 +1,7 @@
+#include <config.h>
 #include "ncurses-status.h"
 #include "ncurses-commands.h"
 #include "wcs.h"
-#define __USE_XOPEN
 #include <wchar.h>
 #include <pcre2.h>
 

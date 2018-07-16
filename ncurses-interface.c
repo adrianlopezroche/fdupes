@@ -1,10 +1,13 @@
+#include <config.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
-#define __USE_XOPEN
 #include <wchar.h>
-#define _XOPEN_SOURCE_EXTENDED
-#include <ncursesw/ncurses.h>
+#ifdef HAVE_NCURSESW_CURSES_H
+  #include <ncursesw/curses.h>
+#else
+  #include <curses.h>
+#endif
 #include "ncurses-interface.h"
 #include "ncurses-getcommand.h"
 #include "ncurses-commands.h"

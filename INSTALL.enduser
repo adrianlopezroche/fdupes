@@ -1,0 +1,44 @@
+Installing fdupes
+--------------------------------------------------------------------
+To build and install the program, issue the following commands:
+
+	./configure
+	make
+	sudo make install
+
+Starting with fdupes 2.0.0, a full-featured installation requires
+the following libraries to be installed on your system:
+
+  - ncursesw (ncurses with support for wide characters)
+  - PCRE2 (Perl Compatible Regular Expressions library)
+
+Source code for these libraries is available at:
+
+  https://www.gnu.org/software/ncurses/
+  https://www.pcre.org/
+
+If these libraries are not available on your system or you want to
+build fdupes without them, you may instead call configure as:
+
+	./configure --without-ncurses
+
+followed by "make" and "sudo make install" as before.
+
+Please note that compiling fdupes without these libraries will
+disable the new screen-mode interface for choosing which files to
+keep or delete. Without them, fdupes will use an interface like
+the one used in previous versions.
+
+The commands above will build and install fdupes and its
+documentation under /usr/local by default. You may change the
+install location using:
+
+	./configure --prefix=/your/chosen/path
+
+followed by "make" and "sudo make install" as before.
+
+A test directory is included so that you may familiarise yourself
+with the way fdupes operates. You may test the program before
+installing it by issuing a command such as "./fdupes testdir" 
+or "./fdupes -r testdir", just to name a couple of examples. Refer
+to the documentation for information on valid options.

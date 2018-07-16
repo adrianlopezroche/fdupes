@@ -1,7 +1,6 @@
 #ifndef WCS_H
 #define WCS_H
 
-#define __USE_XOPEN
 #include <wchar.h>
 
 int wcsmbcscmp(wchar_t *s1, char *s2);

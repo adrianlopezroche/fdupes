@@ -1,0 +1,33 @@
+AC_INIT([fdupes], [2.0.0-beta])
+
+AM_INIT_AUTOMAKE([foreign subdir-objects])
+
+AC_CONFIG_HEADERS([config.h])
+
+AC_ARG_PROGRAM
+
+AC_ARG_WITH([ncurses], AS_HELP_STRING([--without-ncurses], [Do not use ncurses interface]))
+
+AC_CHECK_HEADERS([ncursesw/curses.h])
+
+AS_IF([test x"$with_ncurses" != x"no"],
+	[AC_SEARCH_LIBS([wget_wch], [ncursesw ncurses curses], [], [AC_ERROR([ncurses library not found (or lacks wide character support)])])]
+	[AC_DEFINE([__USE_XOPEN], [], [enable certain functions in wchar.h])]
+	[AC_DEFINE([_XOPEN_SOURCE_EXTENDED], [], [enable certain functions in curses.h])]
+	[AC_SEARCH_LIBS([pcre2_match_8], [pcre2-8], [], [AC_ERROR([pcre2 library not found])])]
+	[AC_DEFINE([PCRE2_CODE_UNIT_WIDTH], [8], [PCRE2 Code Unit Width])],
+
+	[AC_DEFINE([NO_NCURSES], [], [Do not compile against ncurses])]
+	)
+
+AM_CONDITIONAL([NO_NCURSES], [test x"$with_ncurses" = x"no"])
+
+unescaped_program_transform_name=`echo "${program_transform_name}"|sed -e "s&\\\\$\\\\$&\\\\$&g"`
+transformed_program_name=`echo "${PACKAGE_NAME}"|sed -e "${unescaped_program_transform_name}"|sed -e "s&\\\\\\\\&\\\\\\\\\\\\\\\\&g"`
+transformed_manpage_name=`echo "${PACKAGE_NAME}-help"|sed -e "${unescaped_program_transform_name}"`
+
+AC_DEFINE_UNQUOTED([HELP_COMMAND_STRING], "man 1 ${transformed_manpage_name}", [fdupes help file])
+
+AC_CONFIG_FILES([Makefile])
+AC_PROG_CC
+AC_OUTPUT
