@@ -20,6 +20,7 @@ Usage: fdupes [options] DIRECTORY...
  -f --omitfirst   	omit the first file in each set of matches
  -1 --sameline    	list each set of matches on a single line
  -S --size        	show size of duplicate files
+ -m --summarize   	summarize dupe information
  -q --quiet       	hide progress indicator
  -d --delete      	prompt user for files to preserve and delete all
                   	others; important: under particular circumstances,
@@ -27,6 +28,11 @@ Usage: fdupes [options] DIRECTORY...
                   	with -s or --symlinks, or when specifying a
                   	particular directory more than once; refer to the
                   	fdupes documentation for additional information
+ -N --noprompt    	together with --delete, preserve the first file in
+                  	each set of duplicates and delete the rest without
+                  	prompting the user
+ -p --plain       	with --delete, use line-based prompt (as with older
+                  	versions of fdupes) instead of screen-mode interface
  -v --version     	display fdupes version
  -h --help        	display this help message
 
@@ -57,7 +63,7 @@ email: adrian2@caribe.net
 
 Legal Information
 --------------------------------------------------------------------
-FDUPES Copyright (c) 1999 Adrian Lopez
+FDUPES Copyright (c) 1999-2018 Adrian Lopez
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation files
