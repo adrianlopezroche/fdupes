@@ -594,13 +594,13 @@ void deletefiles_ncurses(file_t *files)
       
       if (linestyle == linestyle_groupheader)
       {
-        wattron(filewin, A_UNDERLINE);
+        wattron(filewin, A_BOLD);
         if (groups[groupindex].selected)
           wattron(filewin, A_REVERSE);
         wprintw(filewin, "Set %d of %d:\n", groupindex + 1, totalgroups);
         if (groups[groupindex].selected)
           wattroff(filewin, A_REVERSE);
-        wattroff(filewin, A_UNDERLINE);
+        wattroff(filewin, A_BOLD);
       }
       else if (linestyle == linestyle_groupheaderspacing)
       {
