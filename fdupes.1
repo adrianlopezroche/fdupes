@@ -44,6 +44,9 @@ list each set of matches on a single line
 .B -S --size
 show size of duplicate files
 .TP
+.B -m --summarize
+summarize dupe information
+.TP
 .B -q --quiet
 hide progress indicator
 .TP
@@ -55,6 +58,10 @@ below)
 .B -N --noprompt
 when used together with --delete, preserve the first file in each
 set of duplicates and delete the others without prompting the user 
+.TP
+.B -p --plain
+with --delete, use line-based prompt (as with older versions of
+fdupes) instead of screen-mode interface
 .TP
 .B -v --version
 display fdupes version
