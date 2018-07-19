@@ -19,6 +19,7 @@
    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#include <config.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -29,11 +30,17 @@
 #ifndef OMIT_GETOPT_LONG
 #include <getopt.h>
 #endif
-#include <string.h>
 #include <errno.h>
 #include <libgen.h>
-
-#include "md5/md5.h"
+#include <locale.h>
+#ifdef HAVE_NCURSESW_CURSES_H
+  #include <ncursesw/curses.h>
+#else
+  #include <curses.h>
+#endif
+#include "fdupes.h"
+#include "errormsg.h"
+#include "ncurses-interface.h"
 
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
@@ -54,6 +61,7 @@
 #define F_PERMISSIONS       0x2000
 #define F_REVERSE           0x4000
 #define F_IMMEDIATE         0x8000
+#define F_PLAINPROMPT       0x10000
 
 typedef enum {
   ORDER_MTIME = 0,
@@ -93,34 +101,11 @@ typedef struct _signatures
 
 */
 
-typedef struct _file {
-  char *d_name;
-  off_t size;
-  md5_byte_t *crcpartial;
-  md5_byte_t *crcsignature;
-  dev_t device;
-  ino_t inode;
-  time_t sorttime;
-  int hasdupes; /* true only if file is first on duplicate chain */
-  struct _file *duplicates;
-  struct _file *next;
-} file_t;
-
 typedef struct _filetree {
   file_t *file; 
   struct _filetree *left;
   struct _filetree *right;
 } filetree_t;
-
-void errormsg(char *message, ...)
-{
-  va_list ap;
-
-  va_start(ap, message);
-
-  fprintf(stderr, "\r%40s\r%s: ", "", program_name);
-  vfprintf(stderr, message, ap);
-}
 
 void escapefilename(char *escape_list, char **filename_ptr)
 {
@@ -1052,6 +1037,10 @@ void help_text()
   printf("                  \tparticular directory more than once; refer to the\n");
   printf("                  \tfdupes documentation for additional information\n");
   /*printf(" -l --relink      \t(description)\n");*/
+#ifndef NO_NCURSES
+  printf(" -P --plain       \twith --delete, use line-based prompt (as with older\n");
+  printf("                  \tversions of fdupes) instead of screen-mode interface\n");
+#endif
   printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
   printf("                  \teach set of duplicates and delete the rest without\n");
   printf("                  \tprompting the user\n");
@@ -1101,6 +1090,7 @@ int main(int argc, char **argv) {
     { "noempty", 0, 0, 'n' },
     { "nohidden", 0, 0, 'A' },
     { "delete", 0, 0, 'd' },
+    { "plain", 0, 0, 'P' },
     { "version", 0, 0, 'v' },
     { "help", 0, 0, 'h' },
     { "noprompt", 0, 0, 'N' },
@@ -1119,9 +1109,11 @@ int main(int argc, char **argv) {
 
   program_name = argv[0];
 
+  setlocale(LC_CTYPE, "");
+
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdvhNImpo:i"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdPvhNImpo:i"
 #ifndef OMIT_GETOPT_LONG
           , long_options, NULL
 #endif
@@ -1159,6 +1151,9 @@ int main(int argc, char **argv) {
       break;
     case 'd':
       SETFLAG(flags, F_DELETEFILES);
+      break;
+    case 'P':
+      SETFLAG(flags, F_PLAINPROMPT);
       break;
     case 'v':
       printf("fdupes %s\n", VERSION);
@@ -1301,13 +1296,41 @@ int main(int argc, char **argv) {
     }
     else
     {
-      if (freopen("/dev/tty", "r", stdin) == 0)
+#ifndef NO_NCURSES
+      if (!ISFLAG(flags, F_PLAINPROMPT))
+      {
+        if (newterm(getenv("TERM"), stdout, stdin) != 0)
+        {
+          deletefiles_ncurses(files);
+        }
+        else
+        {
+          errormsg("could not enter screen mode; falling back to plain mode\n\n");
+          SETFLAG(flags, F_PLAINPROMPT);
+        }
+      }
+
+      if (ISFLAG(flags, F_PLAINPROMPT))
+      {
+        stdin = freopen("/dev/tty", "r", stdin);
+        if (stdin == 0)
+        {
+          errormsg("could not open terminal for input\n");
+          exit(1);
+        }
+
+        deletefiles(files, 1, stdin);
+      }
+#else
+      stdin = freopen("/dev/tty", "r", stdin);
+      if (stdin == 0)
       {
         errormsg("could not open terminal for input\n");
         exit(1);
       }
 
       deletefiles(files, 1, stdin);
+#endif
     }
   }
 

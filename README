@@ -30,6 +30,8 @@ Usage: fdupes [options] DIRECTORY...
                   	with -s or --symlinks, or when specifying a
                   	particular directory more than once; refer to the
                   	fdupes documentation for additional information
+ -P --plain       	with --delete, use line-based prompt (as with older
+                  	versions of fdupes) instead of screen-mode interface
  -N --noprompt    	together with --delete, preserve the first file in
                   	each set of duplicates and delete the rest without
                   	prompting the user
@@ -71,7 +73,7 @@ email: adrian2@caribe.net
 
 Legal Information
 --------------------------------------------------------------------
-FDUPES Copyright (c) 1999 Adrian Lopez
+FDUPES Copyright (c) 1999-2018 Adrian Lopez
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation files
