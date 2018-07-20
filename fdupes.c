@@ -27,7 +27,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <stdlib.h>
-#ifndef OMIT_GETOPT_LONG
+#ifdef HAVE_GETOPT_H
 #include <getopt.h>
 #endif
 #include <errno.h>
@@ -1054,7 +1054,7 @@ void help_text()
   printf(" -i --reverse     \treverse order while sorting\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
-#ifdef OMIT_GETOPT_LONG
+#ifndef HAVE_GETOPT_H
   printf("Note: Long options are not supported in this fdupes build.\n\n");
 #endif
 }
@@ -1072,8 +1072,9 @@ int main(int argc, char **argv) {
   int progress = 0;
   char **oldargv;
   int firstrecurse;
+  char *logfile = 0;
   
-#ifndef OMIT_GETOPT_LONG
+#ifdef HAVE_GETOPT_H
   static struct option long_options[] = 
   {
     { "omitfirst", 0, 0, 'f' },
@@ -1114,7 +1115,7 @@ int main(int argc, char **argv) {
   oldargv = cloneargs(argc, argv);
 
   while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdPvhNImpo:i"
-#ifndef OMIT_GETOPT_LONG
+#ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
           )) != EOF) {
