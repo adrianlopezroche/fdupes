@@ -28,6 +28,8 @@ transformed_manpage_name=`echo "${PACKAGE_NAME}-help"|sed -e "${unescaped_progra
 
 AC_DEFINE_UNQUOTED([HELP_COMMAND_STRING], "man 1 ${transformed_manpage_name}", [fdupes help file])
 
+AC_DEFINE([_FILE_OFFSET_BITS], [64], [allow fdupes to handle files greater than (2<<31)-1 bytes])
+
 AC_CONFIG_FILES([Makefile])
 AC_PROG_CC
 AC_OUTPUT
