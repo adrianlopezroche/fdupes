@@ -8,7 +8,7 @@ AC_ARG_PROGRAM
 
 AC_ARG_WITH([ncurses], AS_HELP_STRING([--without-ncurses], [Do not use ncurses interface]))
 
-AC_CHECK_HEADERS([ncursesw/curses.h])
+AC_CHECK_HEADERS([getopt.h ncursesw/curses.h])
 
 AS_IF([test x"$with_ncurses" != x"no"],
 	[AC_SEARCH_LIBS([wget_wch], [ncursesw ncurses curses], [], [AC_ERROR([ncurses library not found (or lacks wide character support)])])]
