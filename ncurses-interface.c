@@ -1,7 +1,6 @@
 #include <config.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <wchar.h>
 #ifdef HAVE_NCURSESW_CURSES_H
   #include <ncursesw/curses.h>
@@ -17,13 +16,8 @@
 #include "commandidentifier.h"
 #include "filegroup.h"
 #include "errormsg.h"
-
-volatile sig_atomic_t got_sigint = 0;
-
-void sigint_handler(int signal)
-{
-  got_sigint = 1;
-}
+#include "log.h"
+#include "sigint.h"
 
 enum linestyle
 {
@@ -323,7 +317,7 @@ int validate_file_list(struct filegroup *currentgroup, wchar_t *commandbuffer_in
   return FILE_LIST_OK;
 }
 
-void deletefiles_ncurses(file_t *files)
+void deletefiles_ncurses(file_t *files, char *logfile)
 {
   WINDOW *filewin;
   WINDOW *promptwin;
@@ -372,11 +366,11 @@ void deletefiles_ncurses(file_t *files)
   struct prompt_info *prompt;
   int dupesfound;
   int intresult;
-  struct sigaction action;
   int adjusttopline;
   int toplineoffset = 0;
   int resumecommandinput = 0;
   int index_width;
+  struct log_info *loginfo;
 
   noecho();
   cbreak();
@@ -437,8 +431,7 @@ void deletefiles_ncurses(file_t *files)
     exit(1);
   }
 
-  action.sa_handler = sigint_handler;
-  sigaction(SIGINT, &action, 0);
+  register_sigint_handler();
 
   curfile = files;
   while (curfile)
@@ -1195,6 +1188,11 @@ void deletefiles_ncurses(file_t *files)
         totaldeleted = 0;
         deletedbytes = 0;
 
+        if (logfile != 0)
+          loginfo = log_open(logfile, 0);
+        else
+          loginfo = 0;
+
         for (g = 0; g < totalgroups; ++g)
         {
           preservecount = 0;
@@ -1217,6 +1215,9 @@ void deletefiles_ncurses(file_t *files)
             }
           }
 
+          if (loginfo)
+            log_begin_set(loginfo);
+
           /* delete files marked for deletion unless no files left undeleted */
           if (deletecount < groups[g].filecount)
           {
@@ -1230,12 +1231,27 @@ void deletefiles_ncurses(file_t *files)
 
                   deletedbytes += groups[g].files[f].file->size;
                   ++totaldeleted;
+
+                  if (loginfo)
+                    log_file_deleted(loginfo, groups[g].files[f].file->d_name);
                 }
+              }
+            }
+
+            if (loginfo)
+            {
+              for (f = 0; f < groups[g].filecount; ++f)
+              {
+                if (groups[g].files[f].action >= 0)
+                  log_file_remaining(loginfo, groups[g].files[f].file->d_name);
               }
             }
 
             deletecount = 0;
           }
+
+          if (loginfo)
+            log_end_set(loginfo);
 
           /* if no files left unresolved, mark preserved files for delisting */
           if (unresolvedcount == 0)
@@ -1266,6 +1282,9 @@ void deletefiles_ncurses(file_t *files)
           if (cursorgroup == g && cursorfile > 0 && cursorfile >= groups[g].filecount)
             cursorfile = groups[g].filecount - 1;
         }
+
+        if (loginfo != 0)
+          log_close(loginfo);
 
         if (deletedbytes < 1000.0)
           format_status_left(status, L"Deleted %ld files (occupying %.0f bytes).", totaldeleted, deletedbytes);

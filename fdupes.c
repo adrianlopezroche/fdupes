@@ -41,6 +41,8 @@
 #include "fdupes.h"
 #include "errormsg.h"
 #include "ncurses-interface.h"
+#include "log.h"
+#include "sigint.h"
 
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
@@ -762,7 +764,7 @@ int relink(char *oldfile, char *newfile)
   return 1;
 }
 
-void deletefiles(file_t *files, int prompt, FILE *tty)
+void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 {
   int counter;
   int groups = 0;
@@ -779,6 +781,8 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
   int max = 0;
   int x;
   int i;
+  struct log_info *loginfo;
+  int log_error;
 
   curfile = files;
   
@@ -809,6 +813,12 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
     errormsg("out of memory\n");
     exit(1);
   }
+
+  loginfo = 0;
+  if (logfile != 0)
+    loginfo = log_open(logfile, &log_error);
+
+  register_sigint_handler();
 
   while (files) {
     if (files->hasdupes) {
@@ -845,7 +855,24 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
 	fflush(stdout);
 
 	if (!fgets(preservestr, INPUT_SIZE, tty))
+	{
 	  preservestr[0] = '\n'; /* treat fgets() failure as if nothing was entered */
+	  preservestr[1] = '\0';
+
+	  if (got_sigint)
+	  {
+	    if (loginfo)
+	      log_close(loginfo);
+
+	    free(dupelist);
+	    free(preserve);
+	    free(preservestr);
+
+	    printf("\n");
+
+	    exit(0);
+	  }
+	}
 
 	i = strlen(preservestr) - 1;
 
@@ -861,6 +888,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
 	  if (!fgets(preservestr + i + 1, INPUT_SIZE, tty))
 	  {
 	    preservestr[0] = '\n'; /* treat fgets() failure as if nothing was entered */
+	    preservestr[1] = '\0';
 	    break;
 	  }
 	  i = strlen(preservestr)-1;
@@ -886,23 +914,43 @@ void deletefiles(file_t *files, int prompt, FILE *tty)
 
       printf("\n");
 
+      if (loginfo)
+        log_begin_set(loginfo);
+
       for (x = 1; x <= counter; x++) { 
 	if (preserve[x])
+        {
 	  printf("   [+] %s\n", dupelist[x]->d_name);
+
+          if (loginfo)
+            log_file_remaining(loginfo, dupelist[x]->d_name);
+        }
 	else {
 	  if (remove(dupelist[x]->d_name) == 0) {
 	    printf("   [-] %s\n", dupelist[x]->d_name);
+
+            if (loginfo)
+              log_file_deleted(loginfo, dupelist[x]->d_name);
 	  } else {
 	    printf("   [!] %s ", dupelist[x]->d_name);
 	    printf("-- unable to delete file!\n");
+
+            if (loginfo)
+              log_file_remaining(loginfo, dupelist[x]->d_name);
 	  }
 	}
       }
       printf("\n");
+
+      if (loginfo)
+        log_end_set(loginfo);
     }
     
     files = files->next;
   }
+
+  if (loginfo)
+    log_close(loginfo);
 
   free(dupelist);
   free(preserve);
@@ -979,7 +1027,7 @@ void registerpair(file_t **matchlist, file_t *newmatch,
 }
 
 void deletesuccessor(file_t **existing, file_t *duplicate, 
-      int (*comparef)(file_t *f1, file_t *f2))
+      int (*comparef)(file_t *f1, file_t *f2), struct log_info *loginfo)
 {
   file_t *to_keep;
   file_t *to_delete;
@@ -1000,11 +1048,21 @@ void deletesuccessor(file_t **existing, file_t *duplicate,
   if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
 
   printf("   [+] %s\n", to_keep->d_name);
+
+  if (loginfo)
+    log_file_remaining(loginfo, to_keep->d_name);
+
   if (remove(to_delete->d_name) == 0) {
     printf("   [-] %s\n", to_delete->d_name);
+
+    if (loginfo)
+      log_file_deleted(loginfo, to_delete->d_name);
   } else {
     printf("   [!] %s ", to_delete->d_name);
     printf("-- unable to delete file!\n");
+
+    if (loginfo)
+      log_file_remaining(loginfo, to_delete->d_name);
   }
 
   printf("\n");
@@ -1052,6 +1110,7 @@ void help_text()
   printf("                  \tmodification time (BY='time'; default), status\n");
   printf("                  \tchange time (BY='ctime'), or filename (BY='name')\n");
   printf(" -i --reverse     \treverse order while sorting\n");
+  printf(" -l --log=LOGFILE \tlog file deletion choices to LOGFILE\n");
   printf(" -v --version     \tdisplay fdupes version\n");
   printf(" -h --help        \tdisplay this help message\n\n");
 #ifndef HAVE_GETOPT_H
@@ -1073,6 +1132,8 @@ int main(int argc, char **argv) {
   char **oldargv;
   int firstrecurse;
   char *logfile = 0;
+  struct log_info *loginfo;
+  int log_error;
   
 #ifdef HAVE_GETOPT_H
   static struct option long_options[] = 
@@ -1101,6 +1162,7 @@ int main(int argc, char **argv) {
     { "permissions", 0, 0, 'p' },
     { "order", 1, 0, 'o' },
     { "reverse", 0, 0, 'i' },
+    { "log", 1, 0, 'l' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1114,7 +1176,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHlnAdPvhNImpo:i"
+  while ((opt = GETOPT(argc, argv, "frRq1SsHnAdPvhNImpo:il:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1188,6 +1250,19 @@ int main(int argc, char **argv) {
       break;
     case 'i':
       SETFLAG(flags, F_REVERSE);
+      break;
+    case 'l':
+      loginfo = log_open(logfile=optarg, &log_error);
+      if (loginfo == 0)
+      {
+        if (log_error == LOG_ERROR_NOT_A_LOG_FILE)
+          errormsg("%s: doesn't look like an fdupes log file\n", logfile);
+        else
+          errormsg("%s: could not open log file\n", logfile);
+
+        exit(1);
+      }
+      log_close(loginfo);
       break;
 
     default:
@@ -1267,7 +1342,7 @@ int main(int argc, char **argv) {
         if (ISFLAG(flags, F_DELETEFILES) && ISFLAG(flags, F_IMMEDIATE))
           deletesuccessor(match, curfile,
               (ordertype == ORDER_MTIME || 
-               ordertype == ORDER_CTIME) ? sort_pairs_by_time : sort_pairs_by_filename );
+               ordertype == ORDER_CTIME) ? sort_pairs_by_time : sort_pairs_by_filename, loginfo );
         else
           registerpair(match, curfile,
               (ordertype == ORDER_MTIME ||
@@ -1293,7 +1368,7 @@ int main(int argc, char **argv) {
   {
     if (ISFLAG(flags, F_NOPROMPT))
     {
-      deletefiles(files, 0, 0);
+      deletefiles(files, 0, 0, logfile);
     }
     else
     {
@@ -1302,7 +1377,7 @@ int main(int argc, char **argv) {
       {
         if (newterm(getenv("TERM"), stdout, stdin) != 0)
         {
-          deletefiles_ncurses(files);
+          deletefiles_ncurses(files, logfile);
         }
         else
         {
@@ -1320,7 +1395,7 @@ int main(int argc, char **argv) {
           exit(1);
         }
 
-        deletefiles(files, 1, stdin);
+        deletefiles(files, 1, stdin, logfile);
       }
 #else
       stdin = freopen("/dev/tty", "r", stdin);
@@ -1330,7 +1405,7 @@ int main(int argc, char **argv) {
         exit(1);
       }
 
-      deletefiles(files, 1, stdin);
+      deletefiles(files, 1, stdin, logfile);
 #endif
     }
   }

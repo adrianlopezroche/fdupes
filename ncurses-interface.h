@@ -3,6 +3,6 @@
 
 #include "fdupes.h"
 
-void deletefiles_ncurses(file_t *files);
+void deletefiles_ncurses(file_t *files, char *logfile);
 
 #endif

@@ -43,6 +43,7 @@ Usage: fdupes [options] DIRECTORY...
                   	modification time (BY='time'; default), status
                   	change time (BY='ctime'), or filename (BY='name')
  -i --reverse     	reverse order while sorting
+ -l --log=LOGFILE 	log file deletion choices to LOGFILE
  -v --version     	display fdupes version
  -h --help        	display this help message
 
