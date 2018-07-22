@@ -689,13 +689,12 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
         if (got_sigint)
         {
-          getyx(statuswin, cursor_y, cursor_x);
+          getyx(promptwin, cursor_y, cursor_x);
 
           format_status_left(status, L"Type 'exit' to exit fdupes.");
           print_status(statuswin, status);
 
-          wattroff(statuswin, A_REVERSE);
-          wmove(statuswin, cursor_y, cursor_x);
+          wmove(promptwin, cursor_y, cursor_x);
 
           got_sigint = 0;
 
