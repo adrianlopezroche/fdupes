@@ -50,7 +50,7 @@ int insert_command_identifier_command(struct command_identifier_node *tree, stru
     child->children = 0;
     child->num_children = 0;
 
-    alloc_children = realloc(tree->children, sizeof(struct command_identifier_node*) * tree->num_children + 1);
+    alloc_children = realloc(tree->children, sizeof(struct command_identifier_node*) * (tree->num_children + 1));
     if (alloc_children == 0)
       return COMMAND_RECOGNIZER_OUT_OF_MEMORY;
 
