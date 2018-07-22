@@ -847,7 +847,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
       else /* prompt for files to preserve */
 
       do {
-	printf("Set %d of %d, preserve files [1 - %d, all]", 
+	printf("Set %d of %d, preserve files [1 - %d, all, quit]",
           curgroup, groups, counter);
 	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%lld byte%seach)", (long long int)files->size,
 	  (files->size != 1) ? "s " : " ");
@@ -892,6 +892,20 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 	    break;
 	  }
 	  i = strlen(preservestr)-1;
+	}
+
+	if (strcmp(preservestr, "q\n") == 0 || strcmp(preservestr, "quit\n") == 0)
+	{
+	  if (loginfo)
+	    log_close(loginfo);
+
+	  free(dupelist);
+	  free(preserve);
+	  free(preservestr);
+
+	  printf("\n");
+
+	  exit(0);
 	}
 
 	for (x = 1; x <= counter; x++) preserve[x] = 0;
