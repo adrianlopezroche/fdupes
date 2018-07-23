@@ -590,7 +590,10 @@ void deletefiles_ncurses(file_t *files, char *logfile)
     wmove(filewin, 0, 0);
     werase(filewin);
 
-    totallines = groups[totalgroups-1].endline;
+    if (totalgroups > 0)
+      totallines = groups[totalgroups-1].endline;
+    else
+      totallines = 0;
 
     for (x = topline; x < topline + getmaxy(filewin); ++x)
     {
