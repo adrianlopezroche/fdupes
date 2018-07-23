@@ -1329,6 +1329,10 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
             ++to;
           }
+          else
+          {
+            free(groups[g].files);
+          }
         }
 
         totalgroups = to;
@@ -1469,6 +1473,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
   free_status_text(status);
 
   free_command_identifier_tree(commandidentifier);
+  free_command_identifier_tree(confirmationkeywordidentifier);
 
   for (g = 0; g < totalgroups; ++g)
     free(groups[g].files);
