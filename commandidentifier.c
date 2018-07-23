@@ -143,6 +143,7 @@ void free_command_identifier_tree(struct command_identifier_node *tree)
   for (c = 0; c < tree->num_children; ++c)
     free_command_identifier_tree(tree->children[c]);
 
+  free(tree->children);
   free(tree);
 }
 
