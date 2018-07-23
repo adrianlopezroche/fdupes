@@ -296,6 +296,13 @@ int grokdir(char *dir, file_t **filelistp)
       
       if (ISFLAG(flags, F_EXCLUDEHIDDEN)) {
 	fullname = strdup(newfile->d_name);
+	if (fullname == 0)
+	{
+	  errormsg("out of memory!\n");
+	  free(newfile);
+	  closedir(cd);
+	  exit(1);
+	}
 	name = basename(fullname);
 	if (name[0] == '.' && strcmp(name, ".") && strcmp(name, "..") ) {
 	  free(newfile->d_name);
