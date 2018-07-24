@@ -237,7 +237,7 @@ int nonoptafter(char *option, int argc, char **oldargv,
   return x;
 }
 
-int grokdir(char *dir, file_t **filelistp)
+int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
 {
   DIR *cd;
   file_t *newfile;
@@ -324,6 +324,13 @@ int grokdir(char *dir, file_t **filelistp)
 	continue;
       }
 
+      if (info.st_dev == logfile_status->st_dev && info.st_ino == logfile_status->st_ino)
+      {
+        free(newfile->d_name);
+        free(newfile);
+        continue;
+      }
+
       if (lstat(newfile->d_name, &linfo) == -1) {
 	free(newfile->d_name);
 	free(newfile);
@@ -332,7 +339,7 @@ int grokdir(char *dir, file_t **filelistp)
 
       if (S_ISDIR(info.st_mode)) {
 	if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)))
-	  filecount += grokdir(newfile->d_name, filelistp);
+	  filecount += grokdir(newfile->d_name, filelistp, logfile_status);
 	free(newfile->d_name);
 	free(newfile);
       } else {
@@ -1155,6 +1162,7 @@ int main(int argc, char **argv) {
   char *logfile = 0;
   struct log_info *loginfo;
   int log_error;
+  struct stat logfile_status;
   
 #ifdef HAVE_GETOPT_H
   static struct option long_options[] = 
@@ -1284,8 +1292,14 @@ int main(int argc, char **argv) {
         exit(1);
       }
       log_close(loginfo);
-      break;
 
+      if (stat(logfile, &logfile_status) != 0)
+      {
+        errormsg("could not read log file status\n");
+        exit(1);
+      }
+
+      break;
     default:
       fprintf(stderr, "Try `fdupes --help' for more information.\n");
       exit(1);
@@ -1320,16 +1334,16 @@ int main(int argc, char **argv) {
 
     /* F_RECURSE is not set for directories before --recurse: */
     for (x = optind; x < firstrecurse; x++)
-      filecount += grokdir(argv[x], &files);
+      filecount += grokdir(argv[x], &files, &logfile_status);
 
     /* Set F_RECURSE for directories after --recurse: */
     SETFLAG(flags, F_RECURSE);
 
     for (x = firstrecurse; x < argc; x++)
-      filecount += grokdir(argv[x], &files);
+      filecount += grokdir(argv[x], &files, &logfile_status);
   } else {
     for (x = optind; x < argc; x++)
-      filecount += grokdir(argv[x], &files);
+      filecount += grokdir(argv[x], &files, &logfile_status);
   }
 
   if (!files) {
