@@ -1005,7 +1005,8 @@ int sort_pairs_by_time(file_t *f1, file_t *f2)
 
 int sort_pairs_by_filename(file_t *f1, file_t *f2)
 {
-  return strcmp(f1->d_name, f2->d_name);
+  int strvalue = strcmp(f1->d_name, f2->d_name);
+  return !ISFLAG(flags, F_REVERSE) ? strvalue : -strvalue;
 }
 
 void registerpair(file_t **matchlist, file_t *newmatch, 
