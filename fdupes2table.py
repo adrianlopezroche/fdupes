@@ -1,14 +1,15 @@
-#! /usr/bin/python2.7
+#! /usr/bin/python3
 #
 # Author : Jérôme Bouat jerome<dot>bouat<at>laposte<dot>net
 #
 # This script is transforming the output of fdupes
-# (with '--size' options)
+# (with '--recurse --size' options)
 # into a csv table with duplicates sorted by decreasing size.
 #
 # Next, a simple spreadsheet software enables filtering the columns :
 # - size of each file
 # - occurences of the duplicate file
+# - possible saving with the duplicate file
 # - duplicate number
 # - path
 #
@@ -39,16 +40,16 @@
 #----------------------
 # max possible saving : 16 MB
 #
-# size (ko);occurences;duplicate;path
+# size (ko);occurences;possible saving (kB);duplicate;path
 #
-# 15884;2;1;titi.DOC
-# 15884;2;1;toto.DOC
+# 15884;2;15884;1;titi.DOC
+# 15884;2;15884;1;toto.DOC
 #
-# 547;2;2;titi.pdf
-# 547;2;2;toto.pdf
+# 547;2;547;2;titi.pdf
+# 547;2;547;2;toto.pdf
 #
-# 5;2;3;titi.gif
-# 5;2;3;toto.gif
+# 5;2;5;3;titi.gif
+# 5;2;5;3;toto.gif
 #----------------------
 #
 
@@ -65,7 +66,7 @@ while len(line) > 0 :
   if getSize :
     size=line.split()[0]
     if size.isdigit() :
-      size = long(size)
+      size = int(size)
       if not (size in sizes) :
         sizes[size] = []
       sizes[size].append(dupNumber)
@@ -84,19 +85,22 @@ while len(line) > 0 :
 
 totalSaving = 0
 for size in sizes.keys() :
+  nbDupForSize = 0
   for dupNumber in sizes[size] :
-    totalSaving += size * (len(paths[dupNumber]) - 1)
-totalSaving = long(round(totalSaving / 1024.0 / 1024.0))
-print 'max possible saving : %d MB'%(totalSaving)
-print
+    nbDupForSize += (len(paths[dupNumber]) - 1)
+  totalSaving += size * nbDupForSize
+totalSaving = round(totalSaving * 2**-20)
+print('max possible saving :;%d MB'%(totalSaving))
+print()
 
-print 'size (ko);occurrences;duplicate;path'
+print('size (ko);occurrences;possible saving (kB);duplicate;path')
 newDupNum=0
-for size in sorted(sizes.keys(), None, None, True) :
-  sizeKo = long(round(size / 1024.0))
+for size in sorted(sizes.keys(), reverse=True) :
+  sizeKo = round(size * 2**-10)
   for dupNumber in sizes[size] :
     newDupNum += 1
     occurences = len(paths[dupNumber])
-    print
+    print()
+    possibleSavingKB = round((occurences - 1) * size * 2**-10)
     for path in sorted(paths[dupNumber]) :
-      print '%d;%d;%d;%s'%(sizeKo, occurences, newDupNum, path)
+      print('%d;%d;%d;%d;%s'%(sizeKo, occurences, possibleSavingKB, newDupNum, path))
