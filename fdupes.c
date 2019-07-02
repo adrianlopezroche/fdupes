@@ -1424,8 +1424,7 @@ int main(int argc, char **argv) {
 
       if (ISFLAG(flags, F_PLAINPROMPT))
       {
-        stdin = freopen("/dev/tty", "r", stdin);
-        if (stdin == 0)
+        if (freopen("/dev/tty", "r", stdin) == NULL)
         {
           errormsg("could not open terminal for input\n");
           exit(1);
@@ -1434,8 +1433,7 @@ int main(int argc, char **argv) {
         deletefiles(files, 1, stdin, logfile);
       }
 #else
-      stdin = freopen("/dev/tty", "r", stdin);
-      if (stdin == 0)
+      if (freopen("/dev/tty", "r", stdin) == NULL)
       {
         errormsg("could not open terminal for input\n");
         exit(1);
