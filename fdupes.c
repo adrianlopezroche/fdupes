@@ -165,20 +165,26 @@ ino_t getinode(char *filename) {
   return s.st_ino;   
 }
 
-time_t getmtime(char *filename) {
+void getmtime(char *filename, struct timespec *timespec) {
   struct stat s;
 
-  if (stat(filename, &s) != 0) return 0;
+  if (stat(filename, &s) != 0) {
+    timespec->tv_sec = 0;
+    timespec->tv_nsec = 0;
+  }
 
-  return s.st_mtime;
+  return memcpy(timespec, &(s.st_mtim), sizeof(struct timespec));
 }
 
-time_t getctime(char *filename) {
+void getctime(char *filename, struct timespec *timespec) {
   struct stat s;
 
-  if (stat(filename, &s) != 0) return 0;
+  if (stat(filename, &s) != 0) {
+    timespec->tv_sec = 0;
+    timespec->tv_nsec = 0;
+  }
 
-  return s.st_ctime;
+  return memcpy(timespec, &(s.st_ctim), sizeof(struct timespec));
 }
 
 char **cloneargs(int argc, char **argv)
@@ -444,20 +450,21 @@ void purgetree(filetree_t *checktree)
 
 void getfilestats(file_t *file)
 {
+  struct timespec timespec;
   file->size = filesize(file->d_name);
   file->inode = getinode(file->d_name);
   file->device = getdevice(file->d_name);
-
   switch (ordertype)
   {
     case ORDER_CTIME:
-      file->sorttime = getctime(file->d_name);
+      getctime(file->d_name, &timespec);
       break;
     case ORDER_MTIME: 
     default:
-      file->sorttime = getmtime(file->d_name);
+      getmtime(file->d_name, &timespec);
       break;
   }
+  memcpy(&(file->sorttimespec), &timespec, sizeof(struct timespec));
 }
 
 int registerfile(filetree_t **branch, file_t *file)
@@ -993,11 +1000,18 @@ int sort_pairs_by_arrival(file_t *f1, file_t *f2)
   return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
 }
 
+int is_first_timespec_newer(struct timespec first, struct timespec second) {
+    if (first.tv_sec == second.tv_sec)
+        return first.tv_nsec > second.tv_nsec;
+    else
+        return first.tv_sec > second.tv_sec;
+}
+
 int sort_pairs_by_time(file_t *f1, file_t *f2)
 {
-  if (f1->sorttime < f2->sorttime)
+  if (is_first_timespec_newer(f1->sorttimespec, f2->sorttimespec))
     return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
-  else if (f1->sorttime > f2->sorttime)
+  else if (is_first_timespec_newer(f2->sorttimespec, f1->sorttimespec))
     return !ISFLAG(flags, F_REVERSE) ? 1 : -1;
 
   return 0;
