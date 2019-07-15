@@ -237,6 +237,24 @@ int nonoptafter(char *option, int argc, char **oldargv,
   return x;
 }
 
+void getfilestats(file_t *file)
+{
+  file->size = filesize(file->d_name);
+  file->inode = getinode(file->d_name);
+  file->device = getdevice(file->d_name);
+
+  switch (ordertype)
+  {
+    case ORDER_CTIME:
+      file->sorttime = getctime(file->d_name);
+      break;
+    case ORDER_MTIME:
+    default:
+      file->sorttime = getmtime(file->d_name);
+      break;
+  }
+}
+
 int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
 {
   DIR *cd;
@@ -344,6 +362,7 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
 	free(newfile);
       } else {
 	if (S_ISREG(linfo.st_mode) || (S_ISLNK(linfo.st_mode) && ISFLAG(flags, F_FOLLOWLINKS))) {
+	  getfilestats(newfile);
 	  *filelistp = newfile;
 	  filecount++;
 	} else {
@@ -442,28 +461,8 @@ void purgetree(filetree_t *checktree)
   free(checktree);
 }
 
-void getfilestats(file_t *file)
-{
-  file->size = filesize(file->d_name);
-  file->inode = getinode(file->d_name);
-  file->device = getdevice(file->d_name);
-
-  switch (ordertype)
-  {
-    case ORDER_CTIME:
-      file->sorttime = getctime(file->d_name);
-      break;
-    case ORDER_MTIME: 
-    default:
-      file->sorttime = getmtime(file->d_name);
-      break;
-  }
-}
-
 int registerfile(filetree_t **branch, file_t *file)
 {
-  getfilestats(file);
-
   *branch = (filetree_t*) malloc(sizeof(filetree_t));
   if (*branch == NULL) {
     errormsg("out of memory!\n");
@@ -492,14 +491,9 @@ int same_permissions(char* name1, char* name2)
 int is_hardlink(filetree_t *checktree, file_t *file)
 {
   file_t *dupe;
-  ino_t inode;
-  dev_t device;
 
-  inode = getinode(file->d_name);
-  device = getdevice(file->d_name);
-
-  if ((inode == checktree->file->inode) && 
-      (device == checktree->file->device))
+  if ((file->inode == checktree->file->inode) &&
+      (file->device == checktree->file->device))
         return 1;
 
   if (checktree->file->hasdupes)
@@ -507,9 +501,104 @@ int is_hardlink(filetree_t *checktree, file_t *file)
     dupe = checktree->file->duplicates;
 
     do {
-      if ((inode == dupe->inode) &&
-          (device == dupe->device))
+      if ((file->inode == dupe->inode) &&
+          (file->device == dupe->device))
             return 1;
+
+      dupe = dupe->duplicates;
+    } while (dupe != NULL);
+  }
+
+  return 0;
+}
+
+/* check whether two paths represent the same file (deleting one would delete the other) */
+int is_same_file(file_t *file_a, file_t *file_b)
+{
+  char *filename_a;
+  char *filename_b;
+  char *dirname_a;
+  char *dirname_b;
+  char *basename_a;
+  char *basename_b;
+  struct stat dirstat_a;
+  struct stat dirstat_b;
+
+  /* if files on different devices and/or different inodes, they are not the same file */
+  if (file_a->device != file_b->device || file_a->inode != file_b->inode)
+    return 0;
+
+  /* copy filenames (basename and dirname may modify these) */
+  filename_a = strdup(file_a->d_name);
+  if (filename_a == 0)
+    return -1;
+
+  filename_b = strdup(file_b->d_name);
+  if (filename_b == 0)
+    return -1;
+
+  /* get file basenames */
+  basename_a = basename(filename_a);
+  memmove(filename_a, basename_a, strlen(basename_a) + 1);
+
+  basename_b = basename(filename_b);
+  memmove(filename_b, basename_b, strlen(basename_b) + 1);
+
+  /* if files have different names, they are not the same file */
+  if (strcmp(filename_a, filename_b) != 0)
+  {
+    free(filename_b);
+    free(filename_a);
+    return 0;
+  }
+
+  /* restore paths */
+  strcpy(filename_a, file_a->d_name);
+  strcpy(filename_b, file_b->d_name);
+
+  /* get directory names */
+  dirname_a = dirname(filename_a);
+  if (stat(dirname_a, &dirstat_a) != 0)
+  {
+    free(filename_b);
+    free(filename_a);
+    return -1;
+  }
+
+  dirname_b = dirname(filename_b);
+  if (stat(dirname_b, &dirstat_b) != 0)
+  {
+    free(filename_b);
+    free(filename_a);
+    return -1;
+  }
+
+  free(filename_b);
+  free(filename_a);
+
+  /* if directories on which files reside are different, they are not the same file */
+  if (dirstat_a.st_dev != dirstat_b.st_dev || dirstat_a.st_ino != dirstat_b.st_ino)
+    return 0;
+
+  /* same device, inode, filename, and directory; therefore, same file */
+  return 1;
+}
+
+/* check whether given tree node already contains a copy of given file */
+int has_same_file(filetree_t *checktree, file_t *file)
+{
+  file_t *dupe;
+
+  if (is_same_file(checktree->file, file))
+    return 1;
+
+  if (checktree->file->hasdupes)
+  {
+    dupe = checktree->file->duplicates;
+
+    do {
+      if (is_same_file(dupe, file))
+        return 1;
 
       dupe = dupe->duplicates;
     } while (dupe != NULL);
@@ -524,14 +613,23 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
   md5_byte_t *crcsignature;
   off_t fsize;
 
-  /* If device and inode fields are equal one of the files is a 
-     hard link to the other or the files have been listed twice 
-     unintentionally. We don't want to flag these files as
-     duplicates unless the user specifies otherwise.
-  */    
-
-  if (!ISFLAG(flags, F_CONSIDERHARDLINKS) && is_hardlink(checktree, file))
-    return NULL;
+  if (ISFLAG(flags, F_CONSIDERHARDLINKS))
+  {
+    /* If node already contains file, we don't want to add it again.
+    */
+    if (has_same_file(checktree, file))
+      return NULL;
+  }
+  else
+  {
+    /* If device and inode fields are equal one of the files is a
+       hard link to the other or the files have been listed twice
+       unintentionally. We don't want to flag these files as
+       duplicates unless the user specifies otherwise.
+    */
+    if (is_hardlink(checktree, file))
+      return NULL;
+  }
 
   fsize = filesize(file->d_name);
   
@@ -627,7 +725,6 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     }
   } else 
   {
-    getfilestats(file);
     return &checktree->file;
   }
 }
