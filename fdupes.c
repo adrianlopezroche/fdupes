@@ -1267,9 +1267,7 @@ int main(int argc, char **argv) {
   {
     { "omitfirst", 0, 0, 'f' },
     { "recurse", 0, 0, 'r' },
-    { "recursive", 0, 0, 'r' },
     { "recurse:", 0, 0, 'R' },
-    { "recursive:", 0, 0, 'R' },
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
     { "size", 0, 0, 'S' },
