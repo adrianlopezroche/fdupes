@@ -24,6 +24,7 @@ Usage: fdupes [options] DIRECTORY...
  -f --omitfirst   	omit the first file in each set of matches
  -1 --sameline    	list each set of matches on a single line
  -S --size        	show size of duplicate files
+ -T --human-size  	show size of duplicate files in human readable format\n");
  -t --time        	show modification time of duplicate files
  -m --summarize   	summarize dupe information
  -q --quiet       	hide progress indicator

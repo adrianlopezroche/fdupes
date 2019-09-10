@@ -22,6 +22,7 @@
 #define F_IMMEDIATE         0x8000
 #define F_PLAINPROMPT       0x10000
 #define F_SHOWTIME          0x20000
+#define F_SHOWSIZE_HUMAN    0x40000
 
 extern unsigned long flags;
 
