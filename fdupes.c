@@ -27,6 +27,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <time.h>
 #ifdef HAVE_GETOPT_H
 #include <getopt.h>
 #endif
@@ -179,6 +180,14 @@ time_t getctime(char *filename) {
   if (stat(filename, &s) != 0) return 0;
 
   return s.st_ctime;
+}
+
+char *fmtmtime(char *filename) {
+  static char buf[64];
+  time_t t = getmtime(filename);
+
+  strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", localtime(&t));
+  return buf;
 }
 
 char **cloneargs(int argc, char **argv)
@@ -937,13 +946,13 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
       counter = 1;
       dupelist[counter] = files;
 
-      if (prompt) printf("[%d] %s\n", counter, files->d_name);
+      if (prompt) printf("[%d] [%s] %s\n", counter, fmtmtime(files->d_name), files->d_name);
 
       tmpfile = files->duplicates;
 
       while (tmpfile) {
 	dupelist[++counter] = tmpfile;
-	if (prompt) printf("[%d] %s\n", counter, tmpfile->d_name);
+	if (prompt) printf("[%d] [%s] %s\n", counter, fmtmtime(tmpfile->d_name), tmpfile->d_name);
 	tmpfile = tmpfile->duplicates;
       }
 
