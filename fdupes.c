@@ -44,27 +44,7 @@
 #include "ncurses-interface.h"
 #include "log.h"
 #include "sigint.h"
-
-#define ISFLAG(a,b) ((a & b) == b)
-#define SETFLAG(a,b) (a |= b)
-
-#define F_RECURSE           0x0001
-#define F_HIDEPROGRESS      0x0002
-#define F_DSAMELINE         0x0004
-#define F_FOLLOWLINKS       0x0008
-#define F_DELETEFILES       0x0010
-#define F_EXCLUDEEMPTY      0x0020
-#define F_CONSIDERHARDLINKS 0x0040
-#define F_SHOWSIZE          0x0080
-#define F_OMITFIRST         0x0100
-#define F_RECURSEAFTER      0x0200
-#define F_NOPROMPT          0x0400
-#define F_SUMMARIZEMATCHES  0x0800
-#define F_EXCLUDEHIDDEN     0x1000
-#define F_PERMISSIONS       0x2000
-#define F_REVERSE           0x4000
-#define F_IMMEDIATE         0x8000
-#define F_PLAINPROMPT       0x10000
+#include "flags.h"
 
 typedef enum {
   ORDER_MTIME = 0,
@@ -73,8 +53,6 @@ typedef enum {
 } ordertype_t;
 
 char *program_name;
-
-unsigned long flags = 0;
 
 ordertype_t ordertype = ORDER_MTIME;
 
