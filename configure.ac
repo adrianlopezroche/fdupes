@@ -12,7 +12,7 @@ AC_CHECK_HEADERS([getopt.h ncursesw/curses.h])
 
 AS_IF([test x"$with_ncurses" != x"no"],
 	[AC_SEARCH_LIBS([wget_wch], [ncursesw ncurses curses], [], [AC_ERROR([ncurses library not found (or lacks wide character support)])])]
-	[AC_DEFINE([__USE_XOPEN], [], [enable certain functions in wchar.h])]
+	[AC_DEFINE([_XOPEN_SOURCE], [], [enable certain functions in wchar.h])]
 	[AC_DEFINE([_XOPEN_SOURCE_EXTENDED], [], [enable certain functions in curses.h])]
 	[AC_SEARCH_LIBS([pcre2_match_8], [pcre2-8], [], [AC_ERROR([pcre2 library not found])])]
 	[AC_DEFINE([PCRE2_CODE_UNIT_WIDTH], [8], [PCRE2 Code Unit Width])],

@@ -16,7 +16,7 @@
       misrepresented as being the original software.
    3. This notice may not be removed or altered from any source distribution. */
 
-#include <config.h>
+#include "config.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include "errormsg.h"

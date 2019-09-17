@@ -19,6 +19,7 @@
    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#include "config.h"
 #include <stdlib.h>
 #include "ncurses-print.h"
 #include "ncurses-prompt.h"
