@@ -47,6 +47,9 @@
 #include "sigint.h"
 #include "flags.h"
 
+long long minsize = -1;
+long long maxsize = -1;
+
 typedef enum {
   ORDER_MTIME = 0,
   ORDER_CTIME,
@@ -255,6 +258,7 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
   static int progress = 0;
   static char indicator[] = "-\\|/";
   char *fullname, *name;
+  off_t size;
 
   cd = opendir(dir);
 
@@ -318,7 +322,8 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
 	free(fullname);
       }
 
-      if (filesize(newfile->d_name) == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) {
+      size = filesize(newfile->d_name);
+      if ((size == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) || size < minsize || (size > maxsize && maxsize != -1)) {
 	free(newfile->d_name);
 	free(newfile);
 	continue;
@@ -1211,6 +1216,8 @@ void help_text()
   printf(" -H --hardlinks   \tnormally, when two or more files point to the same\n");
   printf("                  \tdisk area they are treated as non-duplicates; this\n"); 
   printf("                  \toption will change this behavior\n");
+  printf(" -G --minsize=SIZE\tconsider only files greater than or equal to SIZE\n");
+  printf(" -L --maxsize=SIZE\tconsider only files less than or equal to SIZE\n");
   printf(" -n --noempty     \texclude zero-length files from consideration\n");
   printf(" -A --nohidden    \texclude hidden files from consideration\n");
   printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
@@ -1266,6 +1273,7 @@ int main(int argc, char **argv) {
   struct log_info *loginfo;
   int log_error;
   struct stat logfile_status;
+  char *endptr;
   
 #ifdef HAVE_GETOPT_H
   static struct option long_options[] = 
@@ -1280,6 +1288,8 @@ int main(int argc, char **argv) {
     { "symlinks", 0, 0, 's' },
     { "hardlinks", 0, 0, 'H' },
     { "relink", 0, 0, 'l' },
+    { "minsize", 1, 0, 'G' },
+    { "maxsize", 1, 0, 'L' },
     { "noempty", 0, 0, 'n' },
     { "nohidden", 0, 0, 'A' },
     { "delete", 0, 0, 'd' },
@@ -1307,7 +1317,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHnAdPvhNImpo:il:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1339,6 +1349,22 @@ int main(int argc, char **argv) {
       break;
     case 'H':
       SETFLAG(flags, F_CONSIDERHARDLINKS);
+      break;
+    case 'G':
+      minsize = strtoll(optarg, &endptr, 10);
+      if (optarg[0] == '\0' || *endptr != '\0' || minsize < 0)
+      {
+        errormsg("invalid value for --minsize: '%s'\n", optarg);
+        exit(1);
+      }
+      break;
+    case 'L':
+      maxsize = strtoll(optarg, &endptr, 10);
+      if (optarg[0] == '\0' || *endptr != '\0' || maxsize < 0)
+      {
+        errormsg("invalid value for --maxsize: '%s'\n", optarg);
+        exit(1);
+      }
       break;
     case 'n':
       SETFLAG(flags, F_EXCLUDEEMPTY);
