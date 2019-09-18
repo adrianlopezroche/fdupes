@@ -789,11 +789,15 @@ void printmatches(file_t *files)
       if (!ISFLAG(flags, F_OMITFIRST)) {
 	if (ISFLAG(flags, F_SHOWSIZE)) printf("%lld byte%seach:\n", (long long int)files->size,
 	 (files->size != 1) ? "s " : " ");
+        if (ISFLAG(flags, F_SHOWTIME))
+          printf("%s ", fmtmtime(files->d_name));
 	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &files->d_name);
 	printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
       }
       tmpfile = files->duplicates;
       while (tmpfile != NULL) {
+        if (ISFLAG(flags, F_SHOWTIME))
+          printf("%s ", fmtmtime(tmpfile->d_name));
 	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &tmpfile->d_name);
 	printf("%s%c", tmpfile->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
 	tmpfile = tmpfile->duplicates;
@@ -925,13 +929,25 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
       counter = 1;
       dupelist[counter] = files;
 
-      if (prompt) printf("[%d] [%s] %s\n", counter, fmtmtime(files->d_name), files->d_name);
+      if (prompt) 
+      {
+        if (ISFLAG(flags, F_SHOWTIME))
+          printf("[%d] [%s] %s\n", counter, fmtmtime(files->d_name), files->d_name);
+        else
+          printf("[%d] %s\n", counter, files->d_name);
+      }
 
       tmpfile = files->duplicates;
 
       while (tmpfile) {
 	dupelist[++counter] = tmpfile;
-	if (prompt) printf("[%d] [%s] %s\n", counter, fmtmtime(tmpfile->d_name), tmpfile->d_name);
+        if (prompt)
+        {
+          if (ISFLAG(flags, F_SHOWTIME))
+            printf("[%d] [%s] %s\n", counter, fmtmtime(tmpfile->d_name), tmpfile->d_name);
+          else
+            printf("[%d] %s\n", counter, tmpfile->d_name);
+        }
 	tmpfile = tmpfile->duplicates;
       }
 
@@ -1200,6 +1216,7 @@ void help_text()
   printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
   printf(" -1 --sameline    \tlist each set of matches on a single line\n");
   printf(" -S --size        \tshow size of duplicate files\n");
+  printf(" -t --time        \tshow modification time of duplicate files\n");
   printf(" -m --summarize   \tsummarize dupe information\n");
   printf(" -q --quiet       \thide progress indicator\n");
   printf(" -d --delete      \tprompt user for files to preserve and delete all\n"); 
@@ -1259,6 +1276,7 @@ int main(int argc, char **argv) {
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
     { "size", 0, 0, 'S' },
+    { "time", 0, 0, 't' },
     { "symlinks", 0, 0, 's' },
     { "hardlinks", 0, 0, 'H' },
     { "relink", 0, 0, 'l' },
@@ -1289,7 +1307,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1SsHnAdPvhNImpo:il:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHnAdPvhNImpo:il:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1312,6 +1330,9 @@ int main(int argc, char **argv) {
       break;
     case 'S':
       SETFLAG(flags, F_SHOWSIZE);
+      break;
+    case 't':
+      SETFLAG(flags, F_SHOWTIME);
       break;
     case 's':
       SETFLAG(flags, F_FOLLOWLINKS);

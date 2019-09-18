@@ -21,6 +21,7 @@
 #define F_REVERSE           0x4000
 #define F_IMMEDIATE         0x8000
 #define F_PLAINPROMPT       0x10000
+#define F_SHOWTIME          0x20000
 
 extern unsigned long flags;
 

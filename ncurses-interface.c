@@ -39,6 +39,9 @@
 #include "errormsg.h"
 #include "log.h"
 #include "sigint.h"
+#include "flags.h"
+
+char *fmtmtime(char *filename);
 
 enum linestyle
 {
@@ -73,6 +76,7 @@ int filerowcount(file_t *file, const int columns, int group_file_count)
   wchar_t ch;
   mbstate_t mbstate;
   int index_width;
+  int timestamp_width;
 
   memset(&mbstate, 0, sizeof(mbstate));
 
@@ -82,9 +86,11 @@ int filerowcount(file_t *file, const int columns, int group_file_count)
   if (index_width < FILE_INDEX_MIN_WIDTH)
     index_width = FILE_INDEX_MIN_WIDTH;
 
-  lines = (index_width + FILENAME_INDENT_EXTRA) / columns + 1;
+  timestamp_width = ISFLAG(flags, F_SHOWTIME) ? 19 : 0;
 
-  line_remaining = columns - (index_width + FILENAME_INDENT_EXTRA) % columns;
+  lines = (index_width + timestamp_width + FILENAME_INDENT_EXTRA) / columns + 1;
+
+  line_remaining = columns - (index_width + timestamp_width + FILENAME_INDENT_EXTRA) % columns;
 
   while (x < filename_bytes)
   {
@@ -643,6 +649,8 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
           if (groups[groupindex].files[f].selected)
             wattron(filewin, A_REVERSE);
+          if (ISFLAG(flags, F_SHOWTIME))
+            wprintw(filewin, "[%s] ", fmtmtime(groups[groupindex].files[f].file->d_name));
           putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + FILENAME_INDENT_EXTRA);
           if (groups[groupindex].files[f].selected)
             wattroff(filewin, A_REVERSE);
@@ -669,6 +677,8 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
           if (groups[groupindex].files[f].selected)
             wattron(filewin, A_REVERSE);
+          if (ISFLAG(flags, F_SHOWTIME))
+            wprintw(filewin, "[%s] ", fmtmtime(groups[groupindex].files[f].file->d_name));
           putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + FILENAME_INDENT_EXTRA);
           if (groups[groupindex].files[f].selected)
             wattroff(filewin, A_REVERSE);
