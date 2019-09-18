@@ -1232,7 +1232,6 @@ void help_text()
   printf("                  \twith -s or --symlinks, or when specifying a\n");
   printf("                  \tparticular directory more than once; refer to the\n");
   printf("                  \tfdupes documentation for additional information\n");
-  /*printf(" -l --relink      \t(description)\n");*/
 #ifndef NO_NCURSES
   printf(" -P --plain       \twith --delete, use line-based prompt (as with older\n");
   printf("                  \tversions of fdupes) instead of screen-mode interface\n");
@@ -1287,7 +1286,6 @@ int main(int argc, char **argv) {
     { "time", 0, 0, 't' },
     { "symlinks", 0, 0, 's' },
     { "hardlinks", 0, 0, 'H' },
-    { "relink", 0, 0, 'l' },
     { "minsize", 1, 0, 'G' },
     { "maxsize", 1, 0, 'L' },
     { "noempty", 0, 0, 'n' },
