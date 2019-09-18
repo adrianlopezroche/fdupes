@@ -397,6 +397,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
   int toplineoffset = 0;
   int resumecommandinput = 0;
   int index_width;
+  int timestamp_width;
   struct log_info *loginfo;
 
   noecho();
@@ -616,6 +617,8 @@ void deletefiles_ncurses(file_t *files, char *logfile)
       if (index_width < FILE_INDEX_MIN_WIDTH)
         index_width = FILE_INDEX_MIN_WIDTH;
 
+      timestamp_width = ISFLAG(flags, F_SHOWTIME) ? 19 : 0;
+
       linestyle = getlinestyle(groups + groupindex, x);
       
       if (linestyle == linestyle_groupheader)
@@ -643,15 +646,16 @@ void deletefiles_ncurses(file_t *files, char *logfile)
             print_spaces(filewin, index_width);
 
             wprintw(filewin, " [%c] ", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
+
+            if (ISFLAG(flags, F_SHOWTIME))
+              wprintw(filewin, "[%s] ", fmtmtime(groups[groupindex].files[f].file->d_name));
           }
 
           cy = getcury(filewin);
 
           if (groups[groupindex].files[f].selected)
             wattron(filewin, A_REVERSE);
-          if (ISFLAG(flags, F_SHOWTIME))
-            wprintw(filewin, "[%s] ", fmtmtime(groups[groupindex].files[f].file->d_name));
-          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + FILENAME_INDENT_EXTRA);
+          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + timestamp_width + FILENAME_INDENT_EXTRA);
           if (groups[groupindex].files[f].selected)
             wattroff(filewin, A_REVERSE);
 
@@ -671,15 +675,16 @@ void deletefiles_ncurses(file_t *files, char *logfile)
             if (cursorgroup == groupindex && cursorfile == f)
               wattroff(filewin, A_REVERSE);
             wprintw(filewin, " ");
+
+            if (ISFLAG(flags, F_SHOWTIME))
+              wprintw(filewin, "[%s] ", fmtmtime(groups[groupindex].files[f].file->d_name));
           }
 
           cy = getcury(filewin);
 
           if (groups[groupindex].files[f].selected)
             wattron(filewin, A_REVERSE);
-          if (ISFLAG(flags, F_SHOWTIME))
-            wprintw(filewin, "[%s] ", fmtmtime(groups[groupindex].files[f].file->d_name));
-          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + FILENAME_INDENT_EXTRA);
+          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + timestamp_width + FILENAME_INDENT_EXTRA);
           if (groups[groupindex].files[f].selected)
             wattroff(filewin, A_REVERSE);
 
