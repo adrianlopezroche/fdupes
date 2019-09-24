@@ -34,6 +34,8 @@
 #include "ncurses-prompt.h"
 #include "ncurses-status.h"
 #include "ncurses-print.h"
+#include "mbstowcs_escape_invalid.h"
+#include "positive_wcwidth.h"
 #include "commandidentifier.h"
 #include "filegroup.h"
 #include "errormsg.h"
@@ -70,17 +72,25 @@ int filerowcount(file_t *file, const int columns, int group_file_count)
 {
   int lines;
   int line_remaining;
-  int x = 0;
+  size_t x = 0;
   size_t read;
   size_t filename_bytes;
   wchar_t ch;
   mbstate_t mbstate;
   int index_width;
   int timestamp_width;
+  size_t needed;
+  wchar_t *wcfilename;
 
   memset(&mbstate, 0, sizeof(mbstate));
 
-  filename_bytes = strlen(file->d_name);
+  needed = mbstowcs_escape_invalid(0, file->d_name, 0);
+
+  wcfilename = (wchar_t*)malloc(sizeof(wchar_t) * needed);
+  if (wcfilename == 0)
+    return 0;
+
+  mbstowcs_escape_invalid(wcfilename, file->d_name, needed);
 
   index_width = get_num_digits(group_file_count);
   if (index_width < FILE_INDEX_MIN_WIDTH)
@@ -92,24 +102,22 @@ int filerowcount(file_t *file, const int columns, int group_file_count)
 
   line_remaining = columns - (index_width + timestamp_width + FILENAME_INDENT_EXTRA) % columns;
 
-  while (x < filename_bytes)
+  while (wcfilename[x] != L'\0')
   {
-    read = mbrtowc(&ch, file->d_name + x, filename_bytes - x, &mbstate);
-    if (read < 0)
-      return lines;
-
-    x += read;
-
-    if (wcwidth(ch) <= line_remaining)
+    if (positive_wcwidth(wcfilename[x]) <= line_remaining)
     {
-      line_remaining -= wcwidth(ch);
+      line_remaining -= positive_wcwidth(wcfilename[x]);
     }
     else
     {
-      line_remaining = columns - wcwidth(ch);
+      line_remaining = columns - positive_wcwidth(wcfilename[x]);
       ++lines;
     }
+
+    ++x;
   }
+
+  free(wcfilename);
 
   return lines;
 }

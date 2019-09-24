@@ -15,8 +15,8 @@ AS_IF([test x"$with_ncurses" != x"no"],
 	[AC_DEFINE([_XOPEN_SOURCE], [], [enable certain functions in wchar.h])]
 	[AC_DEFINE([_XOPEN_SOURCE_EXTENDED], [], [enable certain functions in curses.h])]
 	[AC_DEFINE([_ISOC99_SOURCE], [], [enable strtoll])]
-	[AC_SEARCH_LIBS([pcre2_match_8], [pcre2-8], [], [AC_ERROR([pcre2 library not found])])]
-	[AC_DEFINE([PCRE2_CODE_UNIT_WIDTH], [8], [PCRE2 Code Unit Width])],
+	[AC_SEARCH_LIBS([pcre2_match_32], [pcre2-32], [], [AC_ERROR([pcre2 library not found])])]
+	[AC_DEFINE([PCRE2_CODE_UNIT_WIDTH], [32], [PCRE2 Code Unit Width])],
 
 	[AC_DEFINE([NO_NCURSES], [], [Do not compile against ncurses])]
 	)

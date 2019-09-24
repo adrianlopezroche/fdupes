@@ -18,6 +18,7 @@
 
 #include <stdlib.h>
 #include "wcs.h"
+#include "mbstowcs_escape_invalid.h"
 
 /* compare wide and multibyte strings */
 int wcsmbcscmp(wchar_t *s1, char *s2)
@@ -26,13 +27,13 @@ int wcsmbcscmp(wchar_t *s1, char *s2)
   size_t size;
   int result;
 
-  size = mbstowcs(0, s2, 0) + 1;
+  size = mbstowcs_escape_invalid(0, s2, 0) + 1;
 
   s2w = (wchar_t*) malloc(size * sizeof(wchar_t));
   if (s2w == 0)
     return -1;
 
-  mbstowcs(s2w, s2, size);
+  mbstowcs_escape_invalid(s2w, s2, size);
 
   result = wcscmp(s1, s2w);
 
@@ -48,13 +49,13 @@ int wcsinmbcs(char *haystack, wchar_t *needle)
   size_t size;
   int result;
 
-  size = mbstowcs(0, haystack, 0) + 1;
+  size = mbstowcs_escape_invalid(0, haystack, 0) + 1;
 
   haystackw = (wchar_t*) malloc(size * sizeof(wchar_t));
   if (haystackw == 0)
     return -1;
 
-  mbstowcs(haystackw, haystack, size);
+  mbstowcs_escape_invalid(haystackw, haystack, size);
 
   if (wcsstr(haystackw, needle) == 0)
     result = 0;
@@ -73,13 +74,13 @@ int wcsbeginmbcs(char *haystack, wchar_t *needle)
   size_t size;
   int result;
 
-  size = mbstowcs(0, haystack, 0) + 1;
+  size = mbstowcs_escape_invalid(0, haystack, 0);
 
   haystackw = (wchar_t*) malloc(size * sizeof(wchar_t));
   if (haystackw == 0)
     return -1;
 
-  mbstowcs(haystackw, haystack, size);
+  mbstowcs_escape_invalid(haystackw, haystack, size);
 
   if (wcsncmp(haystackw, needle, wcslen(needle)) == 0)
     result = 1;
@@ -98,13 +99,13 @@ int wcsendsmbcs(char *haystack, wchar_t *needle)
   size_t size;
   int result;
 
-  size = mbstowcs(0, haystack, 0) + 1;
+  size = mbstowcs_escape_invalid(0, haystack, 0) + 1;
 
   haystackw = (wchar_t*) malloc(size * sizeof(wchar_t));
   if (haystackw == 0)
     return -1;
 
-  mbstowcs(haystackw, haystack, size);
+  mbstowcs_escape_invalid(haystackw, haystack, size);
 
   if (wcsrstr(haystackw, needle) != 0 && wcscmp(wcsrstr(haystackw, needle), needle) == 0)
     result = 1;

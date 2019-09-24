@@ -24,6 +24,8 @@
 #include <wchar.h>
 #include "ncurses-print.h"
 #include "errormsg.h"
+#include "mbstowcs_escape_invalid.h"
+#include "positive_wcwidth.h"
 
 void putline(WINDOW *window, const char *str, const int line, const int columns, const int compensate_indent)
 {
@@ -35,7 +37,7 @@ void putline(WINDOW *window, const char *str, const int line, const int columns,
   int first_line_columns;
   int l;
 
-  inputlength = mbstowcs(0, str, 0);
+  inputlength = mbstowcs_escape_invalid(0, str, 0);
   if (inputlength == 0)
     return;
 
@@ -47,7 +49,7 @@ void putline(WINDOW *window, const char *str, const int line, const int columns,
     exit(1);
   }
 
-  mbstowcs(dest, str, inputlength);
+  mbstowcs_escape_invalid(dest, str, inputlength);
   dest[inputlength] = L'\0';
 
   first_line_columns = columns - compensate_indent;
@@ -56,42 +58,42 @@ void putline(WINDOW *window, const char *str, const int line, const int columns,
 
   if (line > 0)
   {
-    linewidth = wcwidth(dest[linestart]);
+    linewidth = positive_wcwidth(dest[linestart]);
 
-    while (linestart + 1 < inputlength && linewidth + wcwidth(dest[linestart + 1]) <= first_line_columns)
-      linewidth += wcwidth(dest[++linestart]);
+    while (linestart + 1 < inputlength && linewidth + positive_wcwidth(dest[linestart + 1]) <= first_line_columns)
+      linewidth += positive_wcwidth(dest[++linestart]);
 
     if (++linestart == inputlength)
       return;
 
     for (l = 1; l < line; ++l)
     {
-      linewidth = wcwidth(dest[linestart]);
+      linewidth = positive_wcwidth(dest[linestart]);
 
-      while (linestart + 1 < inputlength && linewidth + wcwidth(dest[linestart + 1]) <= columns)
-        linewidth += wcwidth(dest[++linestart]);
+      while (linestart + 1 < inputlength && linewidth + positive_wcwidth(dest[linestart + 1]) <= columns)
+        linewidth += positive_wcwidth(dest[++linestart]);
 
       if (++linestart == inputlength)
         return;
     }
   }
 
-  linewidth = wcwidth(dest[linestart]);
+  linewidth = positive_wcwidth(dest[linestart]);
   linelength = 1;
 
   if (line == 0)
   {
-    while (linestart + linelength < inputlength && linewidth + wcwidth(dest[linestart + linelength]) <= first_line_columns)
+    while (linestart + linelength < inputlength && linewidth + positive_wcwidth(dest[linestart + linelength]) <= first_line_columns)
     {
-      linewidth += wcwidth(dest[linestart + linelength]);
+      linewidth += positive_wcwidth(dest[linestart + linelength]);
       ++linelength;
     }
   }
   else
   {
-    while (linestart + linelength < inputlength && linewidth + wcwidth(dest[linestart + linelength]) <= columns)
+    while (linestart + linelength < inputlength && linewidth + positive_wcwidth(dest[linestart + linelength]) <= columns)
     {
-      linewidth += wcwidth(dest[linestart + linelength]);
+      linewidth += positive_wcwidth(dest[linestart + linelength]);
       ++linelength;
     }    
   }

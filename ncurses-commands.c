@@ -23,6 +23,7 @@
 #include "ncurses-status.h"
 #include "ncurses-commands.h"
 #include "wcs.h"
+#include "mbstowcs_escape_invalid.h"
 #include <wchar.h>
 #include <pcre2.h>
 
@@ -211,7 +212,8 @@ int cmd_select_matching(struct filegroup *groups, int groupcount, wchar_t *comma
 int cmd_select_regex(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   size_t size;
-  char *mbs;
+  wchar_t *wcsfilename;
+  size_t needed;
   int errorcode;
   PCRE2_SIZE erroroffset;
   pcre2_code *code;
@@ -223,16 +225,7 @@ int cmd_select_regex(struct filegroup *groups, int groupcount, wchar_t *commanda
   int selectedfilecount = 0;
   int groupselected;
 
-  size = wcstombs(0, commandarguments, 0) + 1;
-  mbs = (char*) malloc(size * sizeof(char));
-  if (mbs == 0)
-    return -1;
-
-  wcstombs(mbs, commandarguments, size);
-
-  code = pcre2_compile((PCRE2_SPTR8)mbs, PCRE2_ZERO_TERMINATED, PCRE2_UTF | PCRE2_UCP, &errorcode, &erroroffset, 0);
-
-  free(mbs);
+  code = pcre2_compile((PCRE2_SPTR)commandarguments, PCRE2_ZERO_TERMINATED, PCRE2_UTF | PCRE2_UCP, &errorcode, &erroroffset, 0);
 
   if (code == 0)
     return -1;
@@ -249,7 +242,18 @@ int cmd_select_regex(struct filegroup *groups, int groupcount, wchar_t *commanda
 
     for (f = 0; f < groups[g].filecount; ++f)
     {
-      matches = pcre2_match(code, (PCRE2_SPTR8)groups[g].files[f].file->d_name, PCRE2_ZERO_TERMINATED, 0, 0, md, 0);
+      needed = mbstowcs_escape_invalid(0, groups[g].files[f].file->d_name, 0);
+
+      wcsfilename = (wchar_t*) malloc(needed * sizeof(wchar_t));
+      if (wcsfilename == 0)
+        continue;
+
+      mbstowcs_escape_invalid(wcsfilename, groups[g].files[f].file->d_name, needed);
+
+      matches = pcre2_match(code, (PCRE2_SPTR)wcsfilename, PCRE2_ZERO_TERMINATED, 0, 0, md, 0);
+
+      free(wcsfilename);
+
       if (matches > 0)
       {
         groups[g].selected = 1;
@@ -475,7 +479,8 @@ int cmd_clear_selections_matching(struct filegroup *groups, int groupcount, wcha
 int cmd_clear_selections_regex(struct filegroup *groups, int groupcount, wchar_t *commandarguments, struct status_text *status)
 {
   size_t size;
-  char *mbs;
+  wchar_t *wcsfilename;
+  size_t needed;
   int errorcode;
   PCRE2_SIZE erroroffset;
   pcre2_code *code;
@@ -489,16 +494,7 @@ int cmd_clear_selections_regex(struct filegroup *groups, int groupcount, wchar_t
   int filedeselected;
   int selectionsremaining;
 
-  size = wcstombs(0, commandarguments, 0) + 1;
-  mbs = (char*) malloc(size * sizeof(char));
-  if (mbs == 0)
-    return -1;
-
-  wcstombs(mbs, commandarguments, size);
-
-  code = pcre2_compile((PCRE2_SPTR8)mbs, PCRE2_ZERO_TERMINATED, PCRE2_UTF | PCRE2_UCP, &errorcode, &erroroffset, 0);
-
-  free(mbs);
+  code = pcre2_compile((PCRE2_SPTR)commandarguments, PCRE2_ZERO_TERMINATED, PCRE2_UTF | PCRE2_UCP, &errorcode, &erroroffset, 0);
 
   if (code == 0)
     return -1;
@@ -517,7 +513,18 @@ int cmd_clear_selections_regex(struct filegroup *groups, int groupcount, wchar_t
 
     for (f = 0; f < groups[g].filecount; ++f)
     {
-      matches = pcre2_match(code, (PCRE2_SPTR8)groups[g].files[f].file->d_name, PCRE2_ZERO_TERMINATED, 0, 0, md, 0);
+      needed = mbstowcs_escape_invalid(0, groups[g].files[f].file->d_name, 0);
+
+      wcsfilename = (wchar_t*) malloc(needed * sizeof(wchar_t));
+      if (wcsfilename == 0)
+        continue;
+
+      mbstowcs_escape_invalid(wcsfilename, groups[g].files[f].file->d_name, needed);
+
+      matches = pcre2_match(code, (PCRE2_SPTR)wcsfilename, PCRE2_ZERO_TERMINATED, 0, 0, md, 0);
+
+      free(wcsfilename);
+
       if (matches > 0)
       {
         if (groups[g].files[f].selected)
