@@ -322,17 +322,17 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
 	free(fullname);
       }
 
-      size = filesize(newfile->d_name);
-      if ((size == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) || size < minsize || (size > maxsize && maxsize != -1)) {
-	free(newfile->d_name);
-	free(newfile);
-	continue;
-      }
-
       if (stat(newfile->d_name, &info) == -1) {
-	free(newfile->d_name);
-	free(newfile);
-	continue;
+        free(newfile->d_name);
+        free(newfile);
+        continue;
+      }
+      
+      size = filesize(newfile->d_name);
+      if (!S_ISDIR(info.st_mode) && (((size == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) || size < minsize || (size > maxsize && maxsize != -1)))) {
+        free(newfile->d_name);
+        free(newfile);
+        continue;
       }
 
       if (info.st_dev == logfile_status->st_dev && info.st_ino == logfile_status->st_ino)
