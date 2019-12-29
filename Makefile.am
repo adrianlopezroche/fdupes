@@ -21,7 +21,7 @@ fdupes_SOURCES = fdupes.c\
  positive_wcwidth.h\
  md5/md5.c\
  md5/md5.h
-notrans_dist_man1_MANS = fdupes.1
+dist_man1_MANS = fdupes.1
 
 else
 fdupes_SOURCES = fdupes.c\
@@ -61,8 +61,8 @@ fdupes_SOURCES = fdupes.c\
  positive_wcwidth.h\
  md5/md5.c\
  md5/md5.h
-dist_man1_MANS = fdupes.1\
- fdupes-help.1
+dist_man1_MANS = fdupes.1
+notrans_dist_man7_MANS = fdupes-help.7
 
 endif
 
