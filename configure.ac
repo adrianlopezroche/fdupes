@@ -27,7 +27,7 @@ unescaped_program_transform_name=`echo "${program_transform_name}"|sed -e "s&\\\
 transformed_program_name=`echo "${PACKAGE_NAME}"|sed -e "${unescaped_program_transform_name}"|sed -e "s&\\\\\\\\&\\\\\\\\\\\\\\\\&g"`
 transformed_manpage_name=`echo "${PACKAGE_NAME}-help"|sed -e "${unescaped_program_transform_name}"`
 
-AC_DEFINE_UNQUOTED([HELP_COMMAND_STRING], "man 1 ${transformed_manpage_name}", [fdupes help file])
+AC_DEFINE_UNQUOTED([HELP_COMMAND_STRING], "man 7 ${transformed_manpage_name}", [fdupes help file])
 
 AC_DEFINE([_FILE_OFFSET_BITS], [64], [allow fdupes to handle files greater than (2<<31)-1 bytes])
 
