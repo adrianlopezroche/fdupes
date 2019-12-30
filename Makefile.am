@@ -62,7 +62,7 @@ fdupes_SOURCES = fdupes.c\
  md5/md5.c\
  md5/md5.h
 dist_man1_MANS = fdupes.1
-notrans_dist_man7_MANS = fdupes-help.7
+dist_man7_MANS = fdupes-help.7
 
 endif
 
