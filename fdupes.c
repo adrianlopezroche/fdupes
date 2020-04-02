@@ -785,6 +785,17 @@ void summarizematches(file_t *files)
   }
 }
 
+static void printhumansize(off_t size)
+{
+  unsigned int i = 0;
+  const char *const symbols[] = {"", "Ki", "Gi", "Ti", "Pi", "Ei", "Zi", "Yi"};
+  while (size > 1024 && i < (sizeof(symbols) / sizeof(*symbols) - 1)) {
+    size /= 1024;
+    i++;
+  }
+  printf("%lld%sB each:\n", (long long int)size, symbols[i]);
+}
+
 void printmatches(file_t *files)
 {
   file_t *tmpfile;
@@ -794,6 +805,7 @@ void printmatches(file_t *files)
       if (!ISFLAG(flags, F_OMITFIRST)) {
 	if (ISFLAG(flags, F_SHOWSIZE)) printf("%lld byte%seach:\n", (long long int)files->size,
 	 (files->size != 1) ? "s " : " ");
+	else if (ISFLAG(flags, F_SHOWSIZE_HUMAN)) printhumansize(files->size);
         if (ISFLAG(flags, F_SHOWTIME))
           printf("%s ", fmtmtime(files->d_name));
 	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &files->d_name);
@@ -971,6 +983,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
           curgroup, groups, counter);
 	if (ISFLAG(flags, F_SHOWSIZE)) printf(" (%lld byte%seach)", (long long int)files->size,
 	  (files->size != 1) ? "s " : " ");
+	else if (ISFLAG(flags, F_SHOWSIZE_HUMAN)) printhumansize(files->size);
 	printf(": ");
 	fflush(stdout);
 
@@ -1223,6 +1236,7 @@ void help_text()
   printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
   printf(" -1 --sameline    \tlist each set of matches on a single line\n");
   printf(" -S --size        \tshow size of duplicate files\n");
+  printf(" -T --human-size  \tshow size of duplicate files in human readable format\n");
   printf(" -t --time        \tshow modification time of duplicate files\n");
   printf(" -m --summarize   \tsummarize dupe information\n");
   printf(" -q --quiet       \thide progress indicator\n");
@@ -1283,6 +1297,7 @@ int main(int argc, char **argv) {
     { "quiet", 0, 0, 'q' },
     { "sameline", 0, 0, '1' },
     { "size", 0, 0, 'S' },
+    { "human-size", 0, 0, 'T' },
     { "time", 0, 0, 't' },
     { "symlinks", 0, 0, 's' },
     { "hardlinks", 0, 0, 'H' },
@@ -1315,7 +1330,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:"
+  while ((opt = GETOPT(argc, argv, "frRq1STtsHG:L:nAdPvhNImpo:il:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1338,6 +1353,9 @@ int main(int argc, char **argv) {
       break;
     case 'S':
       SETFLAG(flags, F_SHOWSIZE);
+      break;
+    case 'T':
+      SETFLAG(flags, F_SHOWSIZE_HUMAN);
       break;
     case 't':
       SETFLAG(flags, F_SHOWTIME);
@@ -1447,6 +1465,11 @@ int main(int argc, char **argv) {
 
   if (ISFLAG(flags, F_SUMMARIZEMATCHES) && ISFLAG(flags, F_DELETEFILES)) {
     errormsg("options --summarize and --delete are not compatible\n");
+    exit(1);
+  }
+
+  if (ISFLAG(flags, F_SHOWSIZE) && ISFLAG(flags, F_SHOWSIZE_HUMAN)) {
+    errormsg("options --size and --human-size are not compatible\n");
     exit(1);
   }
 
