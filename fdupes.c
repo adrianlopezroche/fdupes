@@ -58,6 +58,8 @@ typedef enum {
 
 char *program_name;
 
+char *preserved_word;
+
 ordertype_t ordertype = ORDER_MTIME;
 
 #define CHUNK_SIZE 8192
@@ -960,8 +962,22 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 
       if (!prompt) /* preserve only the first file */
       {
-         preserve[1] = 1;
-	 for (x = 2; x <= counter; x++) preserve[x] = 0;
+        if (ISFLAG(flags, F_PREFER))
+        {
+          int check = 0;
+          for (x = 1; x <= counter; x++) {
+            if (strstr(dupelist[x]->d_name, preserved_word) && check == 0)
+              preserve[x] = 1;
+            else
+              preserve[x] = 0;
+            check += preserve[x];
+          }
+          /* make sure preserve one file */
+          if (check == 0) preserve[1] = 1;
+        } else {
+          preserve[1] = 1;
+          for (x = 2; x <= counter; x++) preserve[x] = 0;
+        }
       }
 
       else /* prompt for files to preserve */
@@ -1207,49 +1223,51 @@ void help_text()
 {
   printf("Usage: fdupes [options] DIRECTORY...\n\n");
 
-  printf(" -r --recurse     \tfor every directory given follow subdirectories\n");
-  printf("                  \tencountered within\n");
-  printf(" -R --recurse:    \tfor each directory given after this option follow\n");
-  printf("                  \tsubdirectories encountered within (note the ':' at\n");
-  printf("                  \tthe end of the option, manpage for more details)\n");
-  printf(" -s --symlinks    \tfollow symlinks\n");
-  printf(" -H --hardlinks   \tnormally, when two or more files point to the same\n");
-  printf("                  \tdisk area they are treated as non-duplicates; this\n"); 
-  printf("                  \toption will change this behavior\n");
-  printf(" -G --minsize=SIZE\tconsider only files greater than or equal to SIZE\n");
-  printf(" -L --maxsize=SIZE\tconsider only files less than or equal to SIZE\n");
-  printf(" -n --noempty     \texclude zero-length files from consideration\n");
-  printf(" -A --nohidden    \texclude hidden files from consideration\n");
-  printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
-  printf(" -1 --sameline    \tlist each set of matches on a single line\n");
-  printf(" -S --size        \tshow size of duplicate files\n");
-  printf(" -t --time        \tshow modification time of duplicate files\n");
-  printf(" -m --summarize   \tsummarize dupe information\n");
-  printf(" -q --quiet       \thide progress indicator\n");
-  printf(" -d --delete      \tprompt user for files to preserve and delete all\n"); 
-  printf("                  \tothers; important: under particular circumstances,\n");
-  printf("                  \tdata may be lost when using this option together\n");
-  printf("                  \twith -s or --symlinks, or when specifying a\n");
-  printf("                  \tparticular directory more than once; refer to the\n");
-  printf("                  \tfdupes documentation for additional information\n");
+  printf(" -r --recurse      \tfor every directory given follow subdirectories\n");
+  printf("                   \tencountered within\n");
+  printf(" -R --recurse:     \tfor each directory given after this option follow\n");
+  printf("                   \tsubdirectories encountered within (note the ':' at\n");
+  printf("                   \tthe end of the option, manpage for more details)\n");
+  printf(" -s --symlinks     \tfollow symlinks\n");
+  printf(" -H --hardlinks    \tnormally, when two or more files point to the same\n");
+  printf("                   \tdisk area they are treated as non-duplicates; this\n");
+  printf("                   \toption will change this behavior\n");
+  printf(" -G --minsize=SIZE \tconsider only files greater than or equal to SIZE\n");
+  printf(" -L --maxsize=SIZE \tconsider only files less than or equal to SIZE\n");
+  printf(" -n --noempty      \texclude zero-length files from consideration\n");
+  printf(" -A --nohidden     \texclude hidden files from consideration\n");
+  printf(" -f --omitfirst    \tomit the first file in each set of matches\n");
+  printf(" -1 --sameline     \tlist each set of matches on a single line\n");
+  printf(" -S --size         \tshow size of duplicate files\n");
+  printf(" -t --time         \tshow modification time of duplicate files\n");
+  printf(" -m --summarize    \tsummarize dupe information\n");
+  printf(" -q --quiet        \thide progress indicator\n");
+  printf(" -d --delete       \tprompt user for files to preserve and delete all\n");
+  printf("                   \tothers; important: under particular circumstances,\n");
+  printf("                   \tdata may be lost when using this option together\n");
+  printf("                   \twith -s or --symlinks, or when specifying a\n");
+  printf("                   \tparticular directory more than once; refer to the\n");
+  printf("                   \tfdupes documentation for additional information\n");
 #ifndef NO_NCURSES
-  printf(" -P --plain       \twith --delete, use line-based prompt (as with older\n");
-  printf("                  \tversions of fdupes) instead of screen-mode interface\n");
+  printf(" -P --plain        \twith --delete, use line-based prompt (as with older\n");
+  printf("                   \tversions of fdupes) instead of screen-mode interface\n");
 #endif
-  printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
-  printf("                  \teach set of duplicates and delete the rest without\n");
-  printf("                  \tprompting the user\n");
-  printf(" -I --immediate   \tdelete duplicates as they are encountered, without\n");
-  printf("                  \tgrouping into sets; implies --noprompt\n");
-  printf(" -p --permissions \tdon't consider files with different owner/group or\n");
-  printf("                  \tpermission bits as duplicates\n");
-  printf(" -o --order=BY    \tselect sort order for output and deleting; by file\n");
-  printf("                  \tmodification time (BY='time'; default), status\n");
-  printf("                  \tchange time (BY='ctime'), or filename (BY='name')\n");
-  printf(" -i --reverse     \treverse order while sorting\n");
-  printf(" -l --log=LOGFILE \tlog file deletion choices to LOGFILE\n");
-  printf(" -v --version     \tdisplay fdupes version\n");
-  printf(" -h --help        \tdisplay this help message\n\n");
+  printf(" -N --noprompt     \ttogether with --delete, preserve the first file in\n");
+  printf("                   \teach set of duplicates and delete the rest without\n");
+  printf("                   \tprompting the user\n");
+  printf(" -I --immediate    \tdelete duplicates as they are encountered, without\n");
+  printf("                   \tgrouping into sets; implies --noprompt\n");
+  printf(" -e --prefer=STRING\tprefer to keep a file which full pathname\n");
+  printf("                   \tcontains STRING\n");
+  printf(" -p --permissions  \tdon't consider files with different owner/group or\n");
+  printf("                   \tpermission bits as duplicates\n");
+  printf(" -o --order=BY     \tselect sort order for output and deleting; by file\n");
+  printf("                   \tmodification time (BY='time'; default), status\n");
+  printf("                   \tchange time (BY='ctime'), or filename (BY='name')\n");
+  printf(" -i --reverse      \treverse order while sorting\n");
+  printf(" -l --log=LOGFILE  \tlog file deletion choices to LOGFILE\n");
+  printf(" -v --version      \tdisplay fdupes version\n");
+  printf(" -h --help         \tdisplay this help message\n\n");
 #ifndef HAVE_GETOPT_H
   printf("Note: Long options are not supported in this fdupes build.\n\n");
 #endif
@@ -1302,6 +1320,7 @@ int main(int argc, char **argv) {
     { "order", 1, 0, 'o' },
     { "reverse", 0, 0, 'i' },
     { "log", 1, 0, 'l' },
+    { "prefer", 1, 0, 'e' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1315,7 +1334,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:e:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1408,6 +1427,10 @@ int main(int argc, char **argv) {
       break;
     case 'i':
       SETFLAG(flags, F_REVERSE);
+      break;
+    case 'e':
+      SETFLAG(flags, F_PREFER);
+      preserved_word = optarg;
       break;
     case 'l':
       loginfo = log_open(logfile=optarg, &log_error);
