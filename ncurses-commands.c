@@ -569,7 +569,8 @@ int cmd_clear_all_selections(struct filegroup *groups, int groupcount, wchar_t *
     groups[g].selected = 0;
   }
 
-  format_status_left(status, L"Cleared all selections.");
+  if (status)
+    format_status_left(status, L"Cleared all selections.");
 
   return 1;
 }

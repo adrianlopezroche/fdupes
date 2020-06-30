@@ -1407,6 +1407,8 @@ void deletefiles_ncurses(file_t *files, char *logfile)
             topline = 0;
         }
 
+        cmd_clear_all_selections(groups, totalgroups, commandarguments, 0);
+
         break;
 
       case KEY_RESIZE:
