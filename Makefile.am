@@ -17,8 +17,6 @@ fdupes_SOURCES = fdupes.c\
  flags.h\
  mbstowcs_escape_invalid.c\
  mbstowcs_escape_invalid.h\
- positive_wcwidth.c\
- positive_wcwidth.h\
  md5/md5.c\
  md5/md5.h
 dist_man1_MANS = fdupes.1

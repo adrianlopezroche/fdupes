@@ -35,14 +35,16 @@
 #include <errno.h>
 #include <libgen.h>
 #include <locale.h>
+#ifndef NO_NCURSES
 #ifdef HAVE_NCURSESW_CURSES_H
   #include <ncursesw/curses.h>
 #else
   #include <curses.h>
 #endif
+#include "ncurses-interface.h"
+#endif
 #include "fdupes.h"
 #include "errormsg.h"
-#include "ncurses-interface.h"
 #include "log.h"
 #include "sigint.h"
 #include "flags.h"
