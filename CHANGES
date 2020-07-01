@@ -6,6 +6,25 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 2.0.0 to 2.1.0:
+
+ - Rename cs command ("clear all selections") from cs to csel.
+ - Rename igs command ("invert selections") from igs to isel.
+ - Add "prune" command as synonym for DELETE key.
+ - Clear selections after deleting files via prune/DELETE.
+ - Fix dependency issues when fdupes is configured to not use ncurses.
+
+Changes from 1.6.1 to 2.0.0:
+
+- Add ncurses mode for interactive file deletion (plain mode still available
+  via --plain or ./configure).
+- Add --minsize option.
+- Add --maxsize option.
+- Add --time option.
+- Add --order=ctime option.
+- Add --log option.
+- Use configure script for installation (Autotools/Automake).
+
 Changes from 1.6.0 to 1.6.1:
 
 - Fix 'invalid option' error for -I. [AL]
