@@ -48,6 +48,7 @@
 #define COMMAND_SELECT_REGEX 20
 #define COMMAND_CLEAR_SELECTIONS_REGEX 21
 #define COMMAND_GOTO_SET 22
+#define COMMAND_PRUNE 23
 
 extern struct command_map command_list[];
 extern struct command_map confirmation_keyword_list[];
@@ -70,5 +71,6 @@ int cmd_invert_group_selections(struct filegroup *groups, int groupcount, wchar_
 int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status);
 int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status);
 int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status);
+int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, int *totalgroups, int *cursorgroup, int *cursorfile, int *topline, char *logfile, WINDOW *filewin, struct status_text *status);;
 
 #endif

@@ -376,9 +376,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
   int preservecount;
   int deletecount;
   int unresolvedcount;
-  int totaldeleted;
   size_t globaldeletiontally = 0;
-  double deletedbytes;
   int row;
   int x;
   int g;
@@ -386,7 +384,6 @@ void deletefiles_ncurses(file_t *files, char *logfile)
   int keyresult;
   int cy;
   int f;
-  int to;
   wchar_t *commandbuffer;
   size_t commandbuffersize;
   wchar_t *commandarguments;
@@ -401,12 +398,9 @@ void deletefiles_ncurses(file_t *files, char *logfile)
   struct prompt_info *prompt;
   int dupesfound;
   int intresult;
-  int adjusttopline;
-  int toplineoffset = 0;
   int resumecommandinput = 0;
   int index_width;
   int timestamp_width;
-  struct log_info *loginfo;
 
   noecho();
   cbreak();
@@ -884,6 +878,10 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
               break;
 
+            case COMMAND_PRUNE:
+              cmd_prune(groups, totalgroups, commandarguments, &globaldeletiontally, &totalgroups, &cursorgroup, &cursorfile, &topline, logfile, filewin, status);
+              break;
+
             case COMMAND_EXIT: /* exit program */
               if (totalgroups == 0)
               {
@@ -1231,184 +1229,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
         break;
 
       case KEY_DC:
-        totaldeleted = 0;
-        deletedbytes = 0;
-
-        if (logfile != 0)
-          loginfo = log_open(logfile, 0);
-        else
-          loginfo = 0;
-
-        for (g = 0; g < totalgroups; ++g)
-        {
-          preservecount = 0;
-          deletecount = 0;
-          unresolvedcount = 0;
-
-          for (f = 0; f < groups[g].filecount; ++f)
-          {
-            switch (groups[g].files[f].action)
-            {
-              case -1:
-                ++deletecount;
-                break;
-              case 0:
-                ++unresolvedcount;
-                break;
-              case 1:
-                ++preservecount;
-                break;
-            }
-          }
-
-          if (loginfo)
-            log_begin_set(loginfo);
-
-          /* delete files marked for deletion unless no files left undeleted */
-          if (deletecount < groups[g].filecount)
-          {
-            for (f = 0; f < groups[g].filecount; ++f)
-            {
-              if (groups[g].files[f].action == -1)
-              {
-                if (remove(groups[g].files[f].file->d_name) == 0)
-                {
-                  set_file_action(&groups[g].files[f], -2, &globaldeletiontally);
-
-                  deletedbytes += groups[g].files[f].file->size;
-                  ++totaldeleted;
-
-                  if (loginfo)
-                    log_file_deleted(loginfo, groups[g].files[f].file->d_name);
-                }
-              }
-            }
-
-            if (loginfo)
-            {
-              for (f = 0; f < groups[g].filecount; ++f)
-              {
-                if (groups[g].files[f].action >= 0)
-                  log_file_remaining(loginfo, groups[g].files[f].file->d_name);
-              }
-            }
-
-            deletecount = 0;
-          }
-
-          if (loginfo)
-            log_end_set(loginfo);
-
-          /* if no files left unresolved, mark preserved files for delisting */
-          if (unresolvedcount == 0)
-          {
-            for (f = 0; f < groups[g].filecount; ++f)
-              if (groups[g].files[f].action == 1)
-                set_file_action(&groups[g].files[f], -2, &globaldeletiontally);
-
-            preservecount = 0;
-          }
-          /* if only one file left unresolved, mark it for delesting */
-          else if (unresolvedcount == 1 && preservecount + deletecount == 0)
-          {
-            for (f = 0; f < groups[g].filecount; ++f)
-              if (groups[g].files[f].action == 0)
-                set_file_action(&groups[g].files[f], -2, &globaldeletiontally);
-          }
-
-          /* delist any files marked for delisting */
-          to = 0;
-          for (f = 0; f < groups[g].filecount; ++f)
-            if (groups[g].files[f].action != -2)
-              groups[g].files[to++] = groups[g].files[f];
-
-          groups[g].filecount = to;
-
-          /* reposition cursor, if necessary */
-          if (cursorgroup == g && cursorfile > 0 && cursorfile >= groups[g].filecount)
-            cursorfile = groups[g].filecount - 1;
-        }
-
-        if (loginfo != 0)
-          log_close(loginfo);
-
-        if (deletedbytes < 1000.0)
-          format_status_left(status, L"Deleted %ld files (occupying %.0f bytes).", totaldeleted, deletedbytes);
-        else if (deletedbytes <= (1000.0 * 1000.0))
-          format_status_left(status, L"Deleted %ld files (occupying %.1f KB).", totaldeleted, deletedbytes / 1000.0);
-        else if (deletedbytes <= (1000.0 * 1000.0 * 1000.0))
-          format_status_left(status, L"Deleted %ld files (occupying %.1f MB).", totaldeleted, deletedbytes / (1000.0 * 1000.0));
-        else
-          format_status_left(status, L"Deleted %ld files (occupying %.1f GB).", totaldeleted, deletedbytes / (1000.0 * 1000.0 * 1000.0));
-
-        /* delist empty groups */
-        to = 0;
-        for (g = 0; g < totalgroups; ++g)
-        {
-          if (groups[g].filecount > 0)
-          {
-            groups[to] = groups[g];
-
-            /* reposition cursor, if necessary */
-            if (to == cursorgroup && to != g)
-              cursorfile = 0;
-
-            ++to;
-          }
-          else
-          {
-            free(groups[g].files);
-          }
-        }
-
-        totalgroups = to;
-
-        /* reposition cursor, if necessary */
-        if (cursorgroup >= totalgroups)
-        {
-          cursorgroup = totalgroups - 1;
-          cursorfile = 0;
-        }
-
-        /* recalculate line boundaries */
-        adjusttopline = 1;
-        toplineoffset = 0;
-        groupfirstline = 0;
-
-        for (g = 0; g < totalgroups; ++g)
-        {
-          if (adjusttopline && groups[g].endline >= topline)
-            toplineoffset = groups[g].endline - topline;
-
-          groups[g].startline = groupfirstline;
-          groups[g].endline = groupfirstline + 2;
-
-          for (f = 0; f < groups[g].filecount; ++f)
-            groups[g].endline += filerowcount(groups[g].files[f].file, COLS, groups[g].filecount);
-
-          if (adjusttopline && toplineoffset > 0)
-          {
-            topline = groups[g].endline - toplineoffset;
-
-            if (topline < 0)
-              topline = 0;
-
-            adjusttopline = 0;
-          }
-
-          groupfirstline = groups[g].endline + 1;
-        }
-
-        if (totalgroups > 0 && groups[totalgroups-1].endline <= topline)
-        {
-          topline = groups[totalgroups-1].endline - getmaxy(filewin) + 1;
-
-          if (topline < 0)
-            topline = 0;
-        }
-
-        cmd_clear_all_selections(groups, totalgroups, commandarguments, 0);
-
+        cmd_prune(groups, totalgroups, commandarguments, &globaldeletiontally, &totalgroups, &cursorgroup, &cursorfile, &topline, logfile, filewin, status);
         break;
 
       case KEY_RESIZE:
