@@ -207,10 +207,12 @@ Tag selected files for deletion.
 Remove all tags from selected files.
 
 .SH "DELETING DUPLICATES"
-Once they've been tagged for deletion, files can be deleted by pressing
+Once tagged for deletion, files can be deleted by pressing
 .B
-DELETE.
-Fdupes will delete any files that are tagged for deletion and delist any sets whose remaining files have been tagged for keeping. For safety, fdupes will refuse to act on sets for which all files have been tagged for deletion. To handle these cases, tag at least one file for keeping and run the delete command again.
+DELETE
+or using the
+.B 'prune'
+command. Fdupes will delete any files that are tagged for deletion and delist any sets whose remaining files have been tagged for keeping. For safety, fdupes will refuse to act on sets for which all files have been tagged for deletion. To handle these cases, tag at least one file for keeping and run the delete command again.
 
 .SH "OTHER COMMANDS"
 .B
