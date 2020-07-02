@@ -235,17 +235,8 @@ void getfilestats(file_t *file)
   file->size = filesize(file->d_name);
   file->inode = getinode(file->d_name);
   file->device = getdevice(file->d_name);
-
-  switch (ordertype)
-  {
-    case ORDER_CTIME:
-      file->sorttime = getctime(file->d_name);
-      break;
-    case ORDER_MTIME:
-    default:
-      file->sorttime = getmtime(file->d_name);
-      break;
-  }
+  file->ctime = getctime(file->d_name);
+  file->mtime = getmtime(file->d_name);
 }
 
 int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
@@ -1101,14 +1092,24 @@ int sort_pairs_by_arrival(file_t *f1, file_t *f2)
   return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
 }
 
-int sort_pairs_by_time(file_t *f1, file_t *f2)
+int sort_pairs_by_ctime(file_t *f1, file_t *f2)
 {
-  if (f1->sorttime < f2->sorttime)
+  if (f1->ctime < f2->ctime)
     return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
-  else if (f1->sorttime > f2->sorttime)
+  else if (f1->ctime > f2->ctime)
     return !ISFLAG(flags, F_REVERSE) ? 1 : -1;
 
   return 0;
+}
+
+int sort_pairs_by_mtime(file_t *f1, file_t *f2)
+{
+  if (f1->mtime < f2->mtime)
+    return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
+  else if (f1->mtime > f2->mtime)
+    return !ISFLAG(flags, F_REVERSE) ? 1 : -1;
+  else
+    return sort_pairs_by_ctime(f1, f2);
 }
 
 int sort_pairs_by_filename(file_t *f1, file_t *f2)
@@ -1507,12 +1508,14 @@ int main(int argc, char **argv) {
       if (confirmmatch(file1, file2)) {
         if (ISFLAG(flags, F_DELETEFILES) && ISFLAG(flags, F_IMMEDIATE))
           deletesuccessor(match, curfile,
-              (ordertype == ORDER_MTIME || 
-               ordertype == ORDER_CTIME) ? sort_pairs_by_time : sort_pairs_by_filename, loginfo );
+              ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
+              ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
+                                         sort_pairs_by_filename, loginfo );
         else
           registerpair(match, curfile,
-              (ordertype == ORDER_MTIME ||
-               ordertype == ORDER_CTIME) ? sort_pairs_by_time : sort_pairs_by_filename );
+              ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
+              ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
+                                         sort_pairs_by_filename );
       }
       
       fclose(file1);
