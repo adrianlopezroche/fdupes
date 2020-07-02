@@ -43,7 +43,7 @@
 #include "sigint.h"
 #include "flags.h"
 
-char *fmtmtime(char *filename);
+char *fmttime(time_t t);
 
 enum linestyle
 {
@@ -650,7 +650,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
             wprintw(filewin, " [%c] ", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
 
             if (ISFLAG(flags, F_SHOWTIME))
-              wprintw(filewin, "[%s] ", fmtmtime(groups[groupindex].files[f].file->d_name));
+              wprintw(filewin, "[%s] ", fmttime(groups[groupindex].files[f].file->mtime));
           }
 
           cy = getcury(filewin);
@@ -679,7 +679,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
             wprintw(filewin, " ");
 
             if (ISFLAG(flags, F_SHOWTIME))
-              wprintw(filewin, "[%s] ", fmtmtime(groups[groupindex].files[f].file->d_name));
+              wprintw(filewin, "[%s] ", fmttime(groups[groupindex].files[f].file->mtime));
           }
 
           cy = getcury(filewin);

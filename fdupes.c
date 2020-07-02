@@ -150,27 +150,11 @@ ino_t getinode(char *filename) {
   return s.st_ino;   
 }
 
-time_t getmtime(char *filename) {
-  struct stat s;
-
-  if (stat(filename, &s) != 0) return 0;
-
-  return s.st_mtime;
-}
-
-time_t getctime(char *filename) {
-  struct stat s;
-
-  if (stat(filename, &s) != 0) return 0;
-
-  return s.st_ctime;
-}
-
-char *fmtmtime(char *filename) {
+char *fmttime(time_t t) {
   static char buf[64];
-  time_t t = getmtime(filename);
 
   strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", localtime(&t));
+
   return buf;
 }
 
@@ -230,13 +214,13 @@ int nonoptafter(char *option, int argc, char **oldargv,
   return x;
 }
 
-void getfilestats(file_t *file)
+void getfilestats(file_t *file, struct stat *info, struct stat *linfo)
 {
-  file->size = filesize(file->d_name);
-  file->inode = getinode(file->d_name);
-  file->device = getdevice(file->d_name);
-  file->ctime = getctime(file->d_name);
-  file->mtime = getmtime(file->d_name);
+  file->size = info->st_size;;
+  file->inode = info->st_ino;
+  file->device = info->st_dev;
+  file->ctime = info->st_ctime;
+  file->mtime = info->st_mtime;
 }
 
 int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
@@ -348,7 +332,7 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
 	free(newfile);
       } else {
 	if (S_ISREG(linfo.st_mode) || (S_ISLNK(linfo.st_mode) && ISFLAG(flags, F_FOLLOWLINKS))) {
-	  getfilestats(newfile);
+	  getfilestats(newfile, &info, &linfo);
 	  *filelistp = newfile;
 	  filecount++;
 	} else {
@@ -788,14 +772,14 @@ void printmatches(file_t *files)
 	if (ISFLAG(flags, F_SHOWSIZE)) printf("%lld byte%seach:\n", (long long int)files->size,
 	 (files->size != 1) ? "s " : " ");
         if (ISFLAG(flags, F_SHOWTIME))
-          printf("%s ", fmtmtime(files->d_name));
+          printf("%s ", fmttime(files->mtime));
 	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &files->d_name);
 	printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
       }
       tmpfile = files->duplicates;
       while (tmpfile != NULL) {
         if (ISFLAG(flags, F_SHOWTIME))
-          printf("%s ", fmtmtime(tmpfile->d_name));
+          printf("%s ", fmttime(tmpfile->mtime));
 	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &tmpfile->d_name);
 	printf("%s%c", tmpfile->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
 	tmpfile = tmpfile->duplicates;
@@ -930,7 +914,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
       if (prompt) 
       {
         if (ISFLAG(flags, F_SHOWTIME))
-          printf("[%d] [%s] %s\n", counter, fmtmtime(files->d_name), files->d_name);
+          printf("[%d] [%s] %s\n", counter, fmttime(files->mtime), files->d_name);
         else
           printf("[%d] %s\n", counter, files->d_name);
       }
@@ -942,7 +926,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
         if (prompt)
         {
           if (ISFLAG(flags, F_SHOWTIME))
-            printf("[%d] [%s] %s\n", counter, fmtmtime(tmpfile->d_name), tmpfile->d_name);
+            printf("[%d] [%s] %s\n", counter, fmttime(tmpfile->mtime), tmpfile->d_name);
           else
             printf("[%d] %s\n", counter, tmpfile->d_name);
         }
