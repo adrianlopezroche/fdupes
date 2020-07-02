@@ -761,6 +761,8 @@ void deletefiles_ncurses(file_t *files, char *logfile)
       switch (get_command_text(&commandbuffer, &commandbuffersize, promptwin, prompt, 1, 1))
       {
         case GET_COMMAND_OK:
+          format_status_left(status, L"Ready");
+
           get_command_arguments(&commandarguments, commandbuffer);
 
           switch (identify_command(commandidentifier, commandbuffer, 0))
