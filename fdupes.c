@@ -126,14 +126,6 @@ void escapefilename(char *escape_list, char **filename_ptr)
   }
 }
 
-off_t filesize(char *filename) {
-  struct stat s;
-
-  if (stat(filename, &s) != 0) return -1;
-
-  return s.st_size;
-}
-
 dev_t getdevice(char *filename) {
   struct stat s;
 
@@ -235,7 +227,6 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
   static int progress = 0;
   static char indicator[] = "-\\|/";
   char *fullname, *name;
-  off_t size;
 
   cd = opendir(dir);
 
@@ -305,8 +296,7 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
         continue;
       }
       
-      size = filesize(newfile->d_name);
-      if (!S_ISDIR(info.st_mode) && (((size == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) || size < minsize || (size > maxsize && maxsize != -1)))) {
+      if (!S_ISDIR(info.st_mode) && (((info.st_size == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) || info.st_size < minsize || (info.st_size > maxsize && maxsize != -1)))) {
         free(newfile->d_name);
         free(newfile);
         continue;
@@ -348,9 +338,8 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
   return filecount;
 }
 
-md5_byte_t *getcrcsignatureuntil(char *filename, off_t max_read)
+md5_byte_t *getcrcsignatureuntil(char *filename, off_t fsize, off_t max_read)
 {
-  off_t fsize;
   off_t toread;
   md5_state_t state;
   static md5_byte_t digest[MD5_DIGEST_LENGTH];  
@@ -358,9 +347,6 @@ md5_byte_t *getcrcsignatureuntil(char *filename, off_t max_read)
   FILE *file;
    
   md5_init(&state);
-
- 
-  fsize = filesize(filename);
   
   if (max_read != 0 && fsize > max_read)
     fsize = max_read;
@@ -389,14 +375,14 @@ md5_byte_t *getcrcsignatureuntil(char *filename, off_t max_read)
   return digest;
 }
 
-md5_byte_t *getcrcsignature(char *filename)
+md5_byte_t *getcrcsignature(char *filename, off_t fsize)
 {
-  return getcrcsignatureuntil(filename, 0);
+  return getcrcsignatureuntil(filename, fsize, 0);
 }
 
-md5_byte_t *getcrcpartialsignature(char *filename)
+md5_byte_t *getcrcpartialsignature(char *filename, off_t fsize)
 {
-  return getcrcsignatureuntil(filename, PARTIAL_MD5_SIZE);
+  return getcrcsignatureuntil(filename, fsize, PARTIAL_MD5_SIZE);
 }
 
 int md5cmp(const md5_byte_t *a, const md5_byte_t *b)
@@ -581,7 +567,6 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 {
   int cmpresult;
   md5_byte_t *crcsignature;
-  off_t fsize;
 
   if (ISFLAG(flags, F_CONSIDERHARDLINKS))
   {
@@ -600,20 +585,18 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     if (is_hardlink(checktree, file))
       return NULL;
   }
-
-  fsize = filesize(file->d_name);
   
-  if (fsize < checktree->file->size) 
+  if (file->size < checktree->file->size)
     cmpresult = -1;
   else 
-    if (fsize > checktree->file->size) cmpresult = 1;
+    if (file->size > checktree->file->size) cmpresult = 1;
   else
     if (ISFLAG(flags, F_PERMISSIONS) &&
         !same_permissions(file->d_name, checktree->file->d_name))
         cmpresult = -1;
   else {
     if (checktree->file->crcpartial == NULL) {
-      crcsignature = getcrcpartialsignature(checktree->file->d_name);
+      crcsignature = getcrcpartialsignature(checktree->file->d_name, checktree->file->size);
       if (crcsignature == NULL) {
         errormsg ("cannot read file %s\n", checktree->file->d_name);
         return NULL;
@@ -628,7 +611,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     }
 
     if (file->crcpartial == NULL) {
-      crcsignature = getcrcpartialsignature(file->d_name);
+      crcsignature = getcrcpartialsignature(file->d_name, file->size);
       if (crcsignature == NULL) {
         errormsg ("cannot read file %s\n", file->d_name);
         return NULL;
@@ -647,7 +630,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 
     if (cmpresult == 0) {
       if (checktree->file->crcsignature == NULL) {
-	crcsignature = getcrcsignature(checktree->file->d_name);
+	crcsignature = getcrcsignature(checktree->file->d_name, checktree->file->size);
 	if (crcsignature == NULL) return NULL;
 
 	checktree->file->crcsignature = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
@@ -659,7 +642,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
       }
 
       if (file->crcsignature == NULL) {
-	crcsignature = getcrcsignature(file->d_name);
+	crcsignature = getcrcsignature(file->d_name, file->size);
 	if (crcsignature == NULL) return NULL;
 
 	file->crcsignature = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
