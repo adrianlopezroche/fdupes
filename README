@@ -40,6 +40,7 @@ Usage: fdupes [options] DIRECTORY...
                   	prompting the user
  -I --immediate   	delete duplicates as they are encountered, without
                   	grouping into sets; implies --noprompt
+ -e --prefer=STRING	prefer to keep a file which full pathname contains STRING
  -p --permissions 	don't consider files with different owner/group or
                   	permission bits as duplicates
  -o --order=BY    	select sort order for output and deleting; by file
