@@ -6,6 +6,12 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 2.1.0 to 2.1.1:
+
+ - Break mtime ties using ctime when sorting by time.
+ - Reduce number of calls to stat(), for speed.
+ - Clear last command status when new command is entered.
+
 Changes from 2.0.0 to 2.1.0:
 
  - Rename cs command ("clear all selections") from cs to csel.
