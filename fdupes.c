@@ -1177,49 +1177,52 @@ void help_text()
 {
   printf("Usage: fdupes [options] DIRECTORY...\n\n");
 
-  printf(" -r --recurse     \tfor every directory given follow subdirectories\n");
-  printf("                  \tencountered within\n");
-  printf(" -R --recurse:    \tfor each directory given after this option follow\n");
-  printf("                  \tsubdirectories encountered within (note the ':' at\n");
-  printf("                  \tthe end of the option, manpage for more details)\n");
-  printf(" -s --symlinks    \tfollow symlinks\n");
-  printf(" -H --hardlinks   \tnormally, when two or more files point to the same\n");
-  printf("                  \tdisk area they are treated as non-duplicates; this\n"); 
-  printf("                  \toption will change this behavior\n");
-  printf(" -G --minsize=SIZE\tconsider only files greater than or equal to SIZE\n");
-  printf(" -L --maxsize=SIZE\tconsider only files less than or equal to SIZE\n");
-  printf(" -n --noempty     \texclude zero-length files from consideration\n");
-  printf(" -A --nohidden    \texclude hidden files from consideration\n");
-  printf(" -f --omitfirst   \tomit the first file in each set of matches\n");
-  printf(" -1 --sameline    \tlist each set of matches on a single line\n");
-  printf(" -S --size        \tshow size of duplicate files\n");
-  printf(" -t --time        \tshow modification time of duplicate files\n");
-  printf(" -m --summarize   \tsummarize dupe information\n");
-  printf(" -q --quiet       \thide progress indicator\n");
-  printf(" -d --delete      \tprompt user for files to preserve and delete all\n"); 
-  printf("                  \tothers; important: under particular circumstances,\n");
-  printf("                  \tdata may be lost when using this option together\n");
-  printf("                  \twith -s or --symlinks, or when specifying a\n");
-  printf("                  \tparticular directory more than once; refer to the\n");
-  printf("                  \tfdupes documentation for additional information\n");
+  /*     0        1 0       2 0       3 0       4 0       5 0       6 0       7 0       8 0
+  -------"---------|---------|---------|---------|---------|---------|---------|---------|"
+  */
+  printf(" -r --recurse            for every directory given follow subdirectories\n");
+  printf("                         encountered within\n");
+  printf(" -R --recurse:           for each directory given after this option follow\n");
+  printf("                         subdirectories encountered within (note the ':' at the\n");
+  printf("                         end of the option, manpage for more details)\n");
+  printf(" -s --symlinks           follow symlinks\n");
+  printf(" -H --hardlinks          normally, when two or more files point to the same\n");
+  printf("                         disk area they are treated as non-duplicates; this\n");
+  printf("                         option will change this behavior\n");
+  printf(" -G --minsize=SIZE       consider only files greater than or equal to SIZE bytes\n");
+  printf(" -L --maxsize=SIZE       consider only files less than or equal to SIZE bytes\n");
+  printf(" -n --noempty            exclude zero-length files from consideration\n");
+  printf(" -A --nohidden           exclude hidden files from consideration\n");
+  printf(" -f --omitfirst          omit the first file in each set of matches\n");
+  printf(" -1 --sameline           list each set of matches on a single line\n");
+  printf(" -S --size               show size of duplicate files\n");
+  printf(" -t --time               show modification time of duplicate files\n");
+  printf(" -m --summarize          summarize dupe information\n");
+  printf(" -q --quiet              hide progress indicator\n");
+  printf(" -d --delete             prompt user for files to preserve and delete all\n");
+  printf("                         others; important: under particular circumstances,\n");
+  printf("                         data may be lost when using this option together\n");
+  printf("                         with -s or --symlinks, or when specifying a\n");
+  printf("                         particular directory more than once; refer to the\n");
+  printf("                         fdupes documentation for additional information\n");
 #ifndef NO_NCURSES
-  printf(" -P --plain       \twith --delete, use line-based prompt (as with older\n");
-  printf("                  \tversions of fdupes) instead of screen-mode interface\n");
+  printf(" -P --plain              with --delete, use line-based prompt (as with older\n");
+  printf("                         versions of fdupes) instead of screen-mode interface\n");
 #endif
-  printf(" -N --noprompt    \ttogether with --delete, preserve the first file in\n");
-  printf("                  \teach set of duplicates and delete the rest without\n");
-  printf("                  \tprompting the user\n");
-  printf(" -I --immediate   \tdelete duplicates as they are encountered, without\n");
-  printf("                  \tgrouping into sets; implies --noprompt\n");
-  printf(" -p --permissions \tdon't consider files with different owner/group or\n");
-  printf("                  \tpermission bits as duplicates\n");
-  printf(" -o --order=BY    \tselect sort order for output and deleting; by file\n");
-  printf("                  \tmodification time (BY='time'; default), status\n");
-  printf("                  \tchange time (BY='ctime'), or filename (BY='name')\n");
-  printf(" -i --reverse     \treverse order while sorting\n");
-  printf(" -l --log=LOGFILE \tlog file deletion choices to LOGFILE\n");
-  printf(" -v --version     \tdisplay fdupes version\n");
-  printf(" -h --help        \tdisplay this help message\n\n");
+  printf(" -N --noprompt           together with --delete, preserve the first file in\n");
+  printf("                         each set of duplicates and delete the rest without\n");
+  printf("                         prompting the user\n");
+  printf(" -I --immediate          delete duplicates as they are encountered, without\n");
+  printf("                         grouping into sets; implies --noprompt\n");
+  printf(" -p --permissions        don't consider files with different owner/group or\n");
+  printf("                         permission bits as duplicates\n");
+  printf(" -o --order=BY           select sort order for output and deleting; by file\n");
+  printf("                         modification time (BY='time'; default), status\n");
+  printf("                         change time (BY='ctime'), or filename (BY='name')\n");
+  printf(" -i --reverse            reverse order while sorting\n");
+  printf(" -l --log=LOGFILE        log file deletion choices to LOGFILE\n");
+  printf(" -v --version            display fdupes version\n");
+  printf(" -h --help               display this help message\n\n");
 #ifndef HAVE_GETOPT_H
   printf("Note: Long options are not supported in this fdupes build.\n\n");
 #endif
