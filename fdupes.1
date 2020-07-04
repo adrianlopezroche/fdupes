@@ -98,9 +98,6 @@ display fdupes version
 .TP
 .B -h --help
 displays help
-.SH "SEE ALSO"
-.\" Always quote multiple words for .SH
-.BR md5sum (1)
 .SH NOTES
 Unless
 .B -1
@@ -126,15 +123,6 @@ will follow subdirectories under b, but not those under a.
 will follow subdirectories under both a and b.
 
 .SH CAVEATS
-If fdupes returns with an error message such as
-.B fdupes: error invoking md5sum
-it means the program has been compiled to use an external
-program to calculate MD5 signatures (otherwise, fdupes uses
-internal routines for this purpose), and an error has occurred
-while attempting to execute it. If this is the case, the 
-specified program should be properly installed prior 
-to running fdupes.
-
 When using
 .B \-d
 or
