@@ -1506,7 +1506,7 @@ int main(int argc, char **argv) {
 
   if (ISFLAG(flags, F_DELETEFILES))
   {
-    if (ISFLAG(flags, F_NOPROMPT))
+    if (ISFLAG(flags, F_NOPROMPT) || ISFLAG(flags, F_IMMEDIATE))
     {
       deletefiles(files, 0, 0, logfile);
     }
