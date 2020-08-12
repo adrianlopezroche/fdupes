@@ -6,6 +6,11 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 2.1.1 to 2.1.2:
+
+ - Do not enter ncurses mode when --immediate option given.
+ - Fix logging/memory corruption bug when using --log with --immediate.
+
 Changes from 2.1.0 to 2.1.1:
 
  - Break mtime ties using ctime when sorting by time.
