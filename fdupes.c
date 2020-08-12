@@ -303,6 +303,7 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
         continue;
       }
 
+      /* ignore logfile */
       if (info.st_dev == logfile_status->st_dev && info.st_ino == logfile_status->st_ino)
       {
         free(newfile->d_name);
@@ -1153,6 +1154,9 @@ void deletesuccessor(file_t **existing, file_t *duplicate,
 
   if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
 
+  if (loginfo)
+    log_begin_set(loginfo);
+
   printf("   [+] %s\n", to_keep->d_name);
 
   if (loginfo)
@@ -1170,6 +1174,9 @@ void deletesuccessor(file_t **existing, file_t *duplicate,
     if (loginfo)
       log_file_remaining(loginfo, to_delete->d_name);
   }
+
+  if (loginfo)
+    log_end_set(loginfo);
 
   printf("\n");
 }
@@ -1243,7 +1250,7 @@ int main(int argc, char **argv) {
   char **oldargv;
   int firstrecurse;
   char *logfile = 0;
-  struct log_info *loginfo;
+  struct log_info *loginfo = NULL;
   int log_error;
   struct stat logfile_status;
   char *endptr;
@@ -1384,24 +1391,7 @@ int main(int argc, char **argv) {
       SETFLAG(flags, F_REVERSE);
       break;
     case 'l':
-      loginfo = log_open(logfile=optarg, &log_error);
-      if (loginfo == 0)
-      {
-        if (log_error == LOG_ERROR_NOT_A_LOG_FILE)
-          errormsg("%s: doesn't look like an fdupes log file\n", logfile);
-        else
-          errormsg("%s: could not open log file\n", logfile);
-
-        exit(1);
-      }
-      log_close(loginfo);
-
-      if (stat(logfile, &logfile_status) != 0)
-      {
-        errormsg("could not read log file status\n");
-        exit(1);
-      }
-
+      logfile = optarg;
       break;
     default:
       fprintf(stderr, "Try `fdupes --help' for more information.\n");
@@ -1422,6 +1412,29 @@ int main(int argc, char **argv) {
   if (ISFLAG(flags, F_SUMMARIZEMATCHES) && ISFLAG(flags, F_DELETEFILES)) {
     errormsg("options --summarize and --delete are not compatible\n");
     exit(1);
+  }
+
+  if (!ISFLAG(flags, F_DELETEFILES))
+    logfile = 0;
+
+  if (logfile != 0)
+  {
+    loginfo = log_open(logfile, &log_error);
+    if (loginfo == 0)
+    {
+      if (log_error == LOG_ERROR_NOT_A_LOG_FILE)
+        errormsg("%s: doesn't look like an fdupes log file\n", logfile);
+      else
+        errormsg("%s: could not open log file\n", logfile);
+
+      exit(1);
+    }
+
+    if (stat(logfile, &logfile_status) != 0)
+    {
+      errormsg("could not read log file status\n");
+      exit(1);
+    }
   }
 
   if (ISFLAG(flags, F_RECURSEAFTER)) {
@@ -1503,6 +1516,12 @@ int main(int argc, char **argv) {
   }
 
   if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
+
+  if (loginfo != 0)
+  {
+    log_close(loginfo);
+    loginfo = 0;
+  }
 
   if (ISFLAG(flags, F_DELETEFILES))
   {
