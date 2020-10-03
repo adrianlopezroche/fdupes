@@ -1568,13 +1568,12 @@ int main(int argc, char **argv) {
   }
 
   else 
+  {
+    printmatches(files);
 
     if (ISFLAG(flags, F_SUMMARIZEMATCHES))
       summarizematches(files);
-      
-    else
-
-      printmatches(files);
+  }
 
   while (files) {
     curfile = files->next;
