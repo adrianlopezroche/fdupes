@@ -632,7 +632,13 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 
     if (cmpresult == 0) {
       if (checktree->file->crcsignature == NULL) {
-	crcsignature = getcrcsignature(checktree->file->d_name, checktree->file->size);
+        if(ISFLAG(flags, F_IGNORECONTENT))
+          if(checktree->file->size >= 8192)
+	          crcsignature = getcrcsignature(checktree->file->d_name, /*checktree->file->size*/(off_t)8192);
+          else
+            crcsignature = getcrcsignature(checktree->file->d_name,checktree->file->size);
+        else
+          crcsignature = getcrcsignature(checktree->file->d_name, checktree->file->size);
 	if (crcsignature == NULL) return NULL;
 
 	checktree->file->crcsignature = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
@@ -644,7 +650,13 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
       }
 
       if (file->crcsignature == NULL) {
-	crcsignature = getcrcsignature(file->d_name, file->size);
+        if(ISFLAG(flags, F_IGNORECONTENT))
+          if(file->size >= 8192)
+	          crcsignature = getcrcsignature(file->d_name, /*file->size*/(off_t)8192);
+          else
+            crcsignature = getcrcsignature(file->d_name, file->size);
+        else
+          crcsignature = getcrcsignature(file->d_name,file->size);
 	if (crcsignature == NULL) return NULL;
 
 	file->crcsignature = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
@@ -706,6 +718,16 @@ int confirmmatch(FILE *file1, FILE *file2)
   } while (r2);
   
   return 1;
+}
+
+
+int confirmmatch_ignore_content(FILE *file1, FILE *file2){
+  struct stat s1,s2;
+  fstat(fileno(file1), &s1);
+  fstat(fileno(file2), &s2);
+  if(s1.st_size == s2.st_size)
+    return 1;
+  return 0;
 }
 
 void summarizematches(file_t *files)
@@ -1202,6 +1224,7 @@ void help_text()
   printf(" -n --noempty            exclude zero-length files from consideration\n");
   printf(" -A --nohidden           exclude hidden files from consideration\n");
   printf(" -f --omitfirst          omit the first file in each set of matches\n");
+  printf(" -c --ignore-content     ignore content, compare only file sizes\n");
   printf(" -1 --sameline           list each set of matches on a single line\n");
   printf(" -S --size               show size of duplicate files\n");
   printf(" -t --time               show modification time of duplicate files\n");
@@ -1283,6 +1306,7 @@ int main(int argc, char **argv) {
     { "order", 1, 0, 'o' },
     { "reverse", 0, 0, 'i' },
     { "log", 1, 0, 'l' },
+    {"ignore-content",0,0,'c'},
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1296,7 +1320,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:c"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1325,6 +1349,9 @@ int main(int argc, char **argv) {
       break;
     case 's':
       SETFLAG(flags, F_FOLLOWLINKS);
+      break;
+    case 'c':
+      SETFLAG(flags, F_IGNORECONTENT);
       break;
     case 'H':
       SETFLAG(flags, F_CONSIDERHARDLINKS);
@@ -1488,20 +1515,34 @@ int main(int argc, char **argv) {
 	curfile = curfile->next;
 	continue;
       }
-
-      if (confirmmatch(file1, file2)) {
-        if (ISFLAG(flags, F_DELETEFILES) && ISFLAG(flags, F_IMMEDIATE))
-          deletesuccessor(match, curfile,
-              ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
-              ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
-                                         sort_pairs_by_filename, loginfo );
-        else
-          registerpair(match, curfile,
-              ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
-              ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
-                                         sort_pairs_by_filename );
+      if(ISFLAG(flags, F_IGNORECONTENT)){
+        if (confirmmatch_ignore_content(file1, file2)) {
+          if (ISFLAG(flags, F_DELETEFILES) && ISFLAG(flags, F_IMMEDIATE))
+            deletesuccessor(match, curfile,
+                ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
+                ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
+                                          sort_pairs_by_filename, loginfo );
+          else
+            registerpair(match, curfile,
+                ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
+                ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
+                                          sort_pairs_by_filename );
+        }
       }
-      
+      else{
+        if (confirmmatch(file1, file2)) {
+          if (ISFLAG(flags, F_DELETEFILES) && ISFLAG(flags, F_IMMEDIATE))
+            deletesuccessor(match, curfile,
+                ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
+                ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
+                                          sort_pairs_by_filename, loginfo );
+          else
+            registerpair(match, curfile,
+                ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
+                ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
+                                          sort_pairs_by_filename );
+        }
+      }
       fclose(file1);
       fclose(file2);
     }
