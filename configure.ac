@@ -37,6 +37,10 @@ AC_DEFINE_UNQUOTED([HELP_COMMAND_STRING], "man 7 ${transformed_manpage_name}", [
 
 AC_DEFINE([_FILE_OFFSET_BITS], [64], [allow fdupes to handle files greater than (2<<31)-1 bytes])
 
+AC_DEFINE([CHUNK_SIZE], [8192], [number of bytes to read per read call])
+AC_DEFINE([PARTIAL_MD5_SIZE], [4096], [maximum number of bytes to use when calculating partial hashes])
+AC_DEFINE([INPUT_SIZE], [256], [size of command buffer (plain interactive mode only)])
+
 AC_CONFIG_FILES([Makefile])
 AC_PROG_CC
 AC_OUTPUT

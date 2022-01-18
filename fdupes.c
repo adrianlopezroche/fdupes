@@ -62,12 +62,6 @@ char *program_name;
 
 ordertype_t ordertype = ORDER_MTIME;
 
-#define CHUNK_SIZE 8192
-
-#define INPUT_SIZE 256
-
-#define PARTIAL_MD5_SIZE 4096
-
 #define MD5_DIGEST_LENGTH 16
 
 /* 
