@@ -64,24 +64,6 @@ ordertype_t ordertype = ORDER_MTIME;
 
 #define MD5_DIGEST_LENGTH 16
 
-/* 
-
-TODO: Partial sums (for working with very large files).
-
-typedef struct _signature
-{
-  md5_state_t state;
-  md5_byte_t  digest[16];
-} signature_t;
-
-typedef struct _signatures
-{
-  int         num_signatures;
-  signature_t *signatures;
-} signatures_t;
-
-*/
-
 typedef struct _filetree {
   file_t *file; 
   struct _filetree *left;
@@ -622,7 +604,6 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     }
 
     cmpresult = md5cmp(file->crcpartial, checktree->file->crcpartial);
-    /*if (cmpresult != 0) errormsg("    on %s vs %s\n", file->d_name, checktree->file->d_name);*/
 
     if (cmpresult == 0) {
       if (checktree->file->crcsignature == NULL) {
@@ -650,11 +631,6 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
       }
 
       cmpresult = md5cmp(file->crcsignature, checktree->file->crcsignature);
-      /*if (cmpresult != 0) errormsg("P   on %s vs %s\n", 
-          file->d_name, checktree->file->d_name);
-      else errormsg("P F on %s vs %s\n", file->d_name,
-          checktree->file->d_name);
-      printf("%s matches %s\n", file->d_name, checktree->file->d_name);*/
     }
   }
 
