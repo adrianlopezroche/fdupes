@@ -22,6 +22,10 @@
 #include "config.h"
 #include "ncurses-status.h"
 #include "ncurses-commands.h"
+#include "fileaction.h"
+#include "flags.h"
+#include "confirmmatch.h"
+#include "errormsg.h"
 #include "wcs.h"
 #include "mbstowcs_escape_invalid.h"
 #include "log.h"
@@ -619,7 +623,7 @@ int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *command
     {
       if (groups[g].files[f].selected)
       {
-        set_file_action(&groups[g].files[f], 1, deletiontally);
+        set_file_action(&groups[g].files[f], FILEACTION_KEEP, deletiontally);
         ++keepfilecount;
       }
     }
@@ -643,7 +647,7 @@ int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *comma
     {
       if (groups[g].files[f].selected)
       {
-        set_file_action(&groups[g].files[f], -1, deletiontally);
+        set_file_action(&groups[g].files[f], FILEACTION_DELETE, deletiontally);
         ++deletefilecount;
       }
     }
@@ -667,7 +671,7 @@ int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *comman
     {
       if (groups[g].files[f].selected)
       {
-        set_file_action(&groups[g].files[f], 0, deletiontally);
+        set_file_action(&groups[g].files[f], FILEACTION_UNRESOLVED, deletiontally);
         ++resetfilecount;
       }
     }
@@ -681,12 +685,13 @@ int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *comman
 int filerowcount(file_t *file, const int columns, int group_file_count);
 
 /* delete files tagged for deletion, delist sets with no untagged files */
-int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, int *totalgroups, int *cursorgroup, int *cursorfile, int *topline, char *logfile, WINDOW *filewin, struct status_text *status)
+int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, int *totalgroups, int *cursorgroup, int *cursorfile, int *topline, char *logfile, WINDOW *filewin, WINDOW *statuswin, struct status_text *status)
 {
   int deletecount;
   int preservecount;
   int unresolvedcount;
   int totaldeleted = 0;
+  int totalfailed = 0;
   double deletedbytes = 0;
   struct log_info *loginfo;
   int g;
@@ -695,6 +700,11 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
   int adjusttopline;
   int toplineoffset;
   int groupfirstline;
+  FILE *file1;
+  FILE *file2;
+  int ismatch;
+  wchar_t *statuscopy;
+  struct groupfile *firstnotdeleted;
 
   if (logfile != 0)
     loginfo = log_open(logfile, 0);
@@ -706,19 +716,31 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
     preservecount = 0;
     deletecount = 0;
     unresolvedcount = 0;
+    firstnotdeleted = 0;
 
     for (f = 0; f < groups[g].filecount; ++f)
     {
       switch (groups[g].files[f].action)
       {
-        case -1:
+        case FILEACTION_DELETE:
           ++deletecount;
           break;
-        case 0:
+
+        case FILEACTION_UNRESOLVED:
+        case FILEACTION_ERROR:
           ++unresolvedcount;
+
+          if (firstnotdeleted == 0)
+            firstnotdeleted = &groups[g].files[f];
+
           break;
-        case 1:
+
+        case FILEACTION_KEEP:
           ++preservecount;
+
+          if (firstnotdeleted == 0)
+            firstnotdeleted = &groups[g].files[f];
+
           break;
       }
     }
@@ -731,17 +753,48 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
     {
       for (f = 0; f < groups[g].filecount; ++f)
       {
-        if (groups[g].files[f].action == -1)
+        if (groups[g].files[f].action == FILEACTION_DELETE)
         {
-          if (remove(groups[g].files[f].file->d_name) == 0)
+          if (ISFLAG(flags, F_DEFERCONFIRMATION))
           {
-            set_file_action(&groups[g].files[f], -2, deletiontally);
+            format_status_left(status, L"Confirming duplicates...");
+            print_status(statuswin, status);
+            wrefresh(statuswin);
+
+            file1 = fopen(groups[g].files[f].file->d_name, "rb");
+            file2 = fopen(firstnotdeleted->file->d_name, "rb");
+
+            if (file1 && file2)
+              ismatch = confirmmatch(file1, file2);
+            else
+              ismatch = 0;
+
+            if (file2)
+              fclose(file2);
+
+            if (file1)
+              fclose(file1);
+          }
+          else
+          {
+            ismatch = 1;
+          }
+
+          if (ismatch && remove(groups[g].files[f].file->d_name) == 0)
+          {
+            set_file_action(&groups[g].files[f], FILEACTION_DELIST, deletiontally);
 
             deletedbytes += groups[g].files[f].file->size;
             ++totaldeleted;
 
             if (loginfo)
               log_file_deleted(loginfo, groups[g].files[f].file->d_name);
+          }
+          else
+          {
+            set_file_action(&groups[g].files[f], FILEACTION_ERROR, deletiontally);
+            unresolvedcount++;
+            totalfailed++;
           }
         }
       }
@@ -750,7 +803,8 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
       {
         for (f = 0; f < groups[g].filecount; ++f)
         {
-          if (groups[g].files[f].action >= 0)
+          if (groups[g].files[f].action != FILEACTION_DELETE &&
+              groups[g].files[f].action != FILEACTION_DELIST)
             log_file_remaining(loginfo, groups[g].files[f].file->d_name);
         }
       }
@@ -765,8 +819,8 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
     if (unresolvedcount == 0)
     {
       for (f = 0; f < groups[g].filecount; ++f)
-        if (groups[g].files[f].action == 1)
-          set_file_action(&groups[g].files[f], -2, deletiontally);
+        if (groups[g].files[f].action == FILEACTION_KEEP)
+          set_file_action(&groups[g].files[f], FILEACTION_DELIST, deletiontally);
 
       preservecount = 0;
     }
@@ -774,14 +828,14 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
     else if (unresolvedcount == 1 && preservecount + deletecount == 0)
     {
       for (f = 0; f < groups[g].filecount; ++f)
-        if (groups[g].files[f].action == 0)
-          set_file_action(&groups[g].files[f], -2, deletiontally);
+        if (groups[g].files[f].action == FILEACTION_UNRESOLVED || groups[g].files[f].action == FILEACTION_ERROR)
+          set_file_action(&groups[g].files[f], FILEACTION_DELIST, deletiontally);
     }
 
     /* delist any files marked for delisting */
     to = 0;
     for (f = 0; f < groups[g].filecount; ++f)
-      if (groups[g].files[f].action != -2)
+      if (groups[g].files[f].action != FILEACTION_DELIST)
         groups[g].files[to++] = groups[g].files[f];
 
     groups[g].filecount = to;
@@ -795,13 +849,30 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
     log_close(loginfo);
 
   if (deletedbytes < 1000.0)
-    format_status_left(status, L"Deleted %ld files (occupying %.0f bytes).", totaldeleted, deletedbytes);
+    format_status_left(status, L"Deleted %ld files (occupying %.0f bytes)%c", totaldeleted, deletedbytes, totalfailed ? ';' : '.');
   else if (deletedbytes <= (1000.0 * 1000.0))
-    format_status_left(status, L"Deleted %ld files (occupying %.1f KB).", totaldeleted, deletedbytes / 1000.0);
+    format_status_left(status, L"Deleted %ld files (occupying %.1f KB)%c", totaldeleted, deletedbytes / 1000.0, totalfailed ? ';' : '.');
   else if (deletedbytes <= (1000.0 * 1000.0 * 1000.0))
-    format_status_left(status, L"Deleted %ld files (occupying %.1f MB).", totaldeleted, deletedbytes / (1000.0 * 1000.0));
+    format_status_left(status, L"Deleted %ld files (occupying %.1f MB)%c", totaldeleted, deletedbytes / (1000.0 * 1000.0), totalfailed ? ';' : '.');
   else
-    format_status_left(status, L"Deleted %ld files (occupying %.1f GB).", totaldeleted, deletedbytes / (1000.0 * 1000.0 * 1000.0));
+    format_status_left(status, L"Deleted %ld files (occupying %.1f GB)%c", totaldeleted, deletedbytes / (1000.0 * 1000.0 * 1000.0), totalfailed ? ';' : '.');
+
+  if (totalfailed > 0)
+  {
+    statuscopy = malloc(sizeof(wchar_t) * (wcslen(status->left) + 1));
+    if (!statuscopy)
+    {
+      endwin();
+      errormsg("out of memory\n");
+      exit(1);
+    }
+
+    wcsncpy(statuscopy, status->left, wcslen(status->left) + 1);
+
+    format_status_left(status, L"%S %d failed.", statuscopy, totalfailed);
+
+    free(statuscopy);
+  }
 
   /* delist empty groups */
   to = 0;

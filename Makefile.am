@@ -15,6 +15,8 @@ fdupes_SOURCES = fdupes.c\
  sigint.h\
  flags.c\
  flags.h\
+ confirmmatch.c\
+ confirmmatch.h\
  mbstowcs_escape_invalid.c\
  mbstowcs_escape_invalid.h\
  md5/md5.c\
@@ -25,6 +27,8 @@ else
 fdupes_SOURCES = fdupes.c\
  fdupes.h\
  filegroup.h\
+ fileaction.h\
+ fileaction.c\
  ncurses-commands.c\
  ncurses-commands.h\
  ncurses-getcommand.c\
@@ -53,6 +57,8 @@ fdupes_SOURCES = fdupes.c\
  sigint.h\
  flags.c\
  flags.h\
+ confirmmatch.c\
+ confirmmatch.h\
  mbstowcs_escape_invalid.c\
  mbstowcs_escape_invalid.h\
  positive_wcwidth.c\

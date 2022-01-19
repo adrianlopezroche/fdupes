@@ -71,6 +71,6 @@ int cmd_invert_group_selections(struct filegroup *groups, int groupcount, wchar_
 int cmd_keep_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status);
 int cmd_delete_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status);
 int cmd_reset_selected(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, struct status_text *status);
-int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, int *totalgroups, int *cursorgroup, int *cursorfile, int *topline, char *logfile, WINDOW *filewin, struct status_text *status);;
+int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandarguments, size_t *deletiontally, int *totalgroups, int *cursorgroup, int *cursorfile, int *topline, char *logfile, WINDOW *filewin, WINDOW *statuswin, struct status_text *status);;
 
 #endif

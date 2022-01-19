@@ -44,6 +44,7 @@
 #include "ncurses-interface.h"
 #endif
 #include "fdupes.h"
+#include "confirmmatch.h"
 #include "errormsg.h"
 #include "log.h"
 #include "sigint.h"
@@ -654,30 +655,6 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
   }
 }
 
-/* Do a bit-for-bit comparison in case two different files produce the 
-   same signature. Unlikely, but better safe than sorry. */
-
-int confirmmatch(FILE *file1, FILE *file2)
-{
-  unsigned char c1[CHUNK_SIZE];
-  unsigned char c2[CHUNK_SIZE];
-  size_t r1;
-  size_t r2;
-  
-  fseek(file1, 0, SEEK_SET);
-  fseek(file2, 0, SEEK_SET);
-
-  do {
-    r1 = fread(c1, sizeof(unsigned char), sizeof(c1), file1);
-    r2 = fread(c2, sizeof(unsigned char), sizeof(c2), file2);
-
-    if (r1 != r2) return 0; /* file lengths are different */
-    if (memcmp (c1, c2, r1)) return 0; /* file contents are different */
-  } while (r2);
-  
-  return 1;
-}
-
 void summarizematches(file_t *files)
 {
   int numsets = 0;
@@ -813,6 +790,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
   file_t *curfile;
   file_t **dupelist;
   int *preserve;
+  int firstpreserved;
   char *preservestr;
   char *token;
   char *tstr;
@@ -823,6 +801,9 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
   int i;
   struct log_info *loginfo;
   int log_error;
+  FILE *file1;
+  FILE *file2;
+  int ismatch;
 
   curfile = files;
   
@@ -992,18 +973,59 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
             log_file_remaining(loginfo, dupelist[x]->d_name);
         }
 	else {
-	  if (remove(dupelist[x]->d_name) == 0) {
-	    printf("   [-] %s\n", dupelist[x]->d_name);
+    if (ISFLAG(flags, F_DEFERCONFIRMATION))
+    {
+      firstpreserved = 0;
+      for (i = 1; i <= counter; ++i)
+      {
+        if (preserve[i])
+        {
+          firstpreserved = i;
+          break;
+        }
+      }
 
-            if (loginfo)
-              log_file_deleted(loginfo, dupelist[x]->d_name);
-	  } else {
-	    printf("   [!] %s ", dupelist[x]->d_name);
-	    printf("-- unable to delete file!\n");
+      file1 = fopen(dupelist[x]->d_name, "rb");
+      file2 = fopen(dupelist[firstpreserved]->d_name, "rb");
 
-            if (loginfo)
-              log_file_remaining(loginfo, dupelist[x]->d_name);
-	  }
+      if (file1 && file2)
+        ismatch = confirmmatch(file1, file2);
+      else
+        ismatch = 0;
+
+      if (file2)
+        fclose(file2);
+
+      if (file1)
+        fclose(file1);
+    }
+    else
+    {
+      ismatch = 1;
+    }
+
+    if (ismatch) {
+      if (remove(dupelist[x]->d_name) == 0) {
+        printf("   [-] %s\n", dupelist[x]->d_name);
+
+        if (loginfo)
+          log_file_deleted(loginfo, dupelist[x]->d_name);
+      }
+      else {
+        printf("   [!] %s ", dupelist[x]->d_name);
+        printf("-- unable to delete file!\n");
+
+        if (loginfo)
+          log_file_remaining(loginfo, dupelist[x]->d_name);
+      }
+    }
+    else {
+      printf("   [!] %s\n", dupelist[x]->d_name);
+      printf(" -- unable to confirm match; file not deleted!\n");
+
+      if (loginfo)
+        log_file_remaining(loginfo, dupelist[x]->d_name);
+    }
 	}
       }
       printf("\n");
@@ -1103,7 +1125,7 @@ void registerpair(file_t **matchlist, file_t *newmatch,
   }
 }
 
-void deletesuccessor(file_t **existing, file_t *duplicate, 
+void deletesuccessor(file_t **existing, file_t *duplicate, int matchconfirmed,
       int (*comparef)(file_t *f1, file_t *f2), struct log_info *loginfo)
 {
   file_t *to_keep;
@@ -1132,14 +1154,25 @@ void deletesuccessor(file_t **existing, file_t *duplicate,
   if (loginfo)
     log_file_remaining(loginfo, to_keep->d_name);
 
-  if (remove(to_delete->d_name) == 0) {
-    printf("   [-] %s\n", to_delete->d_name);
+  if (matchconfirmed)
+  {
+    if (remove(to_delete->d_name) == 0) {
+      printf("   [-] %s\n", to_delete->d_name);
 
-    if (loginfo)
-      log_file_deleted(loginfo, to_delete->d_name);
-  } else {
-    printf("   [!] %s ", to_delete->d_name);
-    printf("-- unable to delete file!\n");
+      if (loginfo)
+        log_file_deleted(loginfo, to_delete->d_name);
+    } else {
+      printf("   [!] %s ", to_delete->d_name);
+      printf("-- unable to delete file!\n");
+
+      if (loginfo)
+        log_file_remaining(loginfo, to_delete->d_name);
+    }
+  }
+  else
+  {
+    printf("   [!] %s\n", to_delete->d_name);
+    printf(" -- unable to confirm match; file not deleted!\n");
 
     if (loginfo)
       log_file_remaining(loginfo, to_delete->d_name);
@@ -1183,6 +1216,8 @@ void help_text()
   printf("                         with -s or --symlinks, or when specifying a\n");
   printf("                         particular directory more than once; refer to the\n");
   printf("                         fdupes documentation for additional information\n");
+  printf(" -D --deferconfirmation  in interactive mode, defer byte-for-byte confirmation\n");
+  printf("                         of duplicates until just before file deletion\n");
 #ifndef NO_NCURSES
   printf(" -P --plain              with --delete, use line-based prompt (as with older\n");
   printf("                         versions of fdupes) instead of screen-mode interface\n");
@@ -1253,6 +1288,7 @@ int main(int argc, char **argv) {
     { "order", 1, 0, 'o' },
     { "reverse", 0, 0, 'i' },
     { "log", 1, 0, 'l' },
+    { "deferconfirmation", 0, 0, 'D' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1266,7 +1302,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:D"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1363,6 +1399,9 @@ int main(int argc, char **argv) {
     case 'l':
       logfile = optarg;
       break;
+    case 'D':
+      SETFLAG(flags, F_DEFERCONFIRMATION);
+      break;
     default:
       fprintf(stderr, "Try `fdupes --help' for more information.\n");
       exit(1);
@@ -1381,6 +1420,12 @@ int main(int argc, char **argv) {
 
   if (ISFLAG(flags, F_SUMMARIZEMATCHES) && ISFLAG(flags, F_DELETEFILES)) {
     errormsg("options --summarize and --delete are not compatible\n");
+    exit(1);
+  }
+
+  if (ISFLAG(flags, F_DEFERCONFIRMATION) && (!ISFLAG(flags, F_DELETEFILES) || ISFLAG(flags, F_NOPROMPT)))
+  {
+    errormsg("--deferconfirmation only works with interactive deletion modes\n");
     exit(1);
   }
 
@@ -1459,19 +1504,19 @@ int main(int argc, char **argv) {
 	continue;
       }
 
-      if (confirmmatch(file1, file2)) {
-        if (ISFLAG(flags, F_DELETEFILES) && ISFLAG(flags, F_IMMEDIATE))
-          deletesuccessor(match, curfile,
+      if (ISFLAG(flags, F_DELETEFILES) && ISFLAG(flags, F_IMMEDIATE))
+      {
+          deletesuccessor(match, curfile, confirmmatch(file1, file2),
               ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
               ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
                                          sort_pairs_by_filename, loginfo );
-        else
-          registerpair(match, curfile,
-              ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
-              ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
-                                         sort_pairs_by_filename );
       }
-      
+      else if (ISFLAG(flags, F_DEFERCONFIRMATION) || confirmmatch(file1, file2))
+        registerpair(match, curfile,
+            ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
+            ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
+                                       sort_pairs_by_filename );
+
       fclose(file1);
       fclose(file2);
     }

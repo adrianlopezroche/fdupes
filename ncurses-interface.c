@@ -34,6 +34,7 @@
 #include "ncurses-prompt.h"
 #include "ncurses-status.h"
 #include "ncurses-print.h"
+#include "fileaction.h"
 #include "mbstowcs_escape_invalid.h"
 #include "positive_wcwidth.h"
 #include "commandidentifier.h"
@@ -182,13 +183,13 @@ void set_file_action(struct groupfile *file, int new_action, size_t *deletion_ta
 {
   switch (file->action)
   {
-    case -1:
-      if (new_action != -1)
+    case FILEACTION_DELETE:
+      if (new_action != FILEACTION_DELETE)
         --*deletion_tally;
       break;
 
     default:
-      if (new_action == -1)
+      if (new_action == FILEACTION_DELETE)
         ++*deletion_tally;
       break;
   }
@@ -539,7 +540,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
     do
     {
       groups[totalgroups].files[groupfilecount].file = dupefile;
-      groups[totalgroups].files[groupfilecount].action = 0;
+      groups[totalgroups].files[groupfilecount].action = FILEACTION_UNRESOLVED;
       groups[totalgroups].files[groupfilecount].selected = 0;
       ++groupfilecount;
 
@@ -647,7 +648,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
           {
             print_spaces(filewin, index_width);
 
-            wprintw(filewin, " [%c] ", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
+            wprintw(filewin, " [%c] ", getfileactionchar(groups[groupindex].files[f].action));
 
             if (ISFLAG(flags, F_SHOWTIME))
               wprintw(filewin, "[%s] ", fmttime(groups[groupindex].files[f].file->mtime));
@@ -673,7 +674,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
             if (cursorgroup == groupindex && cursorfile == f)
               wattron(filewin, A_REVERSE);
-            wprintw(filewin, "[%c]", groups[groupindex].files[f].action > 0 ? '+' : groups[groupindex].files[f].action < 0 ? '-' : ' ');
+            wprintw(filewin, "[%c]", getfileactionchar(groups[groupindex].files[f].action));
             if (cursorgroup == groupindex && cursorfile == f)
               wattroff(filewin, A_REVERSE);
             wprintw(filewin, " ");
@@ -829,7 +830,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
             case COMMAND_RESET_GROUP:
               for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                set_file_action(&groups[cursorgroup].files[x], 0, &globaldeletiontally);
+                set_file_action(&groups[cursorgroup].files[x], FILEACTION_UNRESOLVED, &globaldeletiontally);
 
               format_status_left(status, L"Reset all files in current group.");
 
@@ -838,7 +839,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
             case COMMAND_PRESERVE_ALL:
               /* mark all files for preservation */
               for (x = 0; x < groups[cursorgroup].filecount; ++x)
-                set_file_action(&groups[cursorgroup].files[x], 1, &globaldeletiontally);
+                set_file_action(&groups[cursorgroup].files[x], FILEACTION_KEEP, &globaldeletiontally);
 
               format_status_left(status, L"%d files marked for preservation", groups[cursorgroup].filecount);
 
@@ -881,7 +882,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
               break;
 
             case COMMAND_PRUNE:
-              cmd_prune(groups, totalgroups, commandarguments, &globaldeletiontally, &totalgroups, &cursorgroup, &cursorfile, &topline, logfile, filewin, status);
+              cmd_prune(groups, totalgroups, commandarguments, &globaldeletiontally, &totalgroups, &cursorgroup, &cursorfile, &topline, logfile, filewin, statuswin, status);
               break;
 
             case COMMAND_EXIT: /* exit program */
@@ -1016,7 +1017,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
                 if (wcstolcheck != token && *wcstolcheck == '\0')
                 {
                   if (number > 0 && number <= groups[cursorgroup].filecount)
-                    set_file_action(&groups[cursorgroup].files[number - 1], 1, &globaldeletiontally);
+                    set_file_action(&groups[cursorgroup].files[number - 1], FILEACTION_KEEP, &globaldeletiontally);
                 }
 
                 token = wcstok(NULL, L",", &wcsptr);
@@ -1028,9 +1029,9 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
               for (x = 0; x < groups[cursorgroup].filecount; ++x)
               {
-                if (groups[cursorgroup].files[x].action == 1)
+                if (groups[cursorgroup].files[x].action == FILEACTION_KEEP)
                   ++preservecount;
-                if (groups[cursorgroup].files[x].action == -1)
+                if (groups[cursorgroup].files[x].action == FILEACTION_DELETE)
                   ++deletecount;
               }
 
@@ -1038,9 +1039,11 @@ void deletefiles_ncurses(file_t *files, char *logfile)
               {
                 for (x = 0; x < groups[cursorgroup].filecount; ++x)
                 {
-                  if (groups[cursorgroup].files[x].action == 0)
+                  if (groups[cursorgroup].files[x].action == FILEACTION_UNRESOLVED || 
+                      groups[cursorgroup].files[x].action == FILEACTION_ERROR
+                  )
                   {
-                    set_file_action(&groups[cursorgroup].files[x], -1, &globaldeletiontally);
+                    set_file_action(&groups[cursorgroup].files[x], FILEACTION_DELETE, &globaldeletiontally);
                     ++deletecount;
                   }
                 }
@@ -1180,7 +1183,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
         break;
 
       case KEY_SRIGHT:
-        set_file_action(&groups[cursorgroup].files[cursorfile], 1, &globaldeletiontally);
+        set_file_action(&groups[cursorgroup].files[cursorfile], FILEACTION_KEEP, &globaldeletiontally);
 
         format_status_left(status, L"1 file marked for preservation.");
 
@@ -1194,12 +1197,12 @@ void deletefiles_ncurses(file_t *files, char *logfile)
       case KEY_SLEFT:
         deletecount = 0;
 
-        set_file_action(&groups[cursorgroup].files[cursorfile], -1, &globaldeletiontally);
+        set_file_action(&groups[cursorgroup].files[cursorfile], FILEACTION_DELETE, &globaldeletiontally);
 
         format_status_left(status, L"1 file marked for deletion.");
 
         for (x = 0; x < groups[cursorgroup].filecount; ++x)
-          if (groups[cursorgroup].files[x].action == -1)
+          if (groups[cursorgroup].files[x].action == FILEACTION_DELETE)
             ++deletecount;
 
         if (deletecount < groups[cursorgroup].filecount)
@@ -1231,7 +1234,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
         break;
 
       case KEY_DC:
-        cmd_prune(groups, totalgroups, commandarguments, &globaldeletiontally, &totalgroups, &cursorgroup, &cursorfile, &topline, logfile, filewin, status);
+        cmd_prune(groups, totalgroups, commandarguments, &globaldeletiontally, &totalgroups, &cursorgroup, &cursorfile, &topline, logfile, filewin, statuswin, status);
         break;
 
       case KEY_RESIZE:
@@ -1267,10 +1270,10 @@ void deletefiles_ncurses(file_t *files, char *logfile)
       switch (wch)
       {
       case '?':
-        if (groups[cursorgroup].files[cursorfile].action == 0)
+        if (groups[cursorgroup].files[cursorfile].action == FILEACTION_UNRESOLVED)
           break;
 
-        set_file_action(&groups[cursorgroup].files[cursorfile], 0, &globaldeletiontally);
+        set_file_action(&groups[cursorgroup].files[cursorfile], FILEACTION_UNRESOLVED, &globaldeletiontally);
 
         if (cursorfile < groups[cursorgroup].filecount - 1)
           move_to_next_file(&topline, &cursorgroup, &cursorfile, groups, filewin);
@@ -1285,7 +1288,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
         for (x = 0; x < groups[cursorgroup].filecount; ++x)
         {
-          if (groups[cursorgroup].files[x].action == 1)
+          if (groups[cursorgroup].files[x].action == FILEACTION_KEEP)
             ++preservecount;
         }
 
@@ -1294,10 +1297,10 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
         for (x = 0; x < groups[cursorgroup].filecount; ++x)
         {
-          if (groups[cursorgroup].files[x].action == 0)
-            set_file_action(&groups[cursorgroup].files[x], -1, &globaldeletiontally);
+          if (groups[cursorgroup].files[x].action == FILEACTION_UNRESOLVED)
+            set_file_action(&groups[cursorgroup].files[x], FILEACTION_DELETE, &globaldeletiontally);
 
-          if (groups[cursorgroup].files[x].action == -1)
+          if (groups[cursorgroup].files[x].action == FILEACTION_DELETE)
             ++deletecount;
         }
 
