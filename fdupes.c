@@ -71,36 +71,36 @@ typedef struct _filetree {
   struct _filetree *right;
 } filetree_t;
 
-void escapefilename(char *escape_list, char **filename_ptr)
+void escapefilename(char *esc_chars, char **_filename)
 {
-  int x;
-  int tx;
-  char *tmp;
-  char *filename;
-
-  filename = *filename_ptr;
-
-  tmp = (char*) malloc(strlen(filename) * 2 + 1);
-  if (tmp == NULL) {
+#define NULCHAR    '\0'
+#define STR_ESC_CHAR    '\\'
+  char *istr = *_filename;
+  int slen = strlen(istr);
+  char *estr = (char*) malloc(2 * slen + 1);
+  if (NULL == estr) {
     errormsg("out of memory!\n");
     exit(1);
   }
-
-  for (x = 0, tx = 0; x < strlen(filename); x++) {
-    if (strchr(escape_list, filename[x]) != NULL) tmp[tx++] = '\\';
-    tmp[tx++] = filename[x];
+  int ix = 0, ox = 0;
+  while(ix < slen) {
+    if (strchr(esc_chars, istr[ix]) != NULL)
+        estr[ox++] = STR_ESC_CHAR;
+    estr[ox++] = istr[ix++];
   }
+  estr[ox] = NULCHAR;
 
-  tmp[tx] = '\0';
-
-  if (x != tx) {
-    *filename_ptr = realloc(*filename_ptr, strlen(tmp) + 1);
-    if (*filename_ptr == NULL) {
+  if (ox != ix) {
+    char *efname = malloc(ox + 1);
+    if (NULL == efname) {
       errormsg("out of memory!\n");
       exit(1);
     }
-    strcpy(*filename_ptr, tmp);
+    memcpy(efname, estr, ox + 1);
+    free(istr);
+    *_filename = efname;
   }
+  free(estr);
 }
 
 dev_t getdevice(char *filename) {
