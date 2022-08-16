@@ -29,6 +29,7 @@
 #include "wcs.h"
 #include "mbstowcs_escape_invalid.h"
 #include "log.h"
+#include "removeifnotchanged.h"
 #include <wchar.h>
 #include <pcre2.h>
 
@@ -780,7 +781,7 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
             ismatch = 1;
           }
 
-          if (ismatch && remove(groups[g].files[f].file->d_name) == 0)
+          if (ismatch && removeifnotchanged(groups[g].files[f].file, 0) == 0)
           {
             set_file_action(&groups[g].files[f], FILEACTION_DELIST, deletiontally);
 

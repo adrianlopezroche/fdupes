@@ -49,6 +49,7 @@
 #include "log.h"
 #include "sigint.h"
 #include "flags.h"
+#include "removeifnotchanged.h"
 
 long long minsize = -1;
 long long maxsize = -1;
@@ -804,6 +805,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
   FILE *file1;
   FILE *file2;
   int ismatch;
+  char *errorstring;
 
   curfile = files;
   
@@ -1005,7 +1007,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
     }
 
     if (ismatch) {
-      if (remove(dupelist[x]->d_name) == 0) {
+      if (removeifnotchanged(dupelist[x], &errorstring) == 0) {
         printf("   [-] %s\n", dupelist[x]->d_name);
 
         if (loginfo)
@@ -1013,7 +1015,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
       }
       else {
         printf("   [!] %s ", dupelist[x]->d_name);
-        printf("-- unable to delete file!\n");
+        printf("-- unable to delete file: %s!\n", errorstring);
 
         if (loginfo)
           log_file_remaining(loginfo, dupelist[x]->d_name);
@@ -1130,6 +1132,7 @@ void deletesuccessor(file_t **existing, file_t *duplicate, int matchconfirmed,
 {
   file_t *to_keep;
   file_t *to_delete;
+  char *errorstring;
 
   if (comparef(duplicate, *existing) >= 0)
   {
@@ -1156,14 +1159,14 @@ void deletesuccessor(file_t **existing, file_t *duplicate, int matchconfirmed,
 
   if (matchconfirmed)
   {
-    if (remove(to_delete->d_name) == 0) {
+    if (removeifnotchanged(to_delete, &errorstring) == 0) {
       printf("   [-] %s\n", to_delete->d_name);
 
       if (loginfo)
         log_file_deleted(loginfo, to_delete->d_name);
     } else {
       printf("   [!] %s ", to_delete->d_name);
-      printf("-- unable to delete file!\n");
+      printf("-- unable to delete file: %s!\n", errorstring);
 
       if (loginfo)
         log_file_remaining(loginfo, to_delete->d_name);

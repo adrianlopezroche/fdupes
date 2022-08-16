@@ -17,6 +17,8 @@ fdupes_SOURCES = fdupes.c\
  flags.h\
  confirmmatch.c\
  confirmmatch.h\
+ removeifnotchanged.c\
+ removeifnotchanged.h\
  mbstowcs_escape_invalid.c\
  mbstowcs_escape_invalid.h\
  md5/md5.c\
@@ -59,6 +61,8 @@ fdupes_SOURCES = fdupes.c\
  flags.h\
  confirmmatch.c\
  confirmmatch.h\
+ removeifnotchanged.c\
+ removeifnotchanged.h\
  mbstowcs_escape_invalid.c\
  mbstowcs_escape_invalid.h\
  positive_wcwidth.c\
