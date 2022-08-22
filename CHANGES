@@ -6,6 +6,14 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 2.1.2 to 2.2.0:
+
+ - Add --deferconfirmation option.
+ - Check that files marked as duplicates haven't changed during program
+   execution before deleting them.
+ - Update documentation to indicate units for SIZE in command-line options.
+ - Move some configuration settings to configure.ac file.
+
 Changes from 2.1.1 to 2.1.2:
 
  - Do not enter ncurses mode when --immediate option given.
