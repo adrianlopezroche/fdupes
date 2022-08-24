@@ -20,7 +20,9 @@
    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #include "config.h"
+#include "sigint.h"
 #include "confirmmatch.h"
+#include <stdlib.h>
 #include <memory.h>
 
 /* Do a bit-for-bit comparison in case two different files produce the
@@ -37,6 +39,12 @@ int confirmmatch(FILE *file1, FILE *file2)
   fseek(file2, 0, SEEK_SET);
 
   do {
+    if (got_sigint) {
+      fclose(file1);
+      fclose(file2);
+      exit(0);
+    }
+
     r1 = fread(c1, sizeof(unsigned char), sizeof(c1), file1);
     r2 = fread(c2, sizeof(unsigned char), sizeof(c2), file2);
 

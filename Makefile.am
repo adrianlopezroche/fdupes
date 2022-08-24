@@ -47,7 +47,19 @@ fdupes_SOURCES += filegroup.h\
  positive_wcwidth.c\
  positive_wcwidth.h
 dist_man7_MANS = fdupes-help.7
+endif
 
+if WITH_SQLITE
+fdupes_SOURCES += getrealpath.c\
+ getrealpath.h\
+ sdirname.c\
+ sdirname.h\
+ sbasename.c\
+ sbasename.h\
+ xdgbase.c\
+ xdgbase.h\
+ hashdb.c\
+ hashdb.h
 endif
 
 EXTRA_DIST = testdir CHANGES CONTRIBUTORS

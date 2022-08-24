@@ -30,8 +30,16 @@
 #include "mbstowcs_escape_invalid.h"
 #include "log.h"
 #include "removeifnotchanged.h"
+#ifndef NO_SQLITE
+  #include "hashdb.h"
+  #include "getrealpath.h"
+#endif
 #include <wchar.h>
 #include <pcre2.h>
+
+#ifndef NO_SQLITE
+extern sqlite3 *db;
+#endif
 
 void set_file_action(struct groupfile *file, int new_action, size_t *deletion_tally);
 
@@ -706,6 +714,7 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
   int ismatch;
   wchar_t *statuscopy;
   struct groupfile *firstnotdeleted;
+  char *deletepath;
 
   if (logfile != 0)
     loginfo = log_open(logfile, 0);
@@ -749,6 +758,10 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
     if (loginfo)
       log_begin_set(loginfo);
 
+#ifndef NO_SQLITE
+    hashdb_begintransaction(db);
+#endif
+
     /* delete files marked for deletion unless no files left undeleted */
     if (deletecount < groups[g].filecount)
     {
@@ -781,6 +794,20 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
             ismatch = 1;
           }
 
+#ifndef NO_SQLITE
+          if (ismatch && db)
+          {
+            deletepath = getrealpath(groups[g].files[f].file->d_name, GETREALPATH_IGNORE_MISSING_BASENAME);
+            if (deletepath != 0)
+            {
+              if (!ISFLAG(flags, F_READONLYCACHE))
+                hashdb_deletehashforpath(db, deletepath);
+
+              free(deletepath);
+            }
+          }
+#endif
+
           if (ismatch && removeifnotchanged(groups[g].files[f].file, 0) == 0)
           {
             set_file_action(&groups[g].files[f], FILEACTION_DELIST, deletiontally);
@@ -812,6 +839,10 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
 
       deletecount = 0;
     }
+
+#ifndef NO_SQLITE
+    hashdb_committransaction(db);
+#endif
 
     if (loginfo)
       log_end_set(loginfo);

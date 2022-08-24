@@ -463,8 +463,6 @@ void deletefiles_ncurses(file_t *files, char *logfile)
     exit(1);
   }
 
-  register_sigint_handler();
-
   curfile = files;
   while (curfile)
   {

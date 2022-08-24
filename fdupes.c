@@ -50,17 +50,29 @@
 #include "sigint.h"
 #include "flags.h"
 #include "removeifnotchanged.h"
+#ifndef NO_SQLITE
+#define FDUPES_DATABASE_DIRECTORY FDUPES_CACHE_DIRECTORY "/" FDUPES_HASH_DATABASE_NAME
+  #include "hashdb.h"
+  #include "getrealpath.h"
+  #include "xdgbase.h"
+#endif
+
+char *program_name;
 
 long long minsize = -1;
 long long maxsize = -1;
+
+#ifndef NO_SQLITE
+sqlite3 *db;
+#endif
+
+struct log_info *loginfo;
 
 typedef enum {
   ORDER_MTIME = 0,
   ORDER_CTIME,
   ORDER_NAME
 } ordertype_t;
-
-char *program_name;
 
 ordertype_t ordertype = ORDER_MTIME;
 
@@ -202,6 +214,47 @@ void getfilestats(file_t *file, struct stat *info, struct stat *linfo)
 #endif
 }
 
+#ifndef NO_SQLITE
+int delist_hash_if_orphaned(const sqlite3_int64 directoryid, const char *filename, const char *directory)
+{
+  const char *path;
+  char *fullpath;
+
+  if (got_sigint)
+    return 0;
+
+  fullpath = malloc(strlen(directory) + strlen(filename) + 2);
+  if (fullpath == 0) {
+    errormsg("out of memory!\n");
+    exit(1);
+  }
+
+  strcpy(fullpath, directory);
+  strcat(fullpath, "/");
+  strcat(fullpath, filename);
+
+  if (access(fullpath, F_OK) != 0)
+    hashdb_deletehash(db, directoryid, filename);
+
+  free(fullpath);
+
+  return 1;
+}
+
+int delist_directory_if_missing(const sqlite3_int64 directoryid, const char *name, const char *full_path, const sqlite3_int64 parent)
+{
+  struct stat st;
+
+  if (got_sigint)
+    return 0;
+
+  if (lstat(full_path, &st) != 0 || !S_ISDIR(st.st_mode))
+    return hashdb_deletedirectory(db, directoryid);
+
+  return 1;
+}
+#endif
+
 int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
 {
   DIR *cd;
@@ -209,11 +262,16 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
   struct dirent *dirinfo;
   int lastchar;
   int filecount = 0;
+  int filesadded;
   struct stat info;
   struct stat linfo;
   static int progress = 0;
   static char indicator[] = "-\\|/";
   char *fullname, *name;
+  char *fullpath = 0;
+#ifndef NO_SQLITE
+  sqlite3_int64 pathid = 0;
+#endif
 
   cd = opendir(dir);
 
@@ -222,7 +280,26 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
     return 0;
   }
 
+#ifndef NO_SQLITE
+  if (db != 0) {
+    fullpath = getrealpath(dir, 0);
+
+    if (fullpath && !ISFLAG(flags, F_READONLYCACHE)) {
+      if (hashdb_getdirectoryid(db, fullpath, &pathid)) {
+        hashdb_foreachdirectory(db, &pathid, delist_directory_if_missing);
+        hashdb_foreachhash(db, &pathid, delist_hash_if_orphaned);
+      }
+    }
+  }
+#endif
+
   while ((dirinfo = readdir(cd)) != NULL) {
+    if (got_sigint) {
+      closedir(cd);
+      printf("\n");
+      exit(0);
+    }
+
     if (strcmp(dirinfo->d_name, ".") && strcmp(dirinfo->d_name, "..")) {
       if (!ISFLAG(flags, F_HIDEPROGRESS)) {
 	fprintf(stderr, "\rBuilding file list %c ", indicator[progress]);
@@ -305,8 +382,16 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
       }
 
       if (S_ISDIR(info.st_mode)) {
-	if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)))
-	  filecount += grokdir(newfile->d_name, filelistp, logfile_status);
+        if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)))
+        {
+          filesadded = grokdir(newfile->d_name, filelistp, logfile_status);
+          filecount += filesadded;
+
+#ifndef NO_SQLITE
+          if (db != 0 && pathid == 0 && !ISFLAG(flags, F_READONLYCACHE) && filesadded > 0)
+              hashdb_savedirectory(db, fullpath);
+#endif
+        }
 	free(newfile->d_name);
 	free(newfile);
       } else {
@@ -322,6 +407,9 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
     }
   }
 
+  if (fullpath)
+    free(fullpath);
+
   closedir(cd);
 
   return filecount;
@@ -331,12 +419,18 @@ md5_byte_t *getcrcsignatureuntil(char *filename, off_t fsize, off_t max_read)
 {
   off_t toread;
   md5_state_t state;
-  static md5_byte_t digest[MD5_DIGEST_LENGTH];  
+  md5_byte_t *digest;
   static md5_byte_t chunk[CHUNK_SIZE];
   FILE *file;
-   
+
+  digest = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
+  if (digest == NULL) {
+    errormsg("out of memory\n");
+    exit(1);
+  }
+
   md5_init(&state);
-  
+
   if (max_read != 0 && fsize > max_read)
     fsize = max_read;
 
@@ -345,8 +439,14 @@ md5_byte_t *getcrcsignatureuntil(char *filename, off_t fsize, off_t max_read)
     errormsg("error opening file %s\n", filename);
     return NULL;
   }
- 
+
   while (fsize > 0) {
+    if (got_sigint) {
+      fclose(file);
+      printf("\n");
+      exit(0);
+    }
+
     toread = (fsize >= CHUNK_SIZE) ? CHUNK_SIZE : fsize;
     if (fread(chunk, toread, 1, file) != 1) {
       errormsg("error reading from file %s\n", filename);
@@ -555,7 +655,7 @@ int has_same_file(filetree_t *checktree, file_t *file)
 file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
 {
   int cmpresult;
-  md5_byte_t *crcsignature;
+  char *fullpath;
 
   if (ISFLAG(flags, F_CONSIDERHARDLINKS))
   {
@@ -574,10 +674,10 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
     if (is_hardlink(checktree, file))
       return NULL;
   }
-  
+
   if (file->size < checktree->file->size)
     cmpresult = -1;
-  else 
+  else
     if (file->size > checktree->file->size) cmpresult = 1;
   else
     if (ISFLAG(flags, F_PERMISSIONS) &&
@@ -585,60 +685,68 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
         cmpresult = -1;
   else {
     if (checktree->file->crcpartial == NULL) {
-      crcsignature = getcrcpartialsignature(checktree->file->d_name, checktree->file->size);
-      if (crcsignature == NULL) {
-        errormsg ("cannot read file %s\n", checktree->file->d_name);
-        return NULL;
-      }
+#ifndef NO_SQLITE
+      if (ISFLAG(flags, F_CACHESIGNATURES))
+        hashdb_loadhash(db, checktree->file, &checktree->file->crcpartial, &checktree->file->crcsignature);
+#endif
 
-      checktree->file->crcpartial = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
-      if (checktree->file->crcpartial == NULL) {
-	errormsg("out of memory\n");
-	exit(1);
+      if (checktree->file->crcpartial == NULL)
+      {
+        checktree->file->crcpartial = getcrcpartialsignature(checktree->file->d_name, checktree->file->size);
+        if (checktree->file->crcpartial == NULL) {
+          errormsg ("cannot read file %s\n", checktree->file->d_name);
+          return NULL;
+        }
+
+#ifndef NO_SQLITE
+        if (ISFLAG(flags, F_CACHESIGNATURES) && !ISFLAG(flags, F_READONLYCACHE))
+          hashdb_savehash(db, checktree->file, checktree->file->crcpartial, checktree->file->crcsignature);
+#endif
       }
-      md5copy(checktree->file->crcpartial, crcsignature);
     }
 
     if (file->crcpartial == NULL) {
-      crcsignature = getcrcpartialsignature(file->d_name, file->size);
-      if (crcsignature == NULL) {
-        errormsg ("cannot read file %s\n", file->d_name);
-        return NULL;
-      }
+#ifndef NO_SQLITE
+      if (ISFLAG(flags, F_CACHESIGNATURES))
+        hashdb_loadhash(db, file, &file->crcpartial, &file->crcsignature);
+#endif
 
-      file->crcpartial = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
-      if (file->crcpartial == NULL) {
-	errormsg("out of memory\n");
-	exit(1);
+      if (file->crcpartial == NULL)
+      {
+        file->crcpartial = getcrcpartialsignature(file->d_name, file->size);
+        if (file->crcpartial == NULL) {
+          errormsg ("cannot read file %s\n", file->d_name);
+          return NULL;
+        }
+
+#ifndef NO_SQLITE
+        if (ISFLAG(flags, F_CACHESIGNATURES) && !ISFLAG(flags, F_READONLYCACHE))
+          hashdb_savehash(db, file, file->crcpartial, file->crcsignature);
+#endif
       }
-      md5copy(file->crcpartial, crcsignature);
     }
 
     cmpresult = md5cmp(file->crcpartial, checktree->file->crcpartial);
 
     if (cmpresult == 0) {
       if (checktree->file->crcsignature == NULL) {
-	crcsignature = getcrcsignature(checktree->file->d_name, checktree->file->size);
-	if (crcsignature == NULL) return NULL;
-
-	checktree->file->crcsignature = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
-	if (checktree->file->crcsignature == NULL) {
-	  errormsg("out of memory\n");
-	  exit(1);
-	}
-	md5copy(checktree->file->crcsignature, crcsignature);
+        checktree->file->crcsignature = getcrcsignature(checktree->file->d_name, checktree->file->size);
+        if (checktree->file->crcsignature == NULL)
+          return NULL;
+#ifndef NO_SQLITE
+        if (ISFLAG(flags, F_CACHESIGNATURES) && !ISFLAG(flags, F_READONLYCACHE))
+          hashdb_savehash(db, checktree->file, checktree->file->crcpartial, checktree->file->crcsignature);
+#endif
       }
 
       if (file->crcsignature == NULL) {
-	crcsignature = getcrcsignature(file->d_name, file->size);
-	if (crcsignature == NULL) return NULL;
-
-	file->crcsignature = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
-	if (file->crcsignature == NULL) {
-	  errormsg("out of memory\n");
-	  exit(1);
-	}
-	md5copy(file->crcsignature, crcsignature);
+        file->crcsignature = getcrcsignature(file->d_name, file->size);
+        if (file->crcsignature == NULL)
+          return NULL;
+#ifndef NO_SQLITE
+        if (ISFLAG(flags, F_CACHESIGNATURES) && !ISFLAG(flags, F_READONLYCACHE))
+          hashdb_savehash(db, file, file->crcpartial, file->crcsignature);
+#endif
       }
 
       cmpresult = md5cmp(file->crcsignature, checktree->file->crcsignature);
@@ -659,7 +767,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
       registerfile(&(checktree->right), file);
       return NULL;
     }
-  } else 
+  } else
   {
     return &checktree->file;
   }
@@ -814,6 +922,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
   FILE *file1;
   FILE *file2;
   int ismatch;
+  char *deletepath;
   char *errorstring;
 
   curfile = files;
@@ -850,7 +959,10 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
   if (logfile != 0)
     loginfo = log_open(logfile, &log_error);
 
-  register_sigint_handler();
+#ifndef NO_SQLITE
+  if (!prompt)
+    hashdb_begintransaction(db);
+#endif
 
   while (files) {
     if (files->hasdupes) {
@@ -905,14 +1017,9 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 
 	  if (got_sigint)
 	  {
-	    if (loginfo)
-	      log_close(loginfo);
-
 	    free(dupelist);
 	    free(preserve);
 	    free(preservestr);
-
-	    printf("\n");
 
 	    exit(0);
 	  }
@@ -940,9 +1047,6 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 
 	if (strcmp(preservestr, "q\n") == 0 || strcmp(preservestr, "quit\n") == 0)
 	{
-	  if (loginfo)
-	    log_close(loginfo);
-
 	  free(dupelist);
 	  free(preserve);
 	  free(preservestr);
@@ -974,6 +1078,11 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 
       if (loginfo)
         log_begin_set(loginfo);
+
+#ifndef NO_SQLITE
+      if (prompt)
+        hashdb_begintransaction(db);
+#endif
 
       for (x = 1; x <= counter; x++) { 
 	if (preserve[x])
@@ -1019,6 +1128,20 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
       if (removeifnotchanged(dupelist[x], &errorstring) == 0) {
         printf("   [-] %s\n", dupelist[x]->d_name);
 
+#ifndef NO_SQLITE
+        if (db)
+        {
+          deletepath = getrealpath(dupelist[x]->d_name, GETREALPATH_IGNORE_MISSING_BASENAME);
+          if (deletepath != 0)
+          {
+            if (!ISFLAG(flags, F_READONLYCACHE))
+              hashdb_deletehashforpath(db, deletepath);
+
+            free(deletepath);
+          }
+        }
+#endif
+
         if (loginfo)
           log_file_deleted(loginfo, dupelist[x]->d_name);
       }
@@ -1043,13 +1166,25 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 
       if (loginfo)
         log_end_set(loginfo);
+
+#ifndef NO_SQLITE
+      if (prompt)
+        hashdb_committransaction(db);
+#endif
     }
     
     files = files->next;
   }
 
-  if (loginfo)
+#ifndef NO_SQLITE
+  if (!prompt)
+    hashdb_committransaction(db);
+#endif
+
+  if (loginfo) {
     log_close(loginfo);
+    loginfo = 0;
+  }
 
   free(dupelist);
   free(preserve);
@@ -1149,6 +1284,7 @@ void deletesuccessor(file_t **existing, file_t *duplicate, int matchconfirmed,
 {
   file_t *to_keep;
   file_t *to_delete;
+  char *deletepath;
   char *errorstring;
 
   if (comparef(duplicate, *existing) >= 0)
@@ -1178,6 +1314,20 @@ void deletesuccessor(file_t **existing, file_t *duplicate, int matchconfirmed,
   {
     if (removeifnotchanged(to_delete, &errorstring) == 0) {
       printf("   [-] %s\n", to_delete->d_name);
+
+#ifndef NO_SQLITE
+      if (db)
+      {
+        deletepath = getrealpath(to_delete->d_name, GETREALPATH_IGNORE_MISSING_BASENAME);
+        if (deletepath != 0)
+        {
+          if (!ISFLAG(flags, F_READONLYCACHE))
+            hashdb_deletehashforpath(db, deletepath);
+
+          free(deletepath);
+        }
+      }
+#endif
 
       if (loginfo)
         log_file_deleted(loginfo, to_delete->d_name);
@@ -1222,6 +1372,21 @@ void help_text()
   printf("                         option will change this behavior\n");
   printf(" -G --minsize=SIZE       consider only files greater than or equal to SIZE bytes\n");
   printf(" -L --maxsize=SIZE       consider only files less than or equal to SIZE bytes\n");
+#ifndef NO_SQLITE
+  printf(" -c --cache              speed up file comparisons by keeping track of their\n");
+  printf("                         signatures in a database; additional parameters may be\n");
+  printf("                         provided using one or more cache parameters (as below)\n");
+  printf(" -x cache.OPTION         supply an optional cache parameter, where OPTION is one\n");
+  printf("                         of the keywords below and multiple options may be\n");
+  printf("                         supplied via successive -x arguments:\n");
+  printf("    readonly             read but do not update file signatures\n");
+  printf("    prune                look through entire cache and delete orphaned entries\n");
+  printf("    clear                clear all entries from cache\n");
+  printf("    vacuum               reduce size of DB file, if possible\n");
+  printf("                         (note that the options prune, clear, and vacuum may be\n");
+  printf("                         employed without supplying a DIRECTORY argument, and\n");
+  printf("                         will take effect even if readonly is also specified)\n");
+#endif
   printf(" -n --noempty            exclude zero-length files from consideration\n");
   printf(" -A --nohidden           exclude hidden files from consideration\n");
   printf(" -f --omitfirst          omit the first file in each set of matches\n");
@@ -1261,6 +1426,29 @@ void help_text()
 #endif
 }
 
+void close_log_on_exit()
+{
+  if (loginfo) {
+    log_close(loginfo);
+    loginfo = 0;
+  }
+}
+
+#ifndef NO_SQLITE
+void close_db_on_exit()
+{
+  if (db != 0)
+  {
+    if (!sqlite3_get_autocommit(db))
+      hashdb_committransaction(db);
+
+    hashdb_close(db);
+
+    db = 0;
+  }
+}
+#endif
+
 int main(int argc, char **argv) {
   int x;
   int opt;
@@ -1276,11 +1464,12 @@ int main(int argc, char **argv) {
   int firstrecurse;
   int foundoption;
   char *logfile = 0;
-  struct log_info *loginfo = NULL;
   int log_error;
   struct stat logfile_status;
   char *endptr;
-  
+  char *cachehome;
+  char *cachepath;
+
 #ifdef HAVE_GETOPT_H
   static struct option long_options[] = 
   {
@@ -1310,6 +1499,7 @@ int main(int argc, char **argv) {
     { "reverse", 0, 0, 'i' },
     { "log", 1, 0, 'l' },
     { "deferconfirmation", 0, 0, 'D' },
+    { "cache", 0, 0, 'c' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1323,7 +1513,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:D"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:Dcx:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1423,16 +1613,59 @@ int main(int argc, char **argv) {
     case 'D':
       SETFLAG(flags, F_DEFERCONFIRMATION);
       break;
+    case 'c':
+      SETFLAG(flags, F_CACHESIGNATURES);
+      break;
+    case 'x':
+      if (strcmp("cache.readonly", optarg) == 0)
+        SETFLAG(flags, F_READONLYCACHE);
+      else if (strcmp("cache.prune", optarg) == 0)
+        SETFLAG(flags, F_PRUNECACHE);
+      else if (strcmp("cache.clear", optarg) == 0)
+        SETFLAG(flags, F_CLEARCACHE);
+      else if (strcmp("cache.vacuum", optarg) == 0)
+        SETFLAG(flags, F_VACUUMCACHE);
+      else {
+        errormsg("unrecognized option '-x %s'\n", optarg);
+        fprintf(stderr, "Try `fdupes --help' for more information.\n");
+        exit(1);
+      }
+      break;
     default:
       fprintf(stderr, "Try `fdupes --help' for more information.\n");
       exit(1);
     }
   }
 
-  if (optind >= argc) {
+  if (optind >= argc && !(ISFLAG(flags, F_CLEARCACHE) || ISFLAG(flags, F_PRUNECACHE) || ISFLAG(flags, F_VACUUMCACHE))) {
     errormsg("no directories specified\n");
     exit(1);
   }
+
+#ifdef NO_SQLITE
+  if (
+      ISFLAG(flags, F_CACHESIGNATURES) ||
+      ISFLAG(flags, F_CLEARCACHE) ||
+      ISFLAG(flags, F_PRUNECACHE) ||
+      ISFLAG(flags, F_READONLYCACHE) ||
+      ISFLAG(flags, F_VACUUMCACHE)
+  ) {
+    errormsg("file signature database is not enabled on this system\n");
+    exit(1);
+  }
+#else
+  if (!ISFLAG(flags, F_CACHESIGNATURES)) {
+    if (
+      ISFLAG(flags, F_CLEARCACHE) ||
+      ISFLAG(flags, F_PRUNECACHE) ||
+      ISFLAG(flags, F_READONLYCACHE) ||
+      ISFLAG(flags, F_VACUUMCACHE)
+    ) {
+      errormsg("-xcache parameters must be accompanied by --cache option\n");
+      exit(1);
+    }
+  }
+#endif
 
   if (ISFLAG(flags, F_RECURSE) && ISFLAG(flags, F_RECURSEAFTER)) {
     errormsg("options --recurse and --recurse: are not compatible\n");
@@ -1450,11 +1683,15 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  if (!ISFLAG(flags, F_DELETEFILES))
+  if (!ISFLAG(flags, F_DELETEFILES)) {
     logfile = 0;
+    loginfo = 0;
+  }
 
   if (logfile != 0)
   {
+    atexit(close_log_on_exit);
+
     loginfo = log_open(logfile, &log_error);
     if (loginfo == 0)
     {
@@ -1472,6 +1709,73 @@ int main(int argc, char **argv) {
       exit(1);
     }
   }
+
+#ifndef NO_SQLITE
+  if (ISFLAG(flags, F_CACHESIGNATURES)) {
+    cachehome = getcachehome(1);
+    if (cachehome == 0)
+    {
+      errormsg("could not open cache directory.\n");
+      exit(1);
+    }
+
+    cachepath = malloc(strlen(cachehome) + strlen(FDUPES_DATABASE_DIRECTORY) + 2);
+    if (cachepath == 0)
+    {
+      free(cachehome);
+      errormsg("could not open cache directory.\n");
+      exit(1);
+    }
+
+    strcpy(cachepath, cachehome);
+    strcat(cachepath, "/");
+    strcat(cachepath, FDUPES_CACHE_DIRECTORY);
+
+    mkdir(cachepath, FDUPES_CACHE_DIRECTORY_PERMISSIONS);
+
+    strcpy(cachepath, cachehome);
+    strcat(cachepath, "/");
+    strcat(cachepath, FDUPES_DATABASE_DIRECTORY);
+
+    db = hashdb_open(cachepath);
+    if (db == 0)
+    {
+      errormsg("could not open hash database at %s\n", cachepath);
+      free(cachehome);
+      free(cachepath);
+      exit(1);
+    }
+
+    atexit(close_db_on_exit);
+
+    free(cachehome);
+    free(cachepath);
+  }
+  else {
+    db = 0;
+  }
+
+  if (db != 0)
+  {
+    hashdb_begintransaction(db);
+
+    if (ISFLAG(flags, F_CLEARCACHE))
+      hashdb_cleardirectories(db);
+    else if (ISFLAG(flags, F_PRUNECACHE)) {
+      hashdb_foreachdirectory(db, 0, delist_directory_if_missing);
+      hashdb_foreachhash(db, 0, delist_hash_if_orphaned);
+    }
+
+    if (ISFLAG(flags, F_VACUUMCACHE)) {
+      hashdb_committransaction(db);
+      hashdb_vacuum(db);
+
+      hashdb_begintransaction(db);
+    }
+  }
+#endif
+
+  register_sigint_handler();
 
   if (ISFLAG(flags, F_RECURSEAFTER)) {
     firstrecurse = nonoptafter("--recurse:", argc, oldargv, argv, optind, &foundoption);
@@ -1507,10 +1811,15 @@ int main(int argc, char **argv) {
     if (!ISFLAG(flags, F_HIDEPROGRESS)) fprintf(stderr, "\r%40s\r", " ");
     exit(0);
   }
-  
+
   curfile = files;
 
   while (curfile) {
+    if (got_sigint) {
+      printf("\n");
+      exit(0);
+    }
+
     if (!checktree) 
       registerfile(&checktree, curfile);
     else 
@@ -1563,6 +1872,11 @@ int main(int argc, char **argv) {
     log_close(loginfo);
     loginfo = 0;
   }
+
+#ifndef NO_SQLITE
+  if (db != 0)
+    hashdb_committransaction(db);
+#endif
 
   if (ISFLAG(flags, F_DELETEFILES))
   {

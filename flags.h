@@ -23,6 +23,11 @@
 #define F_PLAINPROMPT       0x10000
 #define F_SHOWTIME          0x20000
 #define F_DEFERCONFIRMATION 0x40000
+#define F_CACHESIGNATURES   0x80000
+#define F_CLEARCACHE        0x100000
+#define F_PRUNECACHE        0x200000
+#define F_READONLYCACHE     0x400000
+#define F_VACUUMCACHE       0x800000
 
 extern unsigned long flags;
 

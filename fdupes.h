@@ -22,6 +22,7 @@
 #ifndef FDUPES_H
 #define FDUPES_H
 
+#include "config.h"
 #include <sys/stat.h>
 #include "md5/md5.h"
 

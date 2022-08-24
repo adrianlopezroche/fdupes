@@ -39,6 +39,33 @@ Consider only files greater than or equal to SIZE in bytes.
 .B -L --maxsize\fR=\fISIZE\fR
 Consider only files less than or equal to SIZE in bytes.
 .TP
+.B -c --cache
+Speed up file comparisons by keeping track of their signatures in a
+database; additional parameters may be provided using one or more
+cache parameters (as indicated below). Please note that this option
+may not be available on some systems.
+.TP
+.B -x cache.\fIOPTION\fR
+Supply an optional cache parameter, where OPTION is one of the keywords
+below and multiple options may be supplied via successive -x arguments:
+
+  \fIreadonly\fR
+    read but do not update file signatures
+
+  \fIprune\fR
+    look through entire cache and delete orphaned entries
+
+  \fIclear\fR
+    clear all entries from cache
+
+  \fIvacuum\fR
+    reduce size of DB file, if possible
+
+The options prune, clear, and vacuum may be employed without
+supplying a DIRECTORY argument, and will take effect even if readonly
+is also specified. The order of operations is always clear, prune,
+update signatures (unless readonly), and vacuum.
+.TP
 .B -n --noempty
 Exclude zero-length files from consideration.
 .TP
@@ -73,8 +100,10 @@ In interactive mode, defer byte-for-byte confirmation of
 duplicates until just before file deletion.
 .TP
 .B -P --plain
-With --delete, use line-based prompt (as with older versions of
-fdupes) instead of screen-mode interface.
+With --delete, use a line-based prompt (as with older versions of
+fdupes) instead of the new screen-mode interface. On installations
+where the screen-mode interface is not supported, fdupes will
+default to a line-based prompt.
 .TP
 .B -N --noprompt
 When used together with \-\-delete, preserve the first file in each
