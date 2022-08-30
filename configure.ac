@@ -27,7 +27,7 @@ AS_IF([test x"$with_ncurses" != x"no"],
 	[AC_DEFINE([NO_NCURSES], [], [Do not compile against ncurses])]
 	)
 
-AM_CONDITIONAL([NO_NCURSES], [test x"$with_ncurses" = x"no"])
+AM_CONDITIONAL([WITH_NCURSES], [test x"$with_ncurses" != x"no"])
 
 unescaped_program_transform_name=`echo "${program_transform_name}"|sed -e "s&\\\\$\\\\$&\\\\$&g"`
 transformed_program_name=`echo "${PACKAGE_NAME}"|sed -e "${unescaped_program_transform_name}"|sed -e "s&\\\\\\\\&\\\\\\\\\\\\\\\\&g"`

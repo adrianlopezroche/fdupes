@@ -1,6 +1,5 @@
 bin_PROGRAMS = fdupes
 
-if NO_NCURSES
 fdupes_SOURCES = fdupes.c\
  fdupes.h\
  errormsg.c\
@@ -25,10 +24,8 @@ fdupes_SOURCES = fdupes.c\
  md5/md5.h
 dist_man1_MANS = fdupes.1
 
-else
-fdupes_SOURCES = fdupes.c\
- fdupes.h\
- filegroup.h\
+if WITH_NCURSES
+fdupes_SOURCES += filegroup.h\
  fileaction.h\
  fileaction.c\
  ncurses-commands.c\
@@ -45,31 +42,10 @@ fdupes_SOURCES = fdupes.c\
  ncurses-status.h\
  commandidentifier.c\
  commandidentifier.h\
- errormsg.c\
- errormsg.h\
  wcs.c\
  wcs.h\
- dir.c\
- dir.h\
- log.c\
- log.h\
- fmatch.c\
- fmatch.h\
- sigint.c\
- sigint.h\
- flags.c\
- flags.h\
- confirmmatch.c\
- confirmmatch.h\
- removeifnotchanged.c\
- removeifnotchanged.h\
- mbstowcs_escape_invalid.c\
- mbstowcs_escape_invalid.h\
  positive_wcwidth.c\
- positive_wcwidth.h\
- md5/md5.c\
- md5/md5.h
-dist_man1_MANS = fdupes.1
+ positive_wcwidth.h
 dist_man7_MANS = fdupes-help.7
 
 endif
