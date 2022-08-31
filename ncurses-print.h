@@ -1,4 +1,4 @@
-/* FDUPES Copyright (c) 2018 Adrian Lopez
+/* FDUPES Copyright (c) 2018-2022 Adrian Lopez
 
    Permission is hereby granted, free of charge, to any person
    obtaining a copy of this software and associated documentation files

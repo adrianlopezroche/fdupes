@@ -1,4 +1,4 @@
-/* Copyright (c) 2019 Adrian Lopez
+/* Copyright (c) 2019-2022 Adrian Lopez
 
    This software is provided 'as-is', without any express or implied
    warranty. In no event will the authors be held liable for any damages
