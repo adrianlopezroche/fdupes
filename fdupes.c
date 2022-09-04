@@ -282,7 +282,7 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
       }
 
       /* ignore logfile */
-      if (info.st_dev == logfile_status->st_dev && info.st_ino == logfile_status->st_ino)
+      if (logfile_status != 0 && info.st_dev == logfile_status->st_dev && info.st_ino == logfile_status->st_ino)
       {
         free(newfile->d_name);
         free(newfile);
@@ -1468,16 +1468,16 @@ int main(int argc, char **argv) {
 
     /* F_RECURSE is not set for directories before --recurse: */
     for (x = optind; x < firstrecurse; x++)
-      filecount += grokdir(argv[x], &files, &logfile_status);
+      filecount += grokdir(argv[x], &files, logfile ? &logfile_status : 0);
 
     /* Set F_RECURSE for directories after --recurse: */
     SETFLAG(flags, F_RECURSE);
 
     for (x = firstrecurse; x < argc; x++)
-      filecount += grokdir(argv[x], &files, &logfile_status);
+      filecount += grokdir(argv[x], &files, logfile ? &logfile_status : 0);
   } else {
     for (x = optind; x < argc; x++)
-      filecount += grokdir(argv[x], &files, &logfile_status);
+      filecount += grokdir(argv[x], &files, logfile ? &logfile_status : 0);
   }
 
   if (!files) {
