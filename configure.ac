@@ -18,7 +18,7 @@ AS_IF([test x"$with_ncurses" != x"no"],
 		[AC_SEARCH_LIBS([wget_wch], [ncursesw ncurses curses], [], [AC_ERROR([ncurses library not found (or lacks wide character support)])])]
 		[AC_SEARCH_LIBS([keypad], [ncursesw tinfow ncurses tinfo curses], [], [AC_ERROR([ncurses library not found (lacks keypad support)])])]
 	)]
-	[AC_DEFINE([_XOPEN_SOURCE], [], [enable certain functions in wchar.h])]
+	[AC_DEFINE([_XOPEN_SOURCE], [700], [enable certain functions in wchar.h and strings.h])]
 	[AC_DEFINE([_XOPEN_SOURCE_EXTENDED], [], [enable certain functions in curses.h])]
 	[AC_DEFINE([_ISOC99_SOURCE], [], [enable strtoll])]
 	[AC_SEARCH_LIBS([pcre2_match_32], [pcre2-32], [], [AC_ERROR([pcre2 library not found])])]
