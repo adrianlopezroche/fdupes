@@ -941,5 +941,5 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
       *topline = 0;
   }
 
-  cmd_clear_all_selections(groups, *totalgroups, commandarguments, 0);
+  return cmd_clear_all_selections(groups, *totalgroups, commandarguments, 0);
 }
