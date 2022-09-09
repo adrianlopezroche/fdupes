@@ -6,6 +6,12 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 2.2.0 to 2.2.1:
+
+ - Fix bug in code meant to skip over the current log file when --log
+   option is given.
+ - Updates to copyright notices in source code.
+
 Changes from 2.1.2 to 2.2.0:
 
  - Add --deferconfirmation option.
