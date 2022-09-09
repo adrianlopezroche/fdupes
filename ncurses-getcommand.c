@@ -22,6 +22,7 @@
 #include "config.h"
 #include <stdlib.h>
 #include <signal.h>
+#include <wctype.h>
 #include "ncurses-getcommand.h"
 
 #define KEY_ESCAPE 27
