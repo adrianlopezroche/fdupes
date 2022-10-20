@@ -165,8 +165,8 @@ int findarg(char *arg, int start, int argc, char **argv)
 }
 
 /* Find the first non-option argument after specified option. */
-int nonoptafter(char *option, int argc, char **oldargv, 
-		      char **newargv, int optind) 
+int nonoptafter(char *option, int argc, char **oldargv,
+		      char **newargv, int optind, int *foundoption)
 {
   int x;
   int targetind;
@@ -174,7 +174,9 @@ int nonoptafter(char *option, int argc, char **oldargv,
   int startat = 1;
 
   targetind = findarg(option, 1, argc, oldargv);
-    
+
+  *foundoption = targetind < argc;
+
   for (x = optind; x < argc; x++) {
     testind = findarg(newargv[x], startat, argc, oldargv);
     if (testind > targetind) return x;
@@ -1257,6 +1259,7 @@ int main(int argc, char **argv) {
   int progress = 0;
   char **oldargv;
   int firstrecurse;
+  int foundoption;
   char *logfile = 0;
   struct log_info *loginfo = NULL;
   int log_error;
@@ -1456,13 +1459,18 @@ int main(int argc, char **argv) {
   }
 
   if (ISFLAG(flags, F_RECURSEAFTER)) {
-    firstrecurse = nonoptafter("--recurse:", argc, oldargv, argv, optind);
-    
-    if (firstrecurse == argc)
-      firstrecurse = nonoptafter("-R", argc, oldargv, argv, optind);
+    firstrecurse = nonoptafter("--recurse:", argc, oldargv, argv, optind, &foundoption);
 
-    if (firstrecurse == argc) {
+    if (!foundoption)
+      firstrecurse = nonoptafter("-R", argc, oldargv, argv, optind, &foundoption);
+
+    if (!foundoption) {
       errormsg("-R option must be isolated from other options\n");
+      exit(1);
+    }
+    else if (firstrecurse == argc && optind != argc)
+    {
+      errormsg("-R option must be followed by at least one directory\n");
       exit(1);
     }
 
