@@ -8,17 +8,30 @@ AC_ARG_PROGRAM
 
 PKG_PROG_PKG_CONFIG
 
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+	#define _XOPEN_SOURCE 700
+	#include <sys/types.h>
+	#include <sys/stat.h>
+	#include <unistd.h>
+]], [[
+	struct stat st;
+	st.st_ctim.tv_nsec = 0;
+	st.st_mtim.tv_nsec = 0;
+]])],
+	[AC_DEFINE([HAVE_NSEC_TIMES], [1], [stat supports nanosecond precision])]
+	[AC_DEFINE([_XOPEN_SOURCE], [700], [enable certain X/Open and POSIX features])]
+)
+
 AC_ARG_WITH([ncurses], AS_HELP_STRING([--without-ncurses], [Do not use ncurses interface]))
 
 AC_CHECK_HEADERS([getopt.h ncursesw/curses.h])
-
 AS_IF([test x"$with_ncurses" != x"no"],
 	[PKG_CHECK_MODULES([NCURSES], [ncursesw],
 		[LIBS="$LIBS $NCURSES_LIBS"],
 		[AC_SEARCH_LIBS([wget_wch], [ncursesw ncurses curses], [], [AC_ERROR([ncurses library not found (or lacks wide character support)])])]
 		[AC_SEARCH_LIBS([keypad], [ncursesw tinfow ncurses tinfo curses], [], [AC_ERROR([ncurses library not found (lacks keypad support)])])]
 	)]
-	[AC_DEFINE([_XOPEN_SOURCE], [700], [enable certain functions in wchar.h and strings.h])]
+	[AC_DEFINE([_XOPEN_SOURCE], [700], [enable certain X/Open and POSIX features])]
 	[AC_DEFINE([_XOPEN_SOURCE_EXTENDED], [], [enable certain functions in curses.h])]
 	[AC_DEFINE([_ISOC99_SOURCE], [], [enable strtoll])]
 	[AC_SEARCH_LIBS([pcre2_match_32], [pcre2-32], [], [AC_ERROR([pcre2 library not found])])]

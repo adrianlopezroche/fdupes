@@ -19,6 +19,7 @@
    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#include "config.h"
 #include "removeifnotchanged.h"
 #include <errno.h>
 #include <string.h>
@@ -38,6 +39,10 @@ int removeifnotchanged(const file_t *file, char **errorstring)
       file->inode != st.st_ino ||
       file->ctime != st.st_ctime ||
       file->mtime != st.st_mtime ||
+#ifdef HAVE_NSEC_TIMES
+      file->ctime_nsec != st.st_ctim.tv_nsec ||
+      file->mtime_nsec != st.st_mtim.tv_nsec ||
+#endif
       file->size != st.st_size)
   {
     if (errorstring != 0)

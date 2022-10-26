@@ -34,6 +34,8 @@ typedef struct _file {
   ino_t inode;
   time_t mtime;
   time_t ctime;
+  long mtime_nsec;
+  long ctime_nsec;
   int hasdupes; /* true only if file is first on duplicate chain */
   struct _file *duplicates;
   struct _file *next;

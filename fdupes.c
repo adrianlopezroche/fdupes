@@ -193,6 +193,13 @@ void getfilestats(file_t *file, struct stat *info, struct stat *linfo)
   file->device = info->st_dev;
   file->ctime = info->st_ctime;
   file->mtime = info->st_mtime;
+#ifdef HAVE_NSEC_TIMES
+  file->ctime_nsec = info->st_ctim.tv_nsec;
+  file->mtime_nsec = info->st_mtim.tv_nsec;
+#else
+  file->ctime_nsec = 0;
+  file->mtime_nsec = 0;
+#endif
 }
 
 int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
@@ -1063,6 +1070,10 @@ int sort_pairs_by_ctime(file_t *f1, file_t *f2)
     return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
   else if (f1->ctime > f2->ctime)
     return !ISFLAG(flags, F_REVERSE) ? 1 : -1;
+  else if (f1->ctime_nsec < f2->ctime_nsec)
+    return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
+  else if (f1->ctime_nsec > f2->ctime_nsec)
+    return !ISFLAG(flags, F_REVERSE) ? 1 : -1;
 
   return 0;
 }
@@ -1072,6 +1083,10 @@ int sort_pairs_by_mtime(file_t *f1, file_t *f2)
   if (f1->mtime < f2->mtime)
     return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
   else if (f1->mtime > f2->mtime)
+    return !ISFLAG(flags, F_REVERSE) ? 1 : -1;
+  else if (f1->mtime_nsec < f2->mtime_nsec)
+    return !ISFLAG(flags, F_REVERSE) ? -1 : 1;
+  else if (f1->mtime_nsec > f2->mtime_nsec)
     return !ISFLAG(flags, F_REVERSE) ? 1 : -1;
   else
     return sort_pairs_by_ctime(f1, f2);
