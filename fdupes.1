@@ -19,89 +19,90 @@ byte-by-byte comparison.
 .SH OPTIONS
 .TP
 .B -r --recurse
-for every directory given follow subdirectories encountered within
+For every directory given follow subdirectories encountered within.
 .TP
 .B -R --recurse:
-for each directory given after this option follow subdirectories
+For each directory given after this option follow subdirectories
 encountered within (note the ':' at the end of option; see the
-Examples section below for further explanation)
+Examples section below for further explanation).
 .TP
 .B -s --symlinks
-follow symlinked directories
+Follow symlinked directories.
 .TP
 .B -H --hardlinks
-normally, when two or more files point to the same disk area they are
-treated as non-duplicates; this option will change this behavior
+Normally, when two or more files point to the same disk area they are
+treated as non-duplicates; this option will change this behavior.
 .TP
 .B -G --minsize\fR=\fISIZE\fR
-consider only files greater than or equal to SIZE in bytes
+Consider only files greater than or equal to SIZE in bytes.
 .TP
 .B -L --maxsize\fR=\fISIZE\fR
-consider only files less than or equal to SIZE in bytes
+Consider only files less than or equal to SIZE in bytes.
 .TP
 .B -n --noempty
-exclude zero-length files from consideration
+Exclude zero-length files from consideration.
 .TP
 .B -A --nohidden
-exclude hidden files from consideration
+Exclude hidden files from consideration.
 .TP
 .B -f --omitfirst
-omit the first file in each set of matches
+Omit the first file in each set of matches.
 .TP
 .B -1 --sameline
-list each set of matches on a single line
+List each set of matches on a single line.
 .TP
 .B -S --size
-show size of duplicate files
+Show size of duplicate files.
 .TP
 .B  -t --time
-show modification time of duplicate files
+Show modification time of duplicate files.
 .TP
 .B -m --summarize
-summarize duplicate file information
+Summarize duplicate file information.
 .TP
 .B -q --quiet
-hide progress indicator
+Hide progress indicator.
 .TP
 .B -d --delete
-prompt user for files to preserve, deleting all others (see
+Prompt user for files to preserve, deleting all others (see
 .B CAVEATS
-below)
+below).
 .TP
 .B -D --deferconfirmation
-in interactive mode, defer byte-for-byte confirmation of
-duplicates until just before file deletion
+In interactive mode, defer byte-for-byte confirmation of
+duplicates until just before file deletion.
 .TP
 .B -P --plain
-with --delete, use line-based prompt (as with older versions of
-fdupes) instead of screen-mode interface
+With --delete, use line-based prompt (as with older versions of
+fdupes) instead of screen-mode interface.
 .TP
 .B -N --noprompt
-when used together with \-\-delete, preserve the first file in each
-set of duplicates and delete the others without prompting the user 
+When used together with \-\-delete, preserve the first file in each
+set of duplicates and delete the others without prompting the user.
 .TP
 .B -I --immediate
-delete duplicates as they are encountered, without
-grouping into sets; implies --noprompt
+Delete duplicates as they are encountered, without
+grouping into sets; implies --noprompt.
 .TP
 .B -p --permissions
-don't consider files with different owner/group or permission bits as duplicates
+Don't consider files with different owner/group or permission bits as duplicates.
 .TP
 .B -o --order\fR=\fIWORD\fR
-order files according to WORD:
-time - sort by modification time, ctime - sort by status change time, name - sort by filename
+Order files according to WORD:
+time - sort by modification time, ctime - sort by status change time, name - sort by
+filename.
 .TP
 .B -i --reverse
-reverse order while sorting
+Reverse order while sorting.
 .TP
 .B -l --log\fR=\fILOGFILE\fR
-log file deletion choices to LOGFILE
+Log file deletion choices to LOGFILE.
 .TP
 .B -v --version
-display fdupes version
+Display fdupes version.
 .TP
 .B -h --help
-displays help
+Display help.
 .SH NOTES
 Unless
 .B -1
@@ -121,10 +122,10 @@ in a filename are preceded by a backslash character.
 .SH EXAMPLES
 .TP
 .B fdupes a --recurse: b
-will follow subdirectories under b, but not those under a.
+Will follow subdirectories under b, but not those under a.
 .TP
 .B fdupes a --recurse b
-will follow subdirectories under both a and b.
+Will follow subdirectories under both a and b.
 
 .SH CAVEATS
 When using
