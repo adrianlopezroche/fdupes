@@ -1442,6 +1442,9 @@ void close_db_on_exit()
     if (!sqlite3_get_autocommit(db))
       hashdb_committransaction(db);
 
+    if (ISFLAG(flags, F_VACUUMCACHE) && !got_sigint)
+      hashdb_vacuum(db);
+
     hashdb_close(db);
 
     db = 0;
@@ -1764,13 +1767,6 @@ int main(int argc, char **argv) {
     else if (ISFLAG(flags, F_PRUNECACHE)) {
       hashdb_foreachdirectory(db, 0, delist_directory_if_missing);
       hashdb_foreachhash(db, 0, delist_hash_if_orphaned);
-    }
-
-    if (ISFLAG(flags, F_VACUUMCACHE)) {
-      hashdb_committransaction(db);
-      hashdb_vacuum(db);
-
-      hashdb_begintransaction(db);
     }
   }
 #endif
