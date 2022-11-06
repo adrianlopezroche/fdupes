@@ -1653,7 +1653,7 @@ int main(int argc, char **argv) {
       ISFLAG(flags, F_READONLYCACHE) ||
       ISFLAG(flags, F_VACUUMCACHE)
   ) {
-    errormsg("file signature database is not enabled on this system\n");
+    errormsg("file signature database is not supported in this fdupes build\n");
     exit(1);
   }
 #else
