@@ -3,6 +3,10 @@ Introduction
 FDUPES is a program for identifying duplicate files residing
 within specified directories. 
 
+This fork adds audio duplicate handling via ffmpeg to determine a files audio
+hash, disregarding metadata differences.  Enabling this option (-a) will ONLY 
+example audio files for duplicate purging.
+
 
 Usage
 --------------------------------------------------------------------
@@ -17,6 +21,7 @@ Usage: fdupes [options] DIRECTORY...
  -H --hardlinks          normally, when two or more files point to the same
                          disk area they are treated as non-duplicates; this
                          option will change this behavior
+ -a --audio-only         only work on audio files
  -G --minsize=SIZE       consider only files greater than or equal to SIZE bytes
  -L --maxsize=SIZE       consider only files less than or equal to SIZE bytes
  -n --noempty            exclude zero-length files from consideration
