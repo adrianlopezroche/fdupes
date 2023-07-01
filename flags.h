@@ -3,6 +3,7 @@
 
 #define ISFLAG(a,b) ((a & b) == b)
 #define SETFLAG(a,b) (a |= b)
+#define UNSETFLAG(a,b) (a &= ~b)
 
 #define F_RECURSE           0x0001
 #define F_HIDEPROGRESS      0x0002
@@ -28,6 +29,7 @@
 #define F_PRUNECACHE        0x200000
 #define F_READONLYCACHE     0x400000
 #define F_VACUUMCACHE       0x800000
+#define F_AUDIOONLY         0x1000000
 
 extern unsigned long flags;
 

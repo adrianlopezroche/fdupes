@@ -70,6 +70,8 @@ enum linestyle getlinestyle(struct filegroup *group, int line)
 #define FILENAME_INDENT_EXTRA 5
 #define FILE_INDEX_MIN_WIDTH 3
 
+#define FILE_AUDIOINFO_WIDTH 30
+
 int filerowcount(file_t *file, const int columns, int group_file_count)
 {
   int lines;
@@ -81,6 +83,7 @@ int filerowcount(file_t *file, const int columns, int group_file_count)
   mbstate_t mbstate;
   int index_width;
   int timestamp_width;
+  int audioinfo_width;
   size_t needed;
   wchar_t *wcfilename;
 
@@ -99,8 +102,9 @@ int filerowcount(file_t *file, const int columns, int group_file_count)
     index_width = FILE_INDEX_MIN_WIDTH;
 
   timestamp_width = ISFLAG(flags, F_SHOWTIME) ? 19 : 0;
+  audioinfo_width = ISFLAG(flags, F_AUDIOONLY) ? FILE_AUDIOINFO_WIDTH : 0;
 
-  lines = (index_width + timestamp_width + FILENAME_INDENT_EXTRA) / columns + 1;
+  lines = (index_width + timestamp_width + audioinfo_width + FILENAME_INDENT_EXTRA) / columns + 1;
 
   line_remaining = columns - (index_width + timestamp_width + FILENAME_INDENT_EXTRA) % columns;
 
@@ -403,6 +407,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
   int resumecommandinput = 0;
   int index_width;
   int timestamp_width;
+  int audioinfo_width;
 
   noecho();
   cbreak();
@@ -620,6 +625,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
         index_width = FILE_INDEX_MIN_WIDTH;
 
       timestamp_width = ISFLAG(flags, F_SHOWTIME) ? 19 : 0;
+      audioinfo_width = ISFLAG(flags, F_AUDIOONLY) ? FILE_AUDIOINFO_WIDTH : 0;
 
       linestyle = getlinestyle(groups + groupindex, x);
       
@@ -651,13 +657,20 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
             if (ISFLAG(flags, F_SHOWTIME))
               wprintw(filewin, "[%s] ", fmttime(groups[groupindex].files[f].file->mtime));
+
+            if (ISFLAG(flags, F_AUDIOONLY)) {
+	      char buf[FILE_AUDIOINFO_WIDTH+1] = { 0 };
+	      file_t*  file = groups[groupindex].files[f].file;
+	      snprintf(buf, FILE_AUDIOINFO_WIDTH, "%s / %s / %s", files->audioinfo->meta.artist, files->audioinfo->meta.title, files->audioinfo->meta.album);
+              wprintw(filewin, "[%s] ", buf);
+	    }
           }
 
           cy = getcury(filewin);
 
           if (groups[groupindex].files[f].selected)
             wattron(filewin, A_REVERSE);
-          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + timestamp_width + FILENAME_INDENT_EXTRA);
+          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + timestamp_width + audioinfo_width + FILENAME_INDENT_EXTRA);
           if (groups[groupindex].files[f].selected)
             wattroff(filewin, A_REVERSE);
 
@@ -680,13 +693,20 @@ void deletefiles_ncurses(file_t *files, char *logfile)
 
             if (ISFLAG(flags, F_SHOWTIME))
               wprintw(filewin, "[%s] ", fmttime(groups[groupindex].files[f].file->mtime));
-          }
+
+	    if (ISFLAG(flags, F_AUDIOONLY)) {
+	      char buf[FILE_AUDIOINFO_WIDTH+1] = { 0 };
+	      file_t*  file = groups[groupindex].files[f].file;
+	      snprintf(buf, FILE_AUDIOINFO_WIDTH, "%s / %s / %s", files->audioinfo->meta.artist, files->audioinfo->meta.title, files->audioinfo->meta.album);
+              wprintw(filewin, "[%s] ", buf);
+	    }
+}
 
           cy = getcury(filewin);
 
           if (groups[groupindex].files[f].selected)
             wattron(filewin, A_REVERSE);
-          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + timestamp_width + FILENAME_INDENT_EXTRA);
+          putline(filewin, groups[groupindex].files[f].file->d_name, row, COLS, index_width + timestamp_width + audioinfo_width + FILENAME_INDENT_EXTRA);
           if (groups[groupindex].files[f].selected)
             wattroff(filewin, A_REVERSE);
 
