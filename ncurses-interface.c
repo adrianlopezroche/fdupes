@@ -1269,6 +1269,9 @@ void deletefiles_ncurses(file_t *files, char *logfile)
       switch (wch)
       {
       case '?':
+        if (cursorgroup >= totalgroups)
+          break;
+
         if (groups[cursorgroup].files[cursorfile].action == FILEACTION_UNRESOLVED)
           break;
 
@@ -1282,6 +1285,9 @@ void deletefiles_ncurses(file_t *files, char *logfile)
         break;
 
       case '\n':
+        if (cursorgroup >= totalgroups)
+          break;
+
         deletecount = 0;
         preservecount = 0;
 
