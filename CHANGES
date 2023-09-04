@@ -87,7 +87,7 @@ Changes from 1.40 to 1.50-PR2
 - Added "--noprompt" option for totally automated deletion of
   duplicate files.
 - Now sorts duplicates (old to new) for consistent order when
-  listing or deleteing duplicate files.
+  listing or deleting duplicate files.
 - Now tests for early matching of files, which should help speed up
   the matching process when large files are involved.
 - Added warning whenever a file cannot be deleted. [CHL, AL]
