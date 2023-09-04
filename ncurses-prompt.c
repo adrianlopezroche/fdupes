@@ -74,7 +74,11 @@ int format_prompt(struct prompt_info *prompt, wchar_t *format, ...)
     newtext = (wchar_t*)realloc(prompt->text, (size + 3) * sizeof(wchar_t));
 
     if (newtext == 0)
+    {
+      va_end(aq);
+      va_end(ap);
       return 0;
+    }
 
     prompt->text = newtext;
     prompt->allocated = size + 1;
