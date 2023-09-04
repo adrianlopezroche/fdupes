@@ -436,6 +436,7 @@ md5_byte_t *getcrcsignatureuntil(char *filename, off_t fsize, off_t max_read)
 
   file = fopen(filename, "rb");
   if (file == NULL) {
+    free(digest);
     errormsg("error opening file %s\n", filename);
     return NULL;
   }
@@ -580,7 +581,10 @@ int is_same_file(file_t *file_a, file_t *file_b)
 
   filename_b = strdup(file_b->d_name);
   if (filename_b == 0)
+  {
+    free(filename_a);
     return -1;
+  }
 
   /* get file basenames */
   basename_a = basename(filename_a);
