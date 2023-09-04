@@ -1476,6 +1476,9 @@ int main(int argc, char **argv) {
   char *endptr;
   char *cachehome;
   char *cachepath;
+#ifndef NO_NCURSES
+  SCREEN *screen = NULL;
+#endif
 
 #ifdef HAVE_GETOPT_H
   static struct option long_options[] = 
@@ -1889,7 +1892,8 @@ int main(int argc, char **argv) {
 #ifndef NO_NCURSES
       if (!ISFLAG(flags, F_PLAINPROMPT))
       {
-        if (newterm(getenv("TERM"), stdout, stdin) != 0)
+        screen = newterm(NULL, stdout, stdin);
+        if (screen != NULL)
         {
           deletefiles_ncurses(files, logfile);
         }
@@ -1946,6 +1950,12 @@ int main(int argc, char **argv) {
   free(oldargv);
 
   purgetree(checktree);
+
+#ifndef NO_NCURSES
+  if (screen) {
+    delscreen(screen);
+  }
+#endif
 
   return 0;
 }
