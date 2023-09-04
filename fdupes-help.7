@@ -4,7 +4,6 @@
 fdupes-help \- fdupes interactive mode reference
 
 .SH "INTRODUCTION"
-.PP
 When run interactively
 .RB ( "" "as " "fdupes --delete" ),
 fdupes
@@ -17,7 +16,6 @@ There are several ways to tag files in fdupes: individually using the
 by providing a list of files to keep, or by selecting files that match particular search criteria and tagging those as desired. Each of these approaches is discussed in detail in the sections below.
 
 .SH "SCROLLING THE LIST"
-.PP
 The list of duplicates can be scrolled as follows:
 .TP
 .B "PAGE DOWN"
@@ -36,7 +34,6 @@ Scroll down by one line. Not supported on some terminals.
 Scroll up by one line. Not supported on some terminals.
 
 .SH "MOVING THE CURSOR"
-.PP
 The cursor tells fdupes which file and/or set of duplicates to act on, as described in the next section. The cursor's position can be changed as follows:
 
 .TP
@@ -76,7 +73,6 @@ Move cursor to the top of the set indicated by
 .IR index .
 
 .SH "TAGGING FILES USING THE CURSOR"
-.PP
 Individual files can be tagged using the keys below. These keys all act on the current file, as identified by the cursor.
 
 .TP
@@ -131,7 +127,6 @@ There is one more command to deal with files in the current set:
 Remove tags from all files in current set.
 
 .SH "FILE SELECTION COMMANDS"
-.PP
 Another way to tag files is to first select them according to particular search criteria and then tell fdupes what to do with them. The following commands can be used to select files for tagging:
 
 .TP
@@ -192,7 +187,6 @@ isel
 will deselect files 1 and 4, and select files 2, 3, and 5. Immediately repeating the same command will deselect files 2, 3, and 5, and select files 1 and 4, restoring selections to their previous state.
 
 .SH "TAGGING SELECTED FILES"
-.PP
 Once some files have been selected using the commands described above, the following commands can be used to tag selected files as desired:
 .TP
 .B "'ks'"
@@ -224,7 +218,6 @@ Exit the program.
 Display this help text.
 
 .SH "REGULAR EXPRESSIONS"
-.PP
 A regular expression is a sequence of characters defining a search pattern against which other character sequences can be compared. Strings of characters that follow the pattern defined by an expression are said to
 .I
 match
