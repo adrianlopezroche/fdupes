@@ -33,5 +33,5 @@ void register_sigint_handler()
   memset(&action, 0, sizeof(struct sigaction));
 
   action.sa_handler = sigint_handler;
-  sigaction(SIGINT, &action, 0);	
+  sigaction(SIGINT, &action, 0);
 }

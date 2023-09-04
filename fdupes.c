@@ -11,12 +11,12 @@
    The above copyright notice and this permission notice shall be
    included in all copies or substantial portions of the Software.
 
-   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS 
-   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF 
-   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
-   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY 
-   CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
-   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+   CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #include "config.h"
@@ -79,7 +79,7 @@ ordertype_t ordertype = ORDER_MTIME;
 #define MD5_DIGEST_LENGTH 16
 
 typedef struct _filetree {
-  file_t *file; 
+  file_t *file;
   struct _filetree *left;
   struct _filetree *right;
 } filetree_t;
@@ -126,10 +126,10 @@ dev_t getdevice(char *filename) {
 
 ino_t getinode(char *filename) {
   struct stat s;
-   
+
   if (stat(filename, &s) != 0) return 0;
 
-  return s.st_ino;   
+  return s.st_ino;
 }
 
 char *fmttime(time_t t) {
@@ -168,9 +168,9 @@ char **cloneargs(int argc, char **argv)
 int findarg(char *arg, int start, int argc, char **argv)
 {
   int x;
-  
+
   for (x = start; x < argc; x++)
-    if (strcmp(argv[x], arg) == 0) 
+    if (strcmp(argv[x], arg) == 0)
       return x;
 
   return x;
@@ -335,7 +335,7 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
       if (lastchar >= 0 && dir[lastchar] != '/')
 	strcat(newfile->d_name, "/");
       strcat(newfile->d_name, dirinfo->d_name);
-      
+
       if (ISFLAG(flags, F_EXCLUDEHIDDEN)) {
 	fullname = strdup(newfile->d_name);
 	if (fullname == 0)
@@ -360,7 +360,7 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
         free(newfile);
         continue;
       }
-      
+
       if (!S_ISDIR(info.st_mode) && (((info.st_size == 0 && ISFLAG(flags, F_EXCLUDEEMPTY)) || info.st_size < minsize || (info.st_size > maxsize && maxsize != -1)))) {
         free(newfile->d_name);
         free(newfile);
@@ -501,9 +501,9 @@ void md5copy(md5_byte_t *to, const md5_byte_t *from)
 void purgetree(filetree_t *checktree)
 {
   if (checktree->left != NULL) purgetree(checktree->left);
-    
+
   if (checktree->right != NULL) purgetree(checktree->right);
-    
+
   free(checktree);
 }
 
@@ -514,7 +514,7 @@ int registerfile(filetree_t **branch, file_t *file)
     errormsg("out of memory!\n");
     exit(1);
   }
-  
+
   (*branch)->file = file;
   (*branch)->left = NULL;
   (*branch)->right = NULL;
@@ -812,7 +812,7 @@ void summarizematches(file_t *files)
       printf("%d duplicate files (in %d sets), occupying %.1f kilobytes\n\n", numfiles, numsets, numbytes / 1000.0);
     else
       printf("%d duplicate files (in %d sets), occupying %.1f megabytes\n\n", numfiles, numsets, numbytes / (1000.0 * 1000.0));
- 
+
   }
 }
 
@@ -841,7 +841,7 @@ void printmatches(file_t *files)
       printf("\n");
 
     }
-      
+
     files = files->next;
   }
 }
@@ -864,7 +864,7 @@ char *revisefilename(char *path, int seq)
 
   strcpy(scratch, path);
   dot = strrchr(scratch, '.');
-  if (dot) 
+  if (dot)
   {
     *dot = 0;
     sprintf(newpath, "%s%s%d.%s", scratch, REVISE_APPEND, seq, dot + 1);
@@ -930,7 +930,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
   char *errorstring;
 
   curfile = files;
-  
+
   while (curfile) {
     if (curfile->hasdupes) {
       counter = 1;
@@ -941,10 +941,10 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 	counter++;
 	tmpfile = tmpfile->duplicates;
       }
-      
+
       if (counter > max) max = counter;
     }
-    
+
     curfile = curfile->next;
   }
 
@@ -974,7 +974,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
       counter = 1;
       dupelist[counter] = files;
 
-      if (prompt) 
+      if (prompt)
       {
         if (ISFLAG(flags, F_SHOWTIME))
           printf("[%d] [%s] %s\n", counter, fmttime(files->mtime), files->d_name);
@@ -1061,20 +1061,20 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 	}
 
 	for (x = 1; x <= counter; x++) preserve[x] = 0;
-	
+
 	token = strtok(preservestr, " ,\n");
-	
+
 	while (token != NULL) {
 	  if (strcasecmp(token, "all") == 0 || strcasecmp(token, "a") == 0)
 	    for (x = 0; x <= counter; x++) preserve[x] = 1;
-	  
+
 	  number = 0;
 	  sscanf(token, "%d", &number);
 	  if (number > 0 && number <= counter) preserve[number] = 1;
-	  
+
 	  token = strtok(NULL, " ,\n");
 	}
-      
+
 	for (sum = 0, x = 1; x <= counter; x++) sum += preserve[x];
       } while (sum < 1); /* make sure we've preserved at least one file */
 
@@ -1088,7 +1088,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
         hashdb_begintransaction(db);
 #endif
 
-      for (x = 1; x <= counter; x++) { 
+      for (x = 1; x <= counter; x++) {
 	if (preserve[x])
         {
 	  printf("   [+] %s\n", dupelist[x]->d_name);
@@ -1176,7 +1176,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
         hashdb_committransaction(db);
 #endif
     }
-    
+
     files = files->next;
   }
 
@@ -1237,7 +1237,7 @@ int sort_pairs_by_filename(file_t *f1, file_t *f2)
   return !ISFLAG(flags, F_REVERSE) ? strvalue : -strvalue;
 }
 
-void registerpair(file_t **matchlist, file_t *newmatch, 
+void registerpair(file_t **matchlist, file_t *newmatch,
 		  int (*comparef)(file_t *f1, file_t *f2))
 {
   file_t *traverse;
@@ -1252,7 +1252,7 @@ void registerpair(file_t **matchlist, file_t *newmatch,
     if (comparef(newmatch, traverse) <= 0)
     {
       newmatch->duplicates = traverse;
-      
+
       if (back == 0)
       {
 	*matchlist = newmatch; /* update pointer to head of list */
@@ -1270,14 +1270,14 @@ void registerpair(file_t **matchlist, file_t *newmatch,
       if (traverse->duplicates == 0)
       {
 	traverse->duplicates = newmatch;
-	
+
 	if (back == 0)
 	  traverse->hasdupes = 1;
-	
+
 	break;
       }
     }
-    
+
     back = traverse;
     traverse = traverse->duplicates;
   }
@@ -1481,7 +1481,7 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef HAVE_GETOPT_H
-  static struct option long_options[] = 
+  static struct option long_options[] =
   {
     { "omitfirst", 0, 0, 'f' },
     { "recurse", 0, 0, 'r' },
@@ -1823,9 +1823,9 @@ int main(int argc, char **argv) {
       exit(0);
     }
 
-    if (!checktree) 
+    if (!checktree)
       registerfile(&checktree, curfile);
-    else 
+    else
       match = checkmatch(&checktree, checktree, curfile);
 
     if (match != NULL) {
@@ -1834,7 +1834,7 @@ int main(int argc, char **argv) {
 	curfile = curfile->next;
 	continue;
       }
-      
+
       file2 = fopen((*match)->d_name, "rb");
       if (!file2) {
 	fclose(file1);
@@ -1926,11 +1926,11 @@ int main(int argc, char **argv) {
     }
   }
 
-  else 
+  else
 
     if (ISFLAG(flags, F_SUMMARIZEMATCHES))
       summarizematches(files);
-      
+
     else
 
       printmatches(files);
