@@ -6,6 +6,13 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 2.2.1 to 2.3.0:
+
+ - Add --cache option to speed up file comparisons.
+ - Use nanosecond precision for file times, if available.
+ - Fix compilation issue on OpenBSD.
+ - Other changes like fixing typos, wording, etc.
+
 Changes from 2.2.0 to 2.2.1:
 
  - Fix bug in code meant to skip over the current log file when --log

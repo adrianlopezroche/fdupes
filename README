@@ -19,6 +19,19 @@ Usage: fdupes [options] DIRECTORY...
                          option will change this behavior
  -G --minsize=SIZE       consider only files greater than or equal to SIZE bytes
  -L --maxsize=SIZE       consider only files less than or equal to SIZE bytes
+ -c --cache              speed up file comparisons by keeping track of their
+                         signatures in a database; additional parameters may be
+                         provided using one or more cache parameters (as below)
+ -x cache.OPTION         supply an optional cache parameter, where OPTION is one
+                         of the keywords below and multiple options may be
+                         supplied via successive -x arguments:
+    readonly             read but do not update file signatures
+    prune                look through entire cache and delete orphaned entries
+    clear                clear all entries from cache
+    vacuum               reduce size of DB file, if possible
+                         (note that the options prune, clear, and vacuum may be
+                         employed without supplying a DIRECTORY argument, and
+                         will take effect even if readonly is also specified)
  -n --noempty            exclude zero-length files from consideration
  -A --nohidden           exclude hidden files from consideration
  -f --omitfirst          omit the first file in each set of matches
