@@ -39,6 +39,6 @@ followed by "make" and "sudo make install" as before.
 
 A test directory is included so that you may familiarise yourself
 with the way fdupes operates. You may test the program before
-installing it by issuing a command such as "./fdupes testdir" 
+installing it by issuing a command such as "./fdupes testdir"
 or "./fdupes -r testdir", just to name a couple of examples. Refer
 to the documentation for information on valid options.
