@@ -23,6 +23,20 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 )
 
 #
+# FFMPEG for audio hash
+#
+AC_ARG_WITH([ffmpeg], AS_HELP_STRING([--without-ffmpeg], [Do not use ffmpeg for audio file indentification]))
+
+AS_IF([test x"$with_ffmpeg" != x"no"],
+        [PKG_CHECK_MODULES([FFMPEG], [libavformat libavcodec libavutil], [], [AC_ERROR([ffmpeg libs not found])])]
+	[AC_DEFINE([HAVE_FFMPEG], [1], [Use ffmpeg for audio hash comparison])]
+     )
+AC_SUBST(FFMPEG_CFLAGS)
+AC_SUBST(FFMPEG_LIBS)
+AM_CONDITIONAL([HAVE_FFMPEG], [test x"$with_ffmpeg" != x"no"])
+
+
+#
 # NCURSES library
 #
 AC_ARG_WITH([ncurses], AS_HELP_STRING([--without-ncurses], [Do not use ncurses interface]))
