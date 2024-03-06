@@ -50,7 +50,7 @@
 /* endianness check using glibc endian.h */
 #ifdef __APPLE__
 # include <machine/endian.h>
-#else
+#elif !defined (_AIX)
 # include <endian.h>
 #endif
 
