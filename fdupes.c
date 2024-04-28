@@ -1522,7 +1522,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHGe:L:nAdPvhNImpo:il:Dcx:"
+  while ((opt = GETOPT(argc, argv, "frReq1StsHG:L:nAdPvhNImpo:il:Dcx:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
