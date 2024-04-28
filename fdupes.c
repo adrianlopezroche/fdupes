@@ -387,6 +387,13 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
         bool excluded_dir = false;
         if (ISFLAG(flags, F_EXCLUDEEADIRS)) {
           fullname = strdup(newfile->d_name);
+          if (fullname == 0)
+          {
+            errormsg("out of memory!\n");
+            free(newfile);
+            closedir(cd);
+            exit(1);
+          }
           name = basename(fullname);
           excluded_dir = strcmp(name, "@eaDir") == 0;
         }
