@@ -384,14 +384,12 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
       if (S_ISDIR(info.st_mode)) {
         if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)))
         {
-          fullname = strdup(newfile->d_name);
-          name = basename(fullname);
-          if (strcmp(name, "@eaDir") != 0) {
-	    filesadded = grokdir(newfile->d_name, filelistp, logfile_status);
-            filecount += filesadded;
-          } else {
-            printf("Not recursving into @eaDir: %s!\n", fullname);
-          }
+        fullname = strdup(newfile->d_name);
+        name = basename(fullname);
+        if (!ISFLAG(flags, F_EXCLUDEEADIRS) || strcmp(name, "@eaDir") != 0) {
+          filesadded = grokdir(newfile->d_name, filelistp, logfile_status);
+          filecount += filesadded;
+        }
 
 #ifndef NO_SQLITE
           if (db != 0 && pathid == 0 && !ISFLAG(flags, F_READONLYCACHE) && filesadded > 0)
@@ -1425,6 +1423,7 @@ void help_text()
   printf("                         change time (BY='ctime'), or filename (BY='name')\n");
   printf(" -i --reverse            reverse order while sorting\n");
   printf(" -l --log=LOGFILE        log file deletion choices to LOGFILE\n");
+  printf(" -e --noeadirs           do not recurse into Synology NAS @eaDir folders when -r is enabled\n");
   printf(" -v --version            display fdupes version\n");
   printf(" -h --help               display this help message\n\n");
 #ifndef HAVE_GETOPT_H
@@ -1509,6 +1508,7 @@ int main(int argc, char **argv) {
     { "log", 1, 0, 'l' },
     { "deferconfirmation", 0, 0, 'D' },
     { "cache", 0, 0, 'c' },
+    { "noeadirs", 0, 0, 'e'},
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1522,7 +1522,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:Dcx:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHGe:L:nAdPvhNImpo:il:Dcx:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1624,6 +1624,9 @@ int main(int argc, char **argv) {
       break;
     case 'c':
       SETFLAG(flags, F_CACHESIGNATURES);
+      break;
+    case 'e':
+      SETFLAG(flags, F_EXCLUDEEADIRS);
       break;
     case 'x':
       if (strcmp("cache.readonly", optarg) == 0)
