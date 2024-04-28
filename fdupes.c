@@ -384,8 +384,14 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
       if (S_ISDIR(info.st_mode)) {
         if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)))
         {
-          filesadded = grokdir(newfile->d_name, filelistp, logfile_status);
-          filecount += filesadded;
+          fullname = strdup(newfile->d_name);
+          name = basename(fullname);
+          if (strcmp(name, "@eaDir") != 0) {
+	    filesadded = grokdir(newfile->d_name, filelistp, logfile_status);
+            filecount += filesadded;
+          } else {
+            printf("Not recursving into @eaDir: %s!\n", fullname);
+          }
 
 #ifndef NO_SQLITE
           if (db != 0 && pathid == 0 && !ISFLAG(flags, F_READONLYCACHE) && filesadded > 0)
