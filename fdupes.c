@@ -384,9 +384,13 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
       if (S_ISDIR(info.st_mode)) {
         if (ISFLAG(flags, F_RECURSE) && (ISFLAG(flags, F_FOLLOWLINKS) || !S_ISLNK(linfo.st_mode)))
         {
-        fullname = strdup(newfile->d_name);
-        name = basename(fullname);
-        if (!ISFLAG(flags, F_EXCLUDEEADIRS) || strcmp(name, "@eaDir") != 0) {
+        bool excluded_dir = false;
+        if (ISFLAG(flags, F_EXCLUDEEADIRS)) {
+          fullname = strdup(newfile->d_name);
+          name = basename(fullname);
+          excluded_dir = strcmp(name, "@eaDir") == 0;
+        }
+        if (!excluded_dir) {
           filesadded = grokdir(newfile->d_name, filelistp, logfile_status);
           filecount += filesadded;
         }
