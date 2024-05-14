@@ -715,6 +715,7 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
   wchar_t *statuscopy;
   struct groupfile *firstnotdeleted;
   char *deletepath;
+  int checkinode = !ISFLAG(flags, F_NOINODES);
 
   if (logfile != 0)
     loginfo = log_open(logfile, 0);
@@ -808,7 +809,7 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
           }
 #endif
 
-          if (ismatch && removeifnotchanged(groups[g].files[f].file, 0) == 0)
+          if (ismatch && removeifnotchanged(groups[g].files[f].file, 0, checkinode) == 0)
           {
             set_file_action(&groups[g].files[f], FILEACTION_DELIST, deletiontally);
 
