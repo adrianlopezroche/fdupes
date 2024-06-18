@@ -164,7 +164,7 @@ char *getrealpath(const char *path, unsigned int options)
             return 0;
         }
 
-        scratch = malloc(strlen(link) + strlen(basename) + 1);
+        scratch = malloc(strlen(link) + strlen(basename) + 2);
         if (scratch == 0)
         {
             free(basename);
