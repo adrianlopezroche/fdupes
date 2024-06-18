@@ -1,4 +1,4 @@
-AC_INIT([fdupes], [2.3.0])
+AC_INIT([fdupes], [2.3.1])
 
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 
