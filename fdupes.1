@@ -127,6 +127,9 @@ Reverse order while sorting.
 .B -l --log\fR=\fILOGFILE\fR
 Log file deletion choices to LOGFILE.
 .TP
+.B -e --noinodes
+Don't use inodes to test for changed file contents.
+.TP
 .B -v --version
 Display fdupes version.
 .TP
@@ -147,6 +150,13 @@ or
 .B --sameline
 is specified, spaces and backslash characters  (\fB\e\fP) appearing
 in a filename are preceded by a backslash character.
+
+When
+.B -e
+or
+.B --noinodes
+is specified, file inode will not be used to test for file content
+changes before deletion.
 
 .SH EXAMPLES
 .TP
