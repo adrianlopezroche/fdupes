@@ -25,7 +25,7 @@
 
 #define LOG_HEADER "[fdupes log]\n"
 
-/* Open log file in append mode. If file exists, make sure it is a valid fdupes log file. 
+/* Open log file in append mode. If file exists, make sure it is a valid fdupes log file.
 */
 struct log_info *log_open(char *filename, int *error)
 {

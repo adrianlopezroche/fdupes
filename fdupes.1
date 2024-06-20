@@ -1,6 +1,6 @@
 .TH FDUPES 1
 .\" NAME should be all caps, SECTION should be 1-8, maybe w/ subsection
-.\" other parms are allowed: see man(7), man(1)
+.\" other params are allowed: see man(7), man(1)
 .SH NAME
 fdupes \- finds duplicate files in a given set of directories
 .SH SYNOPSIS
@@ -13,7 +13,7 @@ fdupes \- finds duplicate files in a given set of directories
 
 .SH "DESCRIPTION"
 Searches the given path for duplicate files. Such files are found by
-comparing file sizes and MD5 signatures, followed by a 
+comparing file sizes and MD5 signatures, followed by a
 byte-by-byte comparison.
 
 .SH OPTIONS
@@ -118,8 +118,9 @@ Don't consider files with different owner/group or permission bits as duplicates
 .TP
 .B -o --order\fR=\fIWORD\fR
 Order files according to WORD:
-time - sort by modification time, ctime - sort by status change time, name - sort by
-filename.
+time - sort by modification time,
+ctime - sort by status change time,
+name - sort by filename.
 .TP
 .B -i --reverse
 Reverse order while sorting.

@@ -31,4 +31,6 @@ void errormsg(char *message, ...)
 
   fprintf(stderr, "\r%40s\r%s: ", "", program_name);
   vfprintf(stderr, message, ap);
+
+  va_end(ap);
 }

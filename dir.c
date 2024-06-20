@@ -27,7 +27,7 @@ char *getworkingdirectory()
   char *result;
   char *new_result;
   char *cwd;
-  
+
   size = 1024;
 
   result = 0;

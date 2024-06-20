@@ -148,7 +148,10 @@ char *getrealpath(const char *path, unsigned int options)
 
         basename = malloc(strlen(path) + 1);
         if (basename == 0)
+        {
+            free(dirname);
             return 0;
+        }
 
         sdirname(dirname, path);
         sbasename(basename, path);
