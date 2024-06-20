@@ -1,0 +1,31 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -yq \
+        build-essential clang clang-tools autotools-dev autoconf libtool \
+        libavcodec-dev libavformat-dev libavfilter-dev libswscale-dev libavutil-dev
+    - name: configure with all
+      run: |
+        autoreconf --install
+        ./configure --with-ncurses  --with-sqlite --with-ffmpeg
+        make
+    - name: configure without ffmpeg
+      run: |
+        autoreconf --install
+        ./configure --with-ncurses  --with-sqlite --without-ffmpeg
+        make
