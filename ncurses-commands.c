@@ -701,6 +701,7 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
   int unresolvedcount;
   int totaldeleted = 0;
   int totalfailed = 0;
+  int cursordecrement = 0;
   double deletedbytes = 0;
   struct log_info *loginfo;
   int g;
@@ -914,26 +915,33 @@ int cmd_prune(struct filegroup *groups, int groupcount, wchar_t *commandargument
     {
       groups[to] = groups[g];
 
-      /* reposition cursor, if necessary */
-      if (to == *cursorgroup && to != g)
-        *cursorfile = 0;
-
       ++to;
     }
     else
     {
+      /* reset cursor position within group if current group has been deleted */
+      if (g == *cursorgroup)
+        *cursorfile = 0;
+
+      else
+
+      /* decrement cursor if deleted group precedes current group */
+      if (g < *cursorgroup)
+        ++cursordecrement;
+
       free(groups[g].files);
     }
   }
 
   *totalgroups = to;
 
-  /* reposition cursor, if necessary */
-  if (*cursorgroup >= *totalgroups)
-  {
+  /* update cursor position */
+  *cursorgroup -= cursordecrement;
+
+  if (*totalgroups == 0)
+    *cursorgroup = 0;
+  else if (*cursorgroup >= *totalgroups)
     *cursorgroup = *totalgroups - 1;
-    *cursorfile = 0;
-  }
 
   /* recalculate line boundaries */
   adjusttopline = 1;
