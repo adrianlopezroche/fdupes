@@ -25,7 +25,7 @@
 #include <string.h>
 #include <stdio.h>
 
-int removeifnotchanged(const file_t *file, char **errorstring)
+int removeifnotchanged(const file_t *file, char **errorstring, int checkinode)
 {
   int result;
   struct stat st;
@@ -36,7 +36,7 @@ int removeifnotchanged(const file_t *file, char **errorstring)
   stat(file->d_name, &st);
 
   if (file->device != st.st_dev ||
-      file->inode != st.st_ino ||
+      (checkinode && (file->inode != st.st_ino)) ||
       file->ctime != st.st_ctime ||
       file->mtime != st.st_mtime ||
 #ifdef HAVE_NSEC_TIMES

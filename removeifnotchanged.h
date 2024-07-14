@@ -24,6 +24,6 @@
 
 #include "fdupes.h"
 
-int removeifnotchanged(const file_t *file, char **errorstring);
+int removeifnotchanged(const file_t *file, char **errorstring, int checkinode);
 
 #endif
