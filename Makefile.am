@@ -66,3 +66,5 @@ EXTRA_DIST = testdir CHANGES CONTRIBUTORS
 
 dist-hook:
 	if [ -f $(top_srcdir)/INSTALL.enduser ]; then chmod u+w $(distdir)/INSTALL; \cp -f $(top_srcdir)/INSTALL.enduser $(distdir)/INSTALL; fi
+
+AM_LDFLAGS = -ltinfo
