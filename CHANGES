@@ -6,6 +6,11 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 2.3.1 to 2.3.2:
+
+ - Keep cursor as close to current group as possible after deleting files.
+ - Omit endian.h when building on AIX.
+
 Changes from 2.3.0 to 2.3.1:
 
  - Fix buffer overflow bug in getrealpath() function.
