@@ -24,6 +24,10 @@ fdupes_SOURCES = fdupes.c\
  md5/md5.h
 dist_man1_MANS = fdupes.1
 
+if HAVE_FFMPEG
+fdupes_SOURCES += ffmpeg.c
+endif
+
 if WITH_NCURSES
 fdupes_SOURCES += filegroup.h\
  fileaction.h\
@@ -63,6 +67,9 @@ fdupes_SOURCES += getrealpath.c\
 endif
 
 EXTRA_DIST = testdir CHANGES CONTRIBUTORS
+
+fdupes_CFLAGS = $(FFMPEG_CFLAGS)
+fdupes_LDADD = $(FFMPEG_LIBS)
 
 dist-hook:
 	if [ -f $(top_srcdir)/INSTALL.enduser ]; then chmod u+w $(distdir)/INSTALL; \cp -f $(top_srcdir)/INSTALL.enduser $(distdir)/INSTALL; fi

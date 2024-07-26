@@ -25,12 +25,14 @@
 #include "config.h"
 #include <sys/stat.h>
 #include "md5/md5.h"
+#include "ffmpeg.h"
 
 typedef struct _file {
   char *d_name;
   off_t size;
   md5_byte_t *crcpartial;
   md5_byte_t *crcsignature;
+  ffmpeg_t*  audioinfo;
   dev_t device;
   ino_t inode;
   time_t mtime;

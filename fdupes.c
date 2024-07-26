@@ -22,6 +22,7 @@
 #include "config.h"
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
@@ -29,6 +30,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <time.h>
+#include <assert.h>
 #ifdef HAVE_GETOPT_H
 #include <getopt.h>
 #endif
@@ -320,6 +322,7 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
       newfile->crcpartial = NULL;
       newfile->duplicates = NULL;
       newfile->hasdupes = 0;
+      newfile->audioinfo = NULL;
 
       newfile->d_name = (char*)malloc(strlen(dir)+strlen(dirinfo->d_name)+2);
 
@@ -396,6 +399,25 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
 	free(newfile);
       } else {
 	if (S_ISREG(linfo.st_mode) || (S_ISLNK(linfo.st_mode) && ISFLAG(flags, F_FOLLOWLINKS))) {
+#ifdef HAVE_FFMPEG 
+	    if (ISFLAG(flags, F_AUDIOONLY))
+	    {
+		char*  err = NULL;
+		ffmpeg_t*  audioinfo = ffmpeg_alloc();
+
+		int  ret;
+		if ( (ret = ffmpeg_audioinfo(audioinfo, newfile->d_name, &err)) == FFMPEG_OK) {
+		    newfile->audioinfo = audioinfo;
+		}
+		else {
+			free(err);
+			ffmpeg_free(audioinfo);
+			free(newfile->d_name);
+			free(newfile);
+			continue;
+		}
+	    }
+#endif
 	  getfilestats(newfile, &info, &linfo);
 	  *filelistp = newfile;
 	  filecount++;
@@ -449,7 +471,7 @@ md5_byte_t *getcrcsignatureuntil(char *filename, off_t fsize, off_t max_read)
 
     toread = (fsize >= CHUNK_SIZE) ? CHUNK_SIZE : fsize;
     if (fread(chunk, toread, 1, file) != 1) {
-      errormsg("error reading from file %s\n", filename);
+      errormsg("error reading from file %s - (toread=%d, chunks=%d, file size=%d) %s\n", filename, toread, CHUNK_SIZE, fsize, strerror(errno));
       fclose(file);
       return NULL;
     }
@@ -675,6 +697,25 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
       return NULL;
   }
 
+  if (ISFLAG(flags, F_AUDIOONLY))
+  {
+      assert(file->audioinfo && checktree->file->audioinfo);
+      {
+	  if (file->audioinfo->hash < checktree->file->audioinfo->hash) {
+	      cmpresult = -1;
+	  }
+	  else {
+	      if (file->audioinfo->hash > checktree->file->audioinfo->hash) {
+		  cmpresult = 1;
+	      }
+	      else {
+		  cmpresult = 0;
+	      }
+	  }
+       }
+  }
+  else
+  {
   if (file->size < checktree->file->size)
     cmpresult = -1;
   else
@@ -752,6 +793,7 @@ file_t **checkmatch(filetree_t **root, filetree_t *checktree, file_t *file)
       cmpresult = md5cmp(file->crcsignature, checktree->file->crcsignature);
     }
   }
+  }
 
   if (cmpresult < 0) {
     if (checktree->left != NULL) {
@@ -823,6 +865,8 @@ void printmatches(file_t *files)
 	 (files->size != 1) ? "s " : " ");
         if (ISFLAG(flags, F_SHOWTIME))
           printf("%s ", fmttime(files->mtime));
+	if (ISFLAG(flags, F_AUDIOONLY))
+          printf("%s %s %s %s ", files->audioinfo->meta.artist, files->audioinfo->meta.album, files->audioinfo->meta.title, files->audioinfo->meta.genre);
 	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &files->d_name);
 	printf("%s%c", files->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
       }
@@ -830,6 +874,8 @@ void printmatches(file_t *files)
       while (tmpfile != NULL) {
         if (ISFLAG(flags, F_SHOWTIME))
           printf("%s ", fmttime(tmpfile->mtime));
+	if (ISFLAG(flags, F_AUDIOONLY))
+          printf("%s %s %s %s ", tmpfile->audioinfo->meta.artist, tmpfile->audioinfo->meta.album, tmpfile->audioinfo->meta.title, tmpfile->audioinfo->meta.genre);
 	if (ISFLAG(flags, F_DSAMELINE)) escapefilename("\\ ", &tmpfile->d_name);
 	printf("%s%c", tmpfile->d_name, ISFLAG(flags, F_DSAMELINE)?' ':'\n');
 	tmpfile = tmpfile->duplicates;
@@ -972,10 +1018,14 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 
       if (prompt) 
       {
+        printf("[%d] ", counter);
         if (ISFLAG(flags, F_SHOWTIME))
-          printf("[%d] [%s] %s\n", counter, fmttime(files->mtime), files->d_name);
-        else
-          printf("[%d] %s\n", counter, files->d_name);
+          printf("[%s] ", fmttime(files->mtime));
+
+	  if (ISFLAG(flags, F_AUDIOONLY)) {
+	      printf("['%s' '%s' '%s' '%s'] ", files->audioinfo->meta.artist, files->audioinfo->meta.album, files->audioinfo->meta.title, files->audioinfo->meta.genre);
+	  }
+          printf("%s\n", files->d_name);
       }
 
       tmpfile = files->duplicates;
@@ -984,10 +1034,14 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
 	dupelist[++counter] = tmpfile;
         if (prompt)
         {
-          if (ISFLAG(flags, F_SHOWTIME))
-            printf("[%d] [%s] %s\n", counter, fmttime(tmpfile->mtime), tmpfile->d_name);
-          else
-            printf("[%d] %s\n", counter, tmpfile->d_name);
+	    printf("[%d] ", counter);
+	    if (ISFLAG(flags, F_SHOWTIME))
+		printf("[%s] ", fmttime(tmpfile->mtime));
+
+	    if (ISFLAG(flags, F_AUDIOONLY)) {
+		printf("['%s' '%s' '%s' '%s'] ", tmpfile->audioinfo->meta.artist, tmpfile->audioinfo->meta.album, tmpfile->audioinfo->meta.title, tmpfile->audioinfo->meta.genre);
+	    }
+	    printf("%s\n", tmpfile->d_name);
         }
 	tmpfile = tmpfile->duplicates;
       }
@@ -1370,6 +1424,9 @@ void help_text()
   printf(" -H --hardlinks          normally, when two or more files point to the same\n");
   printf("                         disk area they are treated as non-duplicates; this\n");
   printf("                         option will change this behavior\n");
+#ifdef HAVE_FFMPEG 
+  printf(" -a --audio-only         only work on audio files\n");
+#endif
   printf(" -G --minsize=SIZE       consider only files greater than or equal to SIZE bytes\n");
   printf(" -L --maxsize=SIZE       consider only files less than or equal to SIZE bytes\n");
 #ifndef NO_SQLITE
@@ -1452,7 +1509,8 @@ void close_db_on_exit()
 }
 #endif
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   int x;
   int opt;
   FILE *file1;
@@ -1476,6 +1534,9 @@ int main(int argc, char **argv) {
 #ifdef HAVE_GETOPT_H
   static struct option long_options[] = 
   {
+#ifdef HAVE_FFMPEG 
+    { "audio-only", 0, 0, 'a' },
+#endif
     { "omitfirst", 0, 0, 'f' },
     { "recurse", 0, 0, 'r' },
     { "recurse:", 0, 0, 'R' },
@@ -1516,12 +1577,17 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:Dcx:"
+  while ((opt = GETOPT(argc, argv, "afrRq1StsHG:L:nAdPvhNImpo:il:Dcx:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
           )) != EOF) {
     switch (opt) {
+#ifdef HAVE_FFMPEG 
+    case 'a':
+      SETFLAG(flags, F_AUDIOONLY);
+      break;
+#endif
     case 'f':
       SETFLAG(flags, F_OMITFIRST);
       break;
@@ -1643,6 +1709,25 @@ int main(int argc, char **argv) {
   if (optind >= argc && !(ISFLAG(flags, F_CLEARCACHE) || ISFLAG(flags, F_PRUNECACHE) || ISFLAG(flags, F_VACUUMCACHE))) {
     errormsg("no directories specified\n");
     exit(1);
+  }
+
+  x = optind;
+  bool  badargs = false;
+  while (x < argc) {
+      // validate every path before lenghty compute only to find typos
+      if (access(argv[x], F_OK) != 0) {
+          printf("invalid input: %s - %s\n", argv[x], strerror(errno));
+	  badargs = true;
+      }
+      ++x;
+  }
+  if (badargs) {
+      return -1;
+  }
+
+  if (ISFLAG(flags, F_AUDIOONLY)) {
+      UNSETFLAG(flags, F_IMMEDIATE);
+      printf("audio-only mode disables immediate delete\n");
   }
 
 #ifdef NO_SQLITE
@@ -1842,7 +1927,7 @@ int main(int argc, char **argv) {
               ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
                                          sort_pairs_by_filename, loginfo );
       }
-      else if (ISFLAG(flags, F_DEFERCONFIRMATION) || confirmmatch(file1, file2))
+      else if (ISFLAG(flags, F_DEFERCONFIRMATION) || (ISFLAG(flags, F_AUDIOONLY) && strcmp(curfile->audioinfo->audiohash, (*match)->audioinfo->audiohash) == 0) || (!ISFLAG(flags, F_AUDIOONLY) && confirmmatch(file1, file2)) )
         registerpair(match, curfile,
             ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
             ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
@@ -1932,6 +2017,9 @@ int main(int argc, char **argv) {
     free(files->d_name);
     free(files->crcsignature);
     free(files->crcpartial);
+#ifdef HAVE_FFMPEG 
+    ffmpeg_free(files->audioinfo);
+#endif
     free(files);
     files = curfile;
   }
