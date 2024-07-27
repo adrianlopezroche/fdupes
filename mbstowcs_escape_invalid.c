@@ -97,7 +97,7 @@ size_t mbstowcs_escape_invalid(wchar_t *dest, const char *src, size_t n)
 
             if (i == 0)
                 ++x;
-    
+
             i = 0;
 
             reset_mbstate(&state);
@@ -119,7 +119,7 @@ size_t mbstowcs_escape_invalid(wchar_t *dest, const char *src, size_t n)
 
             i = 0;
         }
-        
+
         if (src[x] == L'\0' && i > 0)
         /* output final incomplete sequence */
         {
@@ -132,7 +132,7 @@ size_t mbstowcs_escape_invalid(wchar_t *dest, const char *src, size_t n)
             }
             else
                 put_invalid_sequence(0, src + (x - i), &dx, i, 0);
-        }        
+        }
     }
 
     if (dest != 0)

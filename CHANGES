@@ -3,7 +3,7 @@ to fdupes. Every item on the list includes, inside square brackets,
 a list of indentifiers referring to the people who contributed
 that particular item. When more than one person is listed the person
 who contributed the patch or idea appears first, followed by
-those who've otherwise worked on that item. For a list of 
+those who've otherwise worked on that item. For a list of
 contributors names and identifiers please see the CONTRIBUTORS file.
 
 Changes from 2.3.1 to 2.3.2:
@@ -80,7 +80,7 @@ Changes from 1.51 to 1.6.0:
 - Speed up file comparison. [SB, ST]
 - Fix bug where fdupes fails to consistently ignore hardlinks, depending on
   file processing order, when F_CONSIDERHARDLINKS flag is not set. [AL]
-- Fix bug in is_hardlink(): Proper traversal of duplicates is done via 
+- Fix bug in is_hardlink(): Proper traversal of duplicates is done via
   dupe->duplicates, not via dupe->next. [AL]
 - Revise md5.c to compile under OSX. [TH]
 - Remove EXTERNAL_MD5 configuration option. [ID]
@@ -103,7 +103,7 @@ Changes from 1.40 to 1.50-PR2
 - Added "--noprompt" option for totally automated deletion of
   duplicate files.
 - Now sorts duplicates (old to new) for consistent order when
-  listing or deleteing duplicate files.
+  listing or deleting duplicate files.
 - Now tests for early matching of files, which should help speed up
   the matching process when large files are involved.
 - Added warning whenever a file cannot be deleted. [CHL, AL]
@@ -122,7 +122,7 @@ Changes from 1.40 to 1.50-PR2
 
 Changes from 1.31 to 1.40
 
-- Added option to omit the first file in each group 
+- Added option to omit the first file in each group
   of matches. [LM, AL]
 - Added escaping of filenames containing spaces when
   sameline option is specified. [AL]
@@ -134,7 +134,7 @@ Changes from 1.31 to 1.40
 Changes from 1.30 to 1.31
 
 - Added interactive option to preserve all files during
-  delete procedure (something similar was already in 
+  delete procedure (something similar was already in
   place, but now it's official). [AL]
 - Updated delete procedure prompt format. [AL]
 - Cosmetic code changes. [AL]
@@ -156,7 +156,7 @@ Changes from 1.12 to 1.20
   scanned were named pipes or sockets. [FD]
 - Fix against security risk resulting from the use of a
   temporary file to store md5sum output. [FD, AL]
-- Using an external md5sum program is now optional. Started 
+- Using an external md5sum program is now optional. Started
   using L. Peter Deutsh's MD5 library instead. [FD, AL]
 - Added hardlinks option to distinguish between hard links
   and actual duplicate files. [FD, AL]
@@ -165,7 +165,7 @@ Changes from 1.12 to 1.20
 
 Changes from 1.11 to 1.12
 
-- Improved handling of extremely long input on preserve 
+- Improved handling of extremely long input on preserve
   prompt (delete option). [SSD, AL]
 
 Changes from 1.1 to 1.11

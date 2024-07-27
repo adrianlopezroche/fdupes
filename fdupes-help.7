@@ -4,65 +4,69 @@
 fdupes-help \- fdupes interactive mode reference
 
 .SH "INTRODUCTION"
-.PP
 When run interactively
 .RB ( "" "as " "fdupes --delete" ),
 fdupes
 will show a list of duplicates and prompt the user for further action.
 .PP
-The user can tell fdupes which files to keep or delete by tagging them accordingly. Once tagged, the user can instruct fdupes to delete any files that have been tagged for deletion. This can be done incrementally, if desired, successively tagging and deleting a limited number of files at a time until no more duplicates remain to be processed.
+The user can tell fdupes which files to keep or delete by tagging them
+accordingly. Once tagged, the user can instruct fdupes to delete any files
+that have been tagged for deletion. This can be done incrementally, if
+desired, successively tagging and deleting a limited number of files at a
+time until no more duplicates remain to be processed.
 
 There are several ways to tag files in fdupes: individually using the
 .IR cursor ,
-by providing a list of files to keep, or by selecting files that match particular search criteria and tagging those as desired. Each of these approaches is discussed in detail in the sections below.
+by providing a list of files to keep, or by selecting files that match
+particular search criteria and tagging those as desired. Each of these
+approaches is discussed in detail in the sections below.
 
 .SH "SCROLLING THE LIST"
-.PP
 The list of duplicates can be scrolled as follows:
-.B 
-.IP "PAGE DOWN"
+.TP
+.B "PAGE DOWN"
 Scroll down to the next page.
 
-.B 
-.IP "PAGE UP"
+.TP
+.B "PAGE UP"
 Scroll up to preceding page.
 
-.B 
-.IP "SHIFT + DOWN"
+.TP
+.B "SHIFT + DOWN"
 Scroll down by one line. Not supported on some terminals.
 
-.B
-.IP "SHIFT + UP"
+.TP
+.B "SHIFT + UP"
 Scroll up by one line. Not supported on some terminals.
 
 .SH "MOVING THE CURSOR"
-.PP
-The cursor tells fdupes which file and/or set of duplicates to act on, as described in the next section. The cursor's position can be changed as follows:
+The cursor tells fdupes which file and/or set of duplicates to act on, as
+described in the next section. The cursor's position can be changed as follows:
 
-.B 
-.IP "DOWN"
+.TP
+.B "DOWN"
 Advance cursor to the next file on the list.
 
-.B 
-.IP "UP"
+.TP
+.B "UP"
 Move cursor back to the previous file.
 
-.B 
-.IP "TAB"
+.TP
+.B "TAB"
 Advance cursor to the next set of duplicates.
 
-.B 
-.IP "BACKSPACE"
+.TP
+.B "BACKSPACE"
 Move cursor back to the previous set.
 
-.B
-.IP "F3"
+.TP
+.B "F3"
 Advance cursor to the next
 .I selected
 set, if any.
 
-.B
-.IP "F2"
+.TP
+.B "F2"
 Move cursor back to the previous
 .I selected
 set, if any.
@@ -70,29 +74,33 @@ set, if any.
 .PP
 It is also possible to jump directly to a particular set:
 
-.B
-.IP "'goto <index>'"
+.TP
+.B "'goto <index>'"
 Move cursor to the top of the set indicated by
 .IR index .
 
 .SH "TAGGING FILES USING THE CURSOR"
-.PP
-Individual files can be tagged using the keys below. These keys all act on the current file, as identified by the cursor.
+Individual files can be tagged using the keys below.
+These keys all act on the current file, as identified by the cursor.
 
-.B 
-.IP "SHIFT + RIGHT"
+.TP
+.B "SHIFT + RIGHT"
 Tag current file for keeping.
 
-.B 
-.IP "SHIFT + LEFT"
+.TP
+.B "SHIFT + LEFT"
 Tag current file for deletion.
 
-.B
-.IP "'?'"
+.TP
+.B "'?'"
 Remove tag from current file.
 
 .PP
-Entire sets of files can be tagged by providing a list of indices in a comma-separated list. Files in the current set whose indices appear on the list will be tagged for keeping, while any other files in that set will be tagged for deletion. As with individual files, the current set is identified by the cursor.
+Entire sets of files can be tagged by providing a list of indices in a
+comma-separated list. Files in the current set whose indices appear on the
+list will be tagged for keeping, while any other files in that set will be
+tagged for deletion. As with individual files, the current set is identified
+by the cursor.
 
 .PP
 As an example, given the following list of duplicates:
@@ -126,84 +134,88 @@ will tag all files for keeping.
 
 .PP
 There is one more command to deal with files in the current set:
-.B
-.IP "'rg'"
+.TP
+.B "'rg'"
 Remove tags from all files in current set.
 
 .SH "FILE SELECTION COMMANDS"
-.PP
-Another way to tag files is to first select them according to particular search criteria and then tell fdupes what to do with them. The following commands can be used to select files for tagging:
+Another way to tag files is to first select them according to particular
+search criteria and then tell fdupes what to do with them. The following
+commands can be used to select files for tagging:
 
-.B
-.IP "'sel <text>'"
+.TP
+.B "'sel <text>'"
 Select any files whose paths contain the given text.
 
-.B
-.IP "'selb <text>'"
+.TP
+.B "'selb <text>'"
 Select any files whose paths begin with the given text.
 
-.B
-.IP "'sele <text>'"
+.TP
+.B "'sele <text>'"
 Select any files whose paths end with the given text.
 
-.B
-.IP "'selm <text>'"
+.TP
+.B "'selm <text>'"
 Select any file whose path matches the given text exactly.
 
-.B
-.IP "'selr <expression>'"
+.TP
+.B "'selr <expression>'"
 Select any files whose paths match the given
 .I
 regular expression
 (see below).
 
-.B
-.IP "'dsel <text>'"
+.TP
+.B "'dsel <text>'"
 Deselect any files whose paths contain the given text.
 
-.B
-.IP "'dselb <text>'"
+.TP
+.B "'dselb <text>'"
 Deselect any files whose paths begin with the given text.
 
-.B
-.IP "'dsele <text>'"
+.TP
+.B "'dsele <text>'"
 Deselect any files whose paths end with the given text.
 
-.B
-.IP "'dselm <text>'"
+.TP
+.B "'dselm <text>'"
 Deselect any file whose path matches the given text exactly.
 
-.B
-.IP "'dselr <expression>'"
+.TP
+.B "'dselr <expression>'"
 Deselect any files whose paths match the given
 .I
 regular expression
 (see below).
 
-.B
-.IP "'csel'"
+.TP
+.B "'csel'"
 Clear all selections.
 
-.B
-.IP "'isel'"
-Invert selections within selected sets. For example, if files 1 and 4 in a set of 5 are selected,
+.TP
+.B "'isel'"
+Invert selections within selected sets. For example, if files 1 and 4 in a
+set of 5 are selected,
 .B
 isel
-will deselect files 1 and 4, and select files 2, 3, and 5. Immediately repeating the same command will deselect files 2, 3, and 5, and select files 1 and 4, restoring selections to their previous state.
+will deselect files 1 and 4, and select files 2, 3, and 5. Immediately
+repeating the same command will deselect files 2, 3, and 5, and select
+files 1 and 4, restoring selections to their previous state.
 
 .SH "TAGGING SELECTED FILES"
-.PP
-Once some files have been selected using the commands described above, the following commands can be used to tag selected files as desired:
-.B
-.IP "'ks'"
+Once some files have been selected using the commands described above,
+the following commands can be used to tag selected files as desired:
+.TP
+.B "'ks'"
 Tag selected files for keeping.
 
-.B
-.IP "'ds'"
+.TP
+.B "'ds'"
 Tag selected files for deletion.
 
-.B
-.IP "'rs'"
+.TP
+.B "'rs'"
 Remove all tags from selected files.
 
 .SH "DELETING DUPLICATES"
@@ -212,20 +224,25 @@ Once tagged for deletion, files can be deleted by pressing
 DELETE
 or using the
 .B 'prune'
-command. Fdupes will delete any files that are tagged for deletion and delist any sets whose remaining files have been tagged for keeping. For safety, fdupes will refuse to act on sets for which all files have been tagged for deletion. To handle these cases, tag at least one file for keeping and run the delete command again.
+command. Fdupes will delete any files that are tagged for deletion and delist
+any sets whose remaining files have been tagged for keeping. For safety,
+fdupes will refuse to act on sets for which all files have been tagged for
+deletion. To handle these cases, tag at least one file for keeping and run
+the delete command again.
 
 .SH "OTHER COMMANDS"
-.B
-.IP "'exit', 'quit'"
+.TP
+.B "'exit', 'quit'"
 Exit the program.
 
-.B
-.IP "'help'"
+.TP
+.B "'help'"
 Display this help text.
 
 .SH "REGULAR EXPRESSIONS"
-.PP
-A regular expression is a sequence of characters defining a search pattern against which other character sequences can be compared. Strings of characters that follow the pattern defined by an expression are said to
+A regular expression is a sequence of characters defining a search pattern
+against which other character sequences can be compared. Strings of characters
+that follow the pattern defined by an expression are said to
 .I
 match
 the expression, whereas strings that break the pattern do not.
@@ -233,7 +250,9 @@ the expression, whereas strings that break the pattern do not.
 The syntax for regular expressions used by fdupes is known as the
 .B
 Perl Compatible Regular Expression
-syntax. A detailed description of regular expression syntax is beyond the scope of this document. For detailed information the user is encouraged to consult the
+syntax. A detailed description of regular expression syntax is beyond the
+scope of this document. For detailed information the user is encouraged
+to consult the
 .I
 PCRE2
 documentation:
@@ -245,8 +264,8 @@ https://www.pcre.org/current/doc/html/pcre2syntax.html
 .PP
 Briefly, here are some examples of regular expressions:
 
-.B
-.IP "abc123"
+.TP
+.B "abc123"
 Will match any string containing the sequence
 .IR abc123 ,
 such as
@@ -256,53 +275,60 @@ such as
 and
 .IR xabc123x .
 
-.B
-.IP "^abc123"
+.TP
+.B "^abc123"
 Will match any string beginning with
 .IR abc123 ,
-such as 
+such as
 .IR abc123 " and " abc123x ,
 but not
 .IR xabc123 " or " xabc123x .
-The character '^' has special meaning, telling the program to match only those strings that begin with the pattern that follows.
+The character '^' has special meaning, telling the program to match only
+those strings that begin with the pattern that follows.
 
-.B
-.IP "abc123$"
+.TP
+.B "abc123$"
 Will match any string that ends with
 .IR abc123 ,
 such as
 .IR abc123 " and " xabc123 ,
 but not
 .IR abc123x " or " xabc123x .
-The character '$' has special meaning, telling the program to match only those strings that end with the preceding pattern.
+The character '$' has special meaning, telling the program to match only
+those strings that end with the preceding pattern.
 
-.B
-.IP "^abc123$"
+.TP
+.B "^abc123$"
 Will match the string
 .I abc123
 and no other.
 
-.B
-.IP "ab.123"
+.TP
+.B "ab.123"
 Will match any string containing
 .I abc123
 as in the first example, but it will also match strings containing
-.IR abz123 , 
-.IR ab0123 , 
+.IR abz123 ,
+.IR ab0123 ,
 .IR ab_123 ,
-etc. The character '.' has special meaning, acting as a placeholder that will match any character in that position.
+etc. The character '.' has special meaning, acting as a placeholder that
+will match any character in that position.
 
-.B
-.IP "^a.*3$"
-Will match any string beginning with the letter a and ending with the number 3, such as
+.TP
+.B "^a.*3$"
+Will match any string beginning with the letter a and ending with the
+number 3, such as
 .IR abc123 ,
 .IR a3 ,
 and
 .IR a0b1c2d3 .
-Here the character '*' tells the program to accept any number of appearances (including none) for the preceding item (here, any character matching the placeholder character '.'). The characters '^' and '$' have the same meaning as in previous examples.
+Here the character '*' tells the program to accept any number of appearances
+(including none) for the preceding item (here, any character matching the
+placeholder character '.'). The characters '^' and '$' have the same meaning
+as in previous examples.
 
-.B
-.IP "abc\ed+"
+.TP
+.B "abc\ed+"
 Will match any string containing the characters
 .B abc
 followed immediately by one or more decimal digits, such as
@@ -311,18 +337,23 @@ but not
 .IR abcd123
 or
 .I "abc 123"
-(note the space). Here \ed is a placeholder for any decimal digit, while the character '+' tells the program to match one or more appearances of the preceding character or placeholder (here, \ed).
+(note the space). Here \ed is a placeholder for any decimal digit, while the
+character '+' tells the program to match one or more appearances of the
+preceding character or placeholder (here, \ed).
 
-.B
-.IP "\ew+\ed+"
-Will match any string containing one or more "word" characters followed immediately by one or more decimal digits, such as
+.TP
+.B "\ew+\ed+"
+Will match any string containing one or more "word" characters followed
+immediately by one or more decimal digits, such as
 .IR abc123 " and " abcd3210 ,
 but not
 .IR "abc 123"
-(note the space). Here \ew is a placeholder for a "word" character, and \ed and '+' have the same meaning as in the preceding example.
+(note the space). Here \ew is a placeholder for a "word" character, and \ed
+and '+' have the same meaning as in the preceding example.
 
 .PP
-This is just scratching the surface of what can be done with regular expressions. Consult the PCRE2 documentation for a complete reference.
+This is just scratching the surface of what can be done with regular
+expressions. Consult the PCRE2 documentation for a complete reference.
 
 .SH "SEE ALSO"
 The fdupes man page,

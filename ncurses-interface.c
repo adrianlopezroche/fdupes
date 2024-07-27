@@ -11,12 +11,12 @@
    The above copyright notice and this permission notice shall be
    included in all copies or substantial portions of the Software.
 
-   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS 
-   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF 
-   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
-   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY 
-   CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
-   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+   CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #include "config.h"
@@ -622,13 +622,13 @@ void deletefiles_ncurses(file_t *files, char *logfile)
       timestamp_width = ISFLAG(flags, F_SHOWTIME) ? 19 : 0;
 
       linestyle = getlinestyle(groups + groupindex, x);
-      
+
       if (linestyle == linestyle_groupheader)
       {
         wattron(filewin, A_BOLD);
         if (groups[groupindex].selected)
           wattron(filewin, A_REVERSE);
-        wprintw(filewin, "Set %d of %d:\n", groupindex + 1, totalgroups);
+        wprintw(filewin, "Set %zd of %d:\n", groupindex + 1, totalgroups);
         if (groups[groupindex].selected)
           wattroff(filewin, A_REVERSE);
         wattroff(filewin, A_BOLD);
@@ -1038,7 +1038,7 @@ void deletefiles_ncurses(file_t *files, char *logfile)
               {
                 for (x = 0; x < groups[cursorgroup].filecount; ++x)
                 {
-                  if (groups[cursorgroup].files[x].action == FILEACTION_UNRESOLVED || 
+                  if (groups[cursorgroup].files[x].action == FILEACTION_UNRESOLVED ||
                       groups[cursorgroup].files[x].action == FILEACTION_ERROR
                   )
                   {
@@ -1269,6 +1269,9 @@ void deletefiles_ncurses(file_t *files, char *logfile)
       switch (wch)
       {
       case '?':
+        if (cursorgroup >= totalgroups)
+          break;
+
         if (groups[cursorgroup].files[cursorfile].action == FILEACTION_UNRESOLVED)
           break;
 
@@ -1282,6 +1285,9 @@ void deletefiles_ncurses(file_t *files, char *logfile)
         break;
 
       case '\n':
+        if (cursorgroup >= totalgroups)
+          break;
+
         deletecount = 0;
         preservecount = 0;
 
