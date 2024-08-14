@@ -62,6 +62,7 @@ Usage: fdupes [options] DIRECTORY...
                          change time (BY='ctime'), or filename (BY='name')
  -i --reverse            reverse order while sorting
  -l --log=LOGFILE        log file deletion choices to LOGFILE
+ -e --noinodes           don't use inodes to test for changed file contents
  -v --version            display fdupes version
  -h --help               display this help message
 
@@ -84,6 +85,13 @@ once. All files within that directory will be listed as their own
 duplicates, leading to data loss should a user preserve a file
 without its "duplicate" (the file itself!).
 
+Some remote-mounted filesystems (e.g. gvfs-smb) generate inodes in
+the client instead of sending server inode values. With a large
+number of files or client cache activity, inodes can change even
+though the file has not changed or moved. Using -e or --noinodes
+allows fdupes to delete files where the device, creation and
+modification times, and size has not changed during processing, 
+ignoring any inode change. 
 
 Contact Information for Adrian Lopez
 --------------------------------------------------------------------

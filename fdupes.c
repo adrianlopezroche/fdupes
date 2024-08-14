@@ -924,6 +924,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
   int ismatch;
   char *deletepath;
   char *errorstring;
+  int checkinode = !ISFLAG(flags, F_NOINODES);
 
   curfile = files;
   
@@ -1125,7 +1126,7 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
     }
 
     if (ismatch) {
-      if (removeifnotchanged(dupelist[x], &errorstring) == 0) {
+      if (removeifnotchanged(dupelist[x], &errorstring, checkinode) == 0) {
         printf("   [-] %s\n", dupelist[x]->d_name);
 
 #ifndef NO_SQLITE
@@ -1286,6 +1287,7 @@ void deletesuccessor(file_t **existing, file_t *duplicate, int matchconfirmed,
   file_t *to_delete;
   char *deletepath;
   char *errorstring;
+  int checkinode = !ISFLAG(flags, F_NOINODES);
 
   if (comparef(duplicate, *existing) >= 0)
   {
@@ -1312,7 +1314,7 @@ void deletesuccessor(file_t **existing, file_t *duplicate, int matchconfirmed,
 
   if (matchconfirmed)
   {
-    if (removeifnotchanged(to_delete, &errorstring) == 0) {
+    if (removeifnotchanged(to_delete, &errorstring, checkinode) == 0) {
       printf("   [-] %s\n", to_delete->d_name);
 
 #ifndef NO_SQLITE
@@ -1419,6 +1421,7 @@ void help_text()
   printf("                         change time (BY='ctime'), or filename (BY='name')\n");
   printf(" -i --reverse            reverse order while sorting\n");
   printf(" -l --log=LOGFILE        log file deletion choices to LOGFILE\n");
+  printf(" -e --noinodes           don't use inodes to test for changed file contents\n");
   printf(" -v --version            display fdupes version\n");
   printf(" -h --help               display this help message\n\n");
 #ifndef HAVE_GETOPT_H
@@ -1503,6 +1506,7 @@ int main(int argc, char **argv) {
     { "log", 1, 0, 'l' },
     { "deferconfirmation", 0, 0, 'D' },
     { "cache", 0, 0, 'c' },
+    { "noinodes", 0, 0, 'e'},
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1516,7 +1520,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:Dcx:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:Dcex:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1618,6 +1622,9 @@ int main(int argc, char **argv) {
       break;
     case 'c':
       SETFLAG(flags, F_CACHESIGNATURES);
+      break;
+    case 'e':
+      SETFLAG(flags, F_NOINODES);
       break;
     case 'x':
       if (strcmp("cache.readonly", optarg) == 0)
