@@ -95,6 +95,11 @@ Prompt user for files to preserve, deleting all others (see
 .B CAVEATS
 below).
 .TP
+.B -e --reflink
+Linux only, attempt to reflink files to preserve space.
+Files must be on the same filesystem and the filesystem must support reflinking.
+Currently only BtrFS and XFS (and sometimes ZFS) support this feature.
+.TP
 .B -D --deferconfirmation
 In interactive mode, defer byte-for-byte confirmation of
 duplicates until just before file deletion.

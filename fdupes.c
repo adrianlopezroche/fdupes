@@ -29,6 +29,16 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <time.h>
+#ifdef __linux__
+# include <linux/fs.h>
+# include <fcntl.h>
+# ifdef FICLONE
+#  define OPT_E "e"
+#  include <sys/ioctl.h>
+# else
+#  define OPT_E
+# endif
+#endif
 #ifdef HAVE_GETOPT_H
 #include <getopt.h>
 #endif
@@ -1191,6 +1201,49 @@ void deletefiles(file_t *files, int prompt, FILE *tty, char *logfile)
   free(preservestr);
 }
 
+void reflinkfile(file_t *existing, file_t *duplicate)
+{
+#ifdef FICLONE
+  int fd1, fd2, ret;
+
+  if (existing->device != duplicate->device)
+  {
+    fprintf(stderr, "error: %s and %s are not on the same device\n", existing->d_name, duplicate->d_name);
+    return;
+  }
+
+  fd1 = open(existing->d_name, O_RDONLY);
+  if (fd1 == -1)
+  {
+    printf("error opening %s\n", existing->d_name);
+    return;
+  }
+
+  fd2 = open(duplicate->d_name, O_WRONLY);
+  if (fd2 == -1)
+  {
+    printf("error opening %s\n", duplicate->d_name);
+    close(fd1);
+    return;
+  }
+
+  ret = ioctl(fd2, FICLONE, fd1);
+  if (ret == -1)
+    fprintf(stderr, "error reflinking %s to %s: %s\n", existing->d_name, duplicate->d_name, strerror(errno));
+
+  close(fd1);
+  close(fd2);
+#endif
+}
+
+void reflinkfiles(file_t *files)
+{
+  file_t *first = files;
+
+  for (files = first; files->next; files = files->next)
+    reflinkfile(first, files->next);
+}
+
 int sort_pairs_by_arrival(file_t *f1, file_t *f2)
 {
   if (f2->duplicates != 0)
@@ -1401,6 +1454,7 @@ void help_text()
   printf("                         with -s or --symlinks, or when specifying a\n");
   printf("                         particular directory more than once; refer to the\n");
   printf("                         fdupes documentation for additional information\n");
+  printf(" -e --relink             reflink files to the first file in each set\n");
   printf(" -D --deferconfirmation  in interactive mode, defer byte-for-byte confirmation\n");
   printf("                         of duplicates until just before file deletion\n");
 #ifndef NO_NCURSES
@@ -1503,6 +1557,9 @@ int main(int argc, char **argv) {
     { "log", 1, 0, 'l' },
     { "deferconfirmation", 0, 0, 'D' },
     { "cache", 0, 0, 'c' },
+#ifdef FICLONE
+    { "reflink", 0, 0, 'e' },
+#endif
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1516,7 +1573,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:Dcx:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:Dcx:" OPT_E
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1573,6 +1630,9 @@ int main(int argc, char **argv) {
       break;
     case 'd':
       SETFLAG(flags, F_DELETEFILES);
+      break;
+    case 'e':
+      SETFLAG(flags, F_REFLINK);
       break;
     case 'P':
       SETFLAG(flags, F_PLAINPROMPT);
@@ -1675,14 +1735,20 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  if (ISFLAG(flags, F_SUMMARIZEMATCHES) && ISFLAG(flags, F_DELETEFILES)) {
-    errormsg("options --summarize and --delete are not compatible\n");
+  if (ISFLAG(flags, F_SUMMARIZEMATCHES) && (ISFLAG(flags, F_DELETEFILES) || ISFLAG(flags, F_REFLINK))) {
+    errormsg("options --summarize is not compatible with --delete or --reflink\n");
     exit(1);
   }
 
   if (ISFLAG(flags, F_DEFERCONFIRMATION) && (!ISFLAG(flags, F_DELETEFILES) || ISFLAG(flags, F_NOPROMPT)))
   {
     errormsg("--deferconfirmation only works with interactive deletion modes\n");
+    exit(1);
+  }
+
+  if (ISFLAG(flags, F_DELETEFILES) && ISFLAG(flags, F_REFLINK))
+  {
+    errormsg("options --delete and --reflink are not compatible\n");
     exit(1);
   }
 
@@ -1842,6 +1908,8 @@ int main(int argc, char **argv) {
               ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
                                          sort_pairs_by_filename, loginfo );
       }
+      else if (ISFLAG(flags, F_REFLINK) && ISFLAG(flags, F_IMMEDIATE))
+          reflinkfile(*match, curfile);
       else if (ISFLAG(flags, F_DEFERCONFIRMATION) || confirmmatch(file1, file2))
         registerpair(match, curfile,
             ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
@@ -1916,6 +1984,12 @@ int main(int argc, char **argv) {
       deletefiles(files, 1, stdin, logfile);
 #endif
     }
+  }
+
+  else if (ISFLAG(flags, F_REFLINK))
+  {
+    if (ISFLAG(flags, F_NOPROMPT) || ISFLAG(flags, F_IMMEDIATE))
+      reflinkfiles(files);
   }
 
   else 
