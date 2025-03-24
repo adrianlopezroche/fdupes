@@ -73,6 +73,7 @@ AC_DEFINE([INPUT_SIZE], [256], [size of command buffer (plain interactive mode o
 AC_DEFINE([FDUPES_CACHE_DIRECTORY], ["fdupes"], [default subdirectory for fdupes config files])
 AC_DEFINE([FDUPES_CACHE_DIRECTORY_PERMISSIONS], [0700], [directory permissions for fdupes config directory])
 AC_DEFINE([FDUPES_HASH_DATABASE_NAME], ["hash.db"], [filename for fdupes hash database])
+AC_DEFINE([FDUPES_PROGRESS_REFRESH_MS], [100], [time interval to refresh progress indicator (milliseconds)])
 
 AC_CONFIG_FILES([Makefile])
 AC_PROG_CC

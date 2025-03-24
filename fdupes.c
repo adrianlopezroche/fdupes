@@ -28,6 +28,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <time.h>
 #ifdef HAVE_GETOPT_H
 #include <getopt.h>
@@ -55,6 +56,10 @@
   #include "hashdb.h"
   #include "getrealpath.h"
   #include "xdgbase.h"
+#endif
+
+#ifdef __APPLE__
+#include <mach/mach_time.h>
 #endif
 
 char *program_name;
@@ -138,6 +143,38 @@ char *fmttime(time_t t) {
   strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", localtime(&t));
 
   return buf;
+}
+
+// current timestamp in milliseconds
+uint64_t now64(void)
+{
+#ifdef __APPLE__
+    uint64_t absolute = mach_absolute_time() / (1000 * 1000);
+
+    static mach_timebase_info_data_t sTimebaseInfo;
+    if ( sTimebaseInfo.denom == 0 ) {
+        mach_timebase_info(&sTimebaseInfo);
+    }
+
+    if ( sTimebaseInfo.numer == 1 && sTimebaseInfo.denom == 1 ) {
+        return absolute;
+    }
+
+    return absolute * sTimebaseInfo.numer / sTimebaseInfo.denom;
+#elif defined(_WIN32)
+    /* Warning (from documentation)
+
+    The resolution of the GetTickCount64 function is limited to
+    the resolution of the system timer, which is typically in
+    the range of 10 milliseconds to 16 milliseconds
+    */
+    return (uint64_t)GetTickCount64();
+#else
+    struct timespec timecheck;
+
+    clock_gettime(CLOCK_MONOTONIC, &timecheck);
+    return (uint64_t)timecheck.tv_sec * 1000 + (uint64_t)timecheck.tv_nsec / (1000 * 1000);
+#endif
 }
 
 char **cloneargs(int argc, char **argv)
@@ -267,6 +304,8 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
   struct stat linfo;
   static int progress = 0;
   static char indicator[] = "-\\|/";
+  static uint64_t last_progress = 0;
+  static uint64_t now = 0;
   char *fullname, *name;
   char *fullpath = 0;
 #ifndef NO_SQLITE
@@ -302,8 +341,12 @@ int grokdir(char *dir, file_t **filelistp, struct stat *logfile_status)
 
     if (strcmp(dirinfo->d_name, ".") && strcmp(dirinfo->d_name, "..")) {
       if (!ISFLAG(flags, F_HIDEPROGRESS)) {
-	fprintf(stderr, "\rBuilding file list %c ", indicator[progress]);
-	progress = (progress + 1) % 4;
+        now = now64();
+        if ( now - last_progress > FDUPES_PROGRESS_REFRESH_MS ) {
+          fprintf(stderr, "\rBuilding file list %c ", indicator[progress % 4]);
+          last_progress = now;
+          progress++;
+        }
       }
 
       newfile = (file_t*) malloc(sizeof(file_t));
@@ -1463,6 +1506,8 @@ int main(int argc, char **argv) {
   filetree_t *checktree = NULL;
   int filecount = 0;
   int progress = 0;
+  uint64_t last_progress = 0;
+  uint64_t now = 0;
   char **oldargv;
   int firstrecurse;
   int foundoption;
@@ -1855,8 +1900,12 @@ int main(int argc, char **argv) {
     curfile = curfile->next;
 
     if (!ISFLAG(flags, F_HIDEPROGRESS)) {
-      fprintf(stderr, "\rProgress [%d/%d] %d%% ", progress, filecount,
-       (int)((float) progress / (float) filecount * 100.0));
+      now = now64();
+      if ( now - last_progress > FDUPES_PROGRESS_REFRESH_MS ) {
+        last_progress = now;
+        fprintf(stderr, "\rProgress [%d/%d] %d%% ", progress, filecount,
+         (int)((float) progress / (float) filecount * 100.0));
+      }
       progress++;
     }
   }
