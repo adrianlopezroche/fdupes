@@ -6,6 +6,11 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 2.3.2 to 2.4.0:
+
+ - Add quick summary option that skips byte-for-byte match confirmation.
+ - Reduce number of progress indicator updates for better performance.
+
 Changes from 2.3.1 to 2.3.2:
 
  - Keep cursor as close to current group as possible after deleting files.
