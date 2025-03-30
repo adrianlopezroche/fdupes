@@ -39,6 +39,8 @@ Usage: fdupes [options] DIRECTORY...
  -S --size               show size of duplicate files
  -t --time               show modification time of duplicate files
  -m --summarize          summarize dupe information
+ -M --quicksummary       summarize dupe information quickly, skipping the
+                         slower byte-for-byte match confirmation
  -q --quiet              hide progress indicator
  -d --delete             prompt user for files to preserve and delete all
                          others; important: under particular circumstances,

@@ -846,12 +846,11 @@ void summarizematches(file_t *files)
   else
   {
     if (numbytes < 1024.0)
-      printf("%d duplicate files (in %d sets), occupying %.0f bytes.\n\n", numfiles, numsets, numbytes);
+      printf("%s%d duplicate files (in %d sets), occupying %.0f bytes.\n\n", ISFLAG(flags, F_QUICKSUMMARY) ? "approximately " : "", numfiles, numsets, numbytes);
     else if (numbytes <= (1000.0 * 1000.0))
-      printf("%d duplicate files (in %d sets), occupying %.1f kilobytes\n\n", numfiles, numsets, numbytes / 1000.0);
+      printf("%s%d duplicate files (in %d sets), occupying %.1f kilobytes\n\n", ISFLAG(flags, F_QUICKSUMMARY) ? "approximately " : "", numfiles, numsets, numbytes / 1000.0);
     else
-      printf("%d duplicate files (in %d sets), occupying %.1f megabytes\n\n", numfiles, numsets, numbytes / (1000.0 * 1000.0));
- 
+      printf("%s%d duplicate files (in %d sets), occupying %.1f megabytes\n\n", ISFLAG(flags, F_QUICKSUMMARY) ? "approximately " : "", numfiles, numsets, numbytes / (1000.0 * 1000.0));
   }
 }
 
@@ -1437,6 +1436,8 @@ void help_text()
   printf(" -S --size               show size of duplicate files\n");
   printf(" -t --time               show modification time of duplicate files\n");
   printf(" -m --summarize          summarize dupe information\n");
+  printf(" -M --quicksummary       summarize dupe information quickly, skipping the\n");
+  printf("                         slower byte-for-byte match confirmation\n");
   printf(" -q --quiet              hide progress indicator\n");
   printf(" -d --delete             prompt user for files to preserve and delete all\n");
   printf("                         others; important: under particular circumstances,\n");
@@ -1541,6 +1542,7 @@ int main(int argc, char **argv) {
     { "noprompt", 0, 0, 'N' },
     { "immediate", 0, 0, 'I'},
     { "summarize", 0, 0, 'm'},
+    { "quicksummary", 0, 0, 'M'},
     { "summary", 0, 0, 'm' },
     { "permissions", 0, 0, 'p' },
     { "order", 1, 0, 'o' },
@@ -1561,7 +1563,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImpo:il:Dcx:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImMpo:il:Dcx:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1636,6 +1638,10 @@ int main(int argc, char **argv) {
       break;
     case 'm':
       SETFLAG(flags, F_SUMMARIZEMATCHES);
+      break;
+    case 'M':
+      SETFLAG(flags, F_SUMMARIZEMATCHES);
+      SETFLAG(flags, F_QUICKSUMMARY);
       break;
     case 'p':
       SETFLAG(flags, F_PERMISSIONS);
@@ -1887,7 +1893,7 @@ int main(int argc, char **argv) {
               ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
                                          sort_pairs_by_filename, loginfo );
       }
-      else if (ISFLAG(flags, F_DEFERCONFIRMATION) || confirmmatch(file1, file2))
+      else if (ISFLAG(flags, F_DEFERCONFIRMATION) || ISFLAG(flags, F_QUICKSUMMARY) || confirmmatch(file1, file2))
         registerpair(match, curfile,
             ordertype == ORDER_MTIME ? sort_pairs_by_mtime :
             ordertype == ORDER_CTIME ? sort_pairs_by_ctime :
