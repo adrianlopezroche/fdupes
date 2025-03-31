@@ -94,8 +94,8 @@ without its "duplicate" (the file itself!).
 email: adrianlopezroche@gmail.com
 
 
-# Legal Information
-```
+# License
+
 FDUPES Copyright (c) 1999-2025 Adrian Lopez
 
 Permission is hereby granted, free of charge, to any person
@@ -116,4 +116,3 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-```
