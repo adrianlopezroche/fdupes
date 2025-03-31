@@ -1,11 +1,12 @@
-Introduction
---------------------------------------------------------------------
+# Introduction
+
 FDUPES is a program for identifying duplicate files residing
-within specified directories. 
+within specified directories.
 
 
-Usage
---------------------------------------------------------------------
+# Usage
+
+```
 Usage: fdupes [options] DIRECTORY...
 
  -r --recurse            for every directory given follow subdirectories
@@ -85,16 +86,17 @@ problem arises when specifying a particular directory more than
 once. All files within that directory will be listed as their own
 duplicates, leading to data loss should a user preserve a file
 without its "duplicate" (the file itself!).
+```
 
 
-Contact Information for Adrian Lopez
---------------------------------------------------------------------
+# Contact Information for Adrian Lopez
+
 email: adrianlopezroche@gmail.com
 
 
-Legal Information
---------------------------------------------------------------------
-FDUPES Copyright (c) 1999-2019 Adrian Lopez
+# Legal Information
+```
+FDUPES Copyright (c) 1999-2025 Adrian Lopez
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation files
@@ -107,10 +109,11 @@ subject to the following conditions:
 The above copyright notice and this permission notice shall be
 included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS 
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF 
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY 
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
