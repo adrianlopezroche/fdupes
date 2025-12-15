@@ -36,7 +36,7 @@
 #define DEFAULT_LINK_ALLOCATION_SIZE 16
 
 /* read link contents into buffer allocated via malloc() */
-char *getlink(const char *path, struct stat *s)
+char *getlink(const char *path, const struct stat *s)
 {
     char *link;
     char *buffer;
@@ -69,16 +69,7 @@ char *getlink(const char *path, struct stat *s)
             return link;
         }
 
-        if (stat(path, s) != 0)
-        {
-            free(link);
-            return 0;
-        }
-
-        if (s->st_size != 0)
-            allocated = s->st_size + 1;
-        else
-            allocated *= 2;
+        allocated *= 2;
     } while (buffer = realloc(link, allocated));
 
     free(link);
