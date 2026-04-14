@@ -13,8 +13,8 @@ fdupes \- finds duplicate files in a given set of directories
 
 .SH "DESCRIPTION"
 Searches the given path for duplicate files. Such files are found by
-comparing file sizes and MD5 signatures, followed by a 
-byte-by-byte comparison.
+comparing file sizes and multi-point partial MD5 signatures, followed by
+full MD5 signatures and a byte-by-byte comparison.
 
 .SH OPTIONS
 .TP
@@ -131,6 +131,12 @@ Reverse order while sorting.
 .B -l --log\fR=\fILOGFILE\fR
 Log file deletion choices to LOGFILE.
 .TP
+.B -Y --sample-points\fR=\fIN\fR
+Set the number of evenly-spaced points to sample for the partial hash
+(minimum 3, default 5). See
+.B MULTI-POINT PARTIAL HASHING
+below for details on how sample points are distributed across the file.
+.TP
 .B -v --version
 Display fdupes version.
 .TP
@@ -151,6 +157,39 @@ or
 .B --sameline
 is specified, spaces and backslash characters  (\fB\e\fP) appearing
 in a filename are preceded by a backslash character.
+
+.SH "MULTI-POINT PARTIAL HASHING"
+When comparing files of the same size, fdupes computes a partial MD5
+hash by sampling N evenly-spaced points across the file (controlled by
+.BR --sample-points ,
+default 5). This replaces the previous approach of hashing only the
+first 4KB, providing much better discrimination between files that
+share common headers.
+.PP
+.B Distribution of sample points
+.PP
+For a file of size S, the N sample points are positioned as follows:
+.IP \(bu 3
+Points 0 through N-2 are evenly spaced across the file and rounded
+down to the nearest 4KB (page) boundary for optimal I/O alignment.
+The offset for point i is: i * (S - 4096) / (N - 1), rounded down
+to a 4096-byte boundary.
+.IP \(bu 3
+The last point (N-1) is aligned to the last 4KB boundary before the
+end of the file and reads through to EOF. This means the last sample
+may read up to 8191 bytes (one aligned 4KB block plus up to 4095
+trailing bytes), ensuring the very last byte of the file is always
+included in the hash.
+.PP
+For example, with 5 sample points on a 2GB file, the samples cover
+approximately 0%, 25%, 50%, 75%, and the tail of the file.
+.PP
+.B Small file optimization
+.PP
+Files smaller than or equal to 4KB \(mu N (20KB at default settings)
+are hashed in their entirety with a single sequential read. The
+partial hash becomes a full hash, eliminating any risk of false
+positives for small files.
 
 .SH EXAMPLES
 .TP

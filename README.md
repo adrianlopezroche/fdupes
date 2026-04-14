@@ -65,6 +65,8 @@ Usage: fdupes [options] DIRECTORY...
                          change time (BY='ctime'), or filename (BY='name')
  -i --reverse            reverse order while sorting
  -l --log=LOGFILE        log file deletion choices to LOGFILE
+ -Y --sample-points=N    number of evenly-spaced points to sample for partial
+                         hash (minimum 3, default 5); see below for details
  -v --version            display fdupes version
  -h --help               display this help message
 
@@ -87,6 +89,41 @@ once. All files within that directory will be listed as their own
 duplicates, leading to data loss should a user preserve a file
 without its "duplicate" (the file itself!).
 ```
+
+# Multi-Point Partial Hashing
+
+When comparing files, fdupes first checks whether files share the same
+size. For same-size files, it computes a partial hash by sampling N
+evenly-spaced points across the file (controlled by `--sample-points`,
+default 5). This replaces the previous approach of hashing only the
+first 4KB, providing much better discrimination between files that
+share common headers.
+
+## How sample points are distributed
+
+For a file of size S, the N sample points are positioned as follows:
+
+- **Points 0 through N-2** are evenly spaced across the file and
+  rounded down to the nearest 4KB (page) boundary for optimal I/O
+  alignment. The offset for point i is:
+
+      offset = i * (S - 4096) / (N - 1), rounded down to 4096 boundary
+
+- **The last point (N-1)** is aligned to the last 4KB boundary before
+  the end of the file and reads through to EOF. This means the last
+  sample may read up to 8191 bytes (one aligned 4KB block plus up to
+  4095 trailing bytes), ensuring the very last byte of the file is
+  always included in the hash.
+
+For example, with 5 sample points on a 2GB file, the samples cover
+approximately 0%, 25%, 50%, 75%, and the tail of the file.
+
+## Small file optimization
+
+Files smaller than or equal to 4KB × N (20KB at default settings) are
+hashed in their entirety with a single sequential read. This avoids
+unnecessary seeks and means the partial hash is a full hash — there is
+zero risk of false positives for small files.
 
 
 # Contact Information for Adrian Lopez
