@@ -66,6 +66,7 @@ char *program_name;
 
 long long minsize = -1;
 long long maxsize = -1;
+int sample_points = 5;
 
 #ifndef NO_SQLITE
 sqlite3 *db;
@@ -518,7 +519,62 @@ md5_byte_t *getcrcsignature(char *filename, off_t fsize)
 
 md5_byte_t *getcrcpartialsignature(char *filename, off_t fsize)
 {
-  return getcrcsignatureuntil(filename, fsize, PARTIAL_MD5_SIZE);
+  md5_state_t state;
+  md5_byte_t *digest;
+  static md5_byte_t chunk[CHUNK_SIZE];
+  FILE *file;
+  size_t n;
+  int i;
+
+  digest = (md5_byte_t*) malloc(MD5_DIGEST_LENGTH * sizeof(md5_byte_t));
+  if (digest == NULL) {
+    errormsg("out of memory\n");
+    exit(1);
+  }
+
+  file = fopen(filename, "rb");
+  if (file == NULL) {
+    errormsg("error opening file %s\n", filename);
+    free(digest);
+    return NULL;
+  }
+
+  md5_init(&state);
+
+  /* Small files: hash entire content sequentially */
+  if (fsize <= (off_t)PARTIAL_MD5_SIZE * sample_points) {
+    while ((n = fread(chunk, 1, CHUNK_SIZE, file)) > 0)
+      md5_append(&state, chunk, n);
+  } else {
+    /* Sample N evenly-spaced, page-aligned points across the file.
+       Last sample is aligned to read through the end of the file. */
+    for (i = 0; i < sample_points; i++) {
+      off_t offset;
+
+      if (i == sample_points - 1) {
+        /* Last sample: align to page boundary before EOF, read through end */
+        offset = fsize - (fsize % PARTIAL_MD5_SIZE) - PARTIAL_MD5_SIZE;
+        if (offset < 0) offset = 0;
+      } else {
+        /* Evenly spaced, rounded down to PARTIAL_MD5_SIZE alignment */
+        offset = (off_t)i * (fsize - PARTIAL_MD5_SIZE) / (sample_points - 1);
+        offset -= offset % PARTIAL_MD5_SIZE;
+      }
+
+      if (fseeko(file, offset, SEEK_SET) != 0)
+        continue;
+      n = fread(chunk, 1,
+        (i == sample_points - 1) ? PARTIAL_MD5_SIZE * 2 : PARTIAL_MD5_SIZE,
+        file);
+      if (n > 0)
+        md5_append(&state, chunk, n);
+    }
+  }
+
+  fclose(file);
+  md5_finish(&state, digest);
+
+  return digest;
 }
 
 int md5cmp(const md5_byte_t *a, const md5_byte_t *b)
@@ -1467,6 +1523,8 @@ void help_text()
   printf("                         change time (BY='ctime'), or filename (BY='name')\n");
   printf(" -i --reverse            reverse order while sorting\n");
   printf(" -l --log=LOGFILE        log file deletion choices to LOGFILE\n");
+  printf(" -Y --sample-points=N    number of evenly-spaced points to sample for partial\n");
+  printf("                         hash (minimum 3, default 5)\n");
   printf(" -v --version            display fdupes version\n");
   printf(" -h --help               display this help message\n\n");
 #ifndef HAVE_GETOPT_H
@@ -1553,6 +1611,7 @@ int main(int argc, char **argv) {
     { "reverse", 0, 0, 'i' },
     { "log", 1, 0, 'l' },
     { "deferconfirmation", 0, 0, 'D' },
+    { "sample-points", 1, 0, 'Y' },
     { "cache", 0, 0, 'c' },
     { 0, 0, 0, 0 }
   };
@@ -1567,7 +1626,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImMpo:il:Dcx:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImMpo:il:DY:cx:"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1670,6 +1729,13 @@ int main(int argc, char **argv) {
       break;
     case 'D':
       SETFLAG(flags, F_DEFERCONFIRMATION);
+      break;
+    case 'Y':
+      sample_points = atoi(optarg);
+      if (sample_points < 3) {
+        errormsg("--sample-points must be at least 3\n");
+        exit(1);
+      }
       break;
     case 'c':
       SETFLAG(flags, F_CACHESIGNATURES);
