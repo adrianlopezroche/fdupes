@@ -6,6 +6,10 @@ who contributed the patch or idea appears first, followed by
 those who've otherwise worked on that item. For a list of 
 contributors names and identifiers please see the CONTRIBUTORS file.
 
+Changes from 2.4.0 to X:
+
+ - Add --json option to generate JSON-formatted output
+
 Changes from 2.3.2 to 2.4.0:
 
  - Add quick summary option that skips byte-for-byte match confirmation.

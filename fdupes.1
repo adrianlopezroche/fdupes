@@ -131,6 +131,12 @@ Reverse order while sorting.
 .B -l --log\fR=\fILOGFILE\fR
 Log file deletion choices to LOGFILE.
 .TP
+.B -J --json
+Output duplicate file information in JSON format. Each duplicate set is
+output as an array of file objects, each containing path, size, mtime,
+and ctime fields. The output is a JSON array of such arrays. This option
+is not compatible with --delete or --summarize.
+.TP
 .B -v --version
 Display fdupes version.
 .TP
