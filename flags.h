@@ -29,6 +29,7 @@
 #define F_READONLYCACHE     0x400000
 #define F_VACUUMCACHE       0x800000
 #define F_QUICKSUMMARY     0x1000000
+#define F_JSON            0x2000000
 
 extern unsigned long flags;
 

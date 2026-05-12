@@ -883,9 +883,102 @@ void printmatches(file_t *files)
       printf("\n");
 
     }
-      
+
     files = files->next;
   }
+}
+
+static void json_escape(FILE *out, const char *str)
+{
+  const char *p;
+  for (p = str; *p; p++) {
+    switch (*p) {
+      case '\\': fputs("\\\\", out); break;
+      case '"':  fputs("\\\"", out); break;
+      case '\n': fputs("\\n", out); break;
+      case '\r': fputs("\\r",  out); break;
+      case '\t': fputs("\\t",  out); break;
+      case '\f': fputs("\\f",  out); break;
+      case '\b': fputs("\\b",  out); break;
+      default:
+        if ((unsigned char)*p < 0x20)
+          fprintf(out, "\\u%04x", (unsigned char)*p);
+        else
+          fputc(*p, out);
+        break;
+    }
+  }
+}
+
+void printmatches_json(file_t *files)
+{
+  file_t *tmpfile;
+  int setcount = 0;
+
+  setvbuf(stdout, NULL, _IONBF, 0);
+
+  fputc('[', stdout);
+
+  while (files != NULL) {
+    if (files->hasdupes) {
+      tmpfile = files;
+      if (ISFLAG(flags, F_OMITFIRST)) {
+        tmpfile = tmpfile->duplicates;
+      }
+
+      if (tmpfile == NULL) {
+        files = files->next;
+        continue;
+      }
+
+      if (setcount > 0)
+        fputc(',', stdout);
+      fputc('\n', stdout);
+
+      fputc('[', stdout);
+
+      int filecount = 0;
+      while (tmpfile != NULL) {
+        if (filecount > 0)
+          fputc(',', stdout);
+        fputc('\n', stdout);
+
+        fprintf(stdout, "    {\"path\":");
+        fputc('"', stdout);
+        json_escape(stdout, tmpfile->d_name);
+        fprintf(stdout, "\", \"size\": %lld, \"mtime\": %lld", (long long int)tmpfile->size,
+                (long long int)tmpfile->mtime);
+#ifdef HAVE_NSEC_TIMES
+        if (tmpfile->mtime_nsec != 0)
+          fprintf(stdout, ".%09ld", tmpfile->mtime_nsec);
+#endif
+        fprintf(stdout, ", \"ctime\": %lld", (long long int)tmpfile->ctime);
+#ifdef HAVE_NSEC_TIMES
+        if (tmpfile->ctime_nsec != 0)
+          fprintf(stdout, ".%09ld", tmpfile->ctime_nsec);
+#endif
+        fputs("}", stdout);
+
+        filecount++;
+        tmpfile = tmpfile->duplicates;
+      }
+
+      fputc('\n', stdout);
+      fputc(']', stdout);
+      setcount++;
+    }
+
+    files = files->next;
+  }
+
+  if (setcount == 0)
+    fputs("]\n", stdout);
+  else {
+    fputc('\n', stdout);
+    fputs("]\n", stdout);
+  }
+
+  fflush(stdout);
 }
 
 /*
@@ -1467,6 +1560,7 @@ void help_text()
   printf("                         change time (BY='ctime'), or filename (BY='name')\n");
   printf(" -i --reverse            reverse order while sorting\n");
   printf(" -l --log=LOGFILE        log file deletion choices to LOGFILE\n");
+  printf(" -J --json               output in JSON format\n");
   printf(" -v --version            display fdupes version\n");
   printf(" -h --help               display this help message\n\n");
 #ifndef HAVE_GETOPT_H
@@ -1554,6 +1648,7 @@ int main(int argc, char **argv) {
     { "log", 1, 0, 'l' },
     { "deferconfirmation", 0, 0, 'D' },
     { "cache", 0, 0, 'c' },
+    { "json", 0, 0, 'J' },
     { 0, 0, 0, 0 }
   };
 #define GETOPT getopt_long
@@ -1567,7 +1662,7 @@ int main(int argc, char **argv) {
 
   oldargv = cloneargs(argc, argv);
 
-  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImMpo:il:Dcx:"
+  while ((opt = GETOPT(argc, argv, "frRq1StsHG:L:nAdPvhNImMpo:il:Dcx:J"
 #ifdef HAVE_GETOPT_H
           , long_options, NULL
 #endif
@@ -1674,6 +1769,9 @@ int main(int argc, char **argv) {
     case 'c':
       SETFLAG(flags, F_CACHESIGNATURES);
       break;
+    case 'J':
+      SETFLAG(flags, F_JSON);
+      break;
     case 'x':
       if (strcmp("cache.readonly", optarg) == 0)
         SETFLAG(flags, F_READONLYCACHE);
@@ -1732,6 +1830,16 @@ int main(int argc, char **argv) {
 
   if (ISFLAG(flags, F_SUMMARIZEMATCHES) && ISFLAG(flags, F_DELETEFILES)) {
     errormsg("options --summarize and --delete are not compatible\n");
+    exit(1);
+  }
+
+  if (ISFLAG(flags, F_JSON) && ISFLAG(flags, F_DELETEFILES)) {
+    errormsg("options --json and --delete are not compatible\n");
+    exit(1);
+  }
+
+  if (ISFLAG(flags, F_JSON) && ISFLAG(flags, F_SUMMARIZEMATCHES)) {
+    errormsg("options --json and --summarize are not compatible\n");
     exit(1);
   }
 
@@ -1984,7 +2092,15 @@ int main(int argc, char **argv) {
       
     else
 
-      printmatches(files);
+      if (ISFLAG(flags, F_JSON))
+      {
+        printmatches_json(files);
+        fflush(stdout);
+      }
+
+      else
+
+        printmatches(files);
 
   while (files) {
     curfile = files->next;
