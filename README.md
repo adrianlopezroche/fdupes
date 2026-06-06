@@ -65,6 +65,14 @@ Usage: fdupes [options] DIRECTORY...
                          change time (BY='ctime'), or filename (BY='name')
  -i --reverse            reverse order while sorting
  -l --log=LOGFILE        log file deletion choices to LOGFILE
+ -X --protect-dir=PATH   with --delete and --noprompt/--immediate, never
+                         delete files located at or below PATH; PATH and
+                         each candidate file are resolved via realpath()
+                         before comparison
+    --simulate           with --delete, print the [+] and [-] decisions
+    --dry-run            that would be made but do not actually unlink
+                         any files; no cache rows or log entries are
+                         written for the skipped deletions
  -v --version            display fdupes version
  -h --help               display this help message
 
