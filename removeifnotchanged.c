@@ -33,7 +33,16 @@ int removeifnotchanged(const file_t *file, char **errorstring)
   static char *filechanged = "File contents changed during processing";
   static char *unknownerror = "Unknown error";
 
-  stat(file->d_name, &st);
+  if (stat(file->d_name, &st) != 0) {
+    if (errorstring != 0) {
+      *errorstring = strerror(errno);
+
+      if (*errorstring == 0)
+        *errorstring = unknownerror;
+    }
+
+    return -1;
+  }
 
   if (file->device != st.st_dev ||
       file->inode != st.st_ino ||

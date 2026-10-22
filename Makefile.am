@@ -1,5 +1,10 @@
 bin_PROGRAMS = fdupes
 
+check_PROGRAMS = test_removeifnotchanged
+TESTS = $(check_PROGRAMS)
+test_removeifnotchanged_SOURCES = tests/test_removeifnotchanged.c
+test_removeifnotchanged_CPPFLAGS = -I$(top_srcdir) -I$(top_builddir)
+
 fdupes_SOURCES = fdupes.c\
  fdupes.h\
  errormsg.c\
